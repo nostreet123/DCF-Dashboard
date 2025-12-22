@@ -8,7 +8,12 @@
  * @module
  */
 
+import type * as assets from "../assets.js";
 import type * as seed from "../seed.js";
+import type * as snapshots from "../snapshots.js";
+import type * as syncErrors from "../syncErrors.js";
+import type * as syncLogs from "../syncLogs.js";
+import type * as tableData from "../tableData.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +22,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  assets: typeof assets;
   seed: typeof seed;
+  snapshots: typeof snapshots;
+  syncErrors: typeof syncErrors;
+  syncLogs: typeof syncLogs;
+  tableData: typeof tableData;
 }>;
 
 /**
