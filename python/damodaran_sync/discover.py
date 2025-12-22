@@ -10,6 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from damodaran_sync.date_parser import ParsedDate, infer_date_from_filename, parse_link_label_as_of_date
+from damodaran_sync.download import HttpClient, get_default_http_client
 
 CURRENT_PAGE_URL = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datacurrent.html"
 ARCHIVE_PAGE_URL = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/dataarchived.html"
@@ -119,12 +120,13 @@ def discover_page_assets(
     page_url: str,
     page_type: str,
     session: requests.Session | None = None,
+    http_client: HttpClient | None = None,
 ) -> PageDiscovery:
     if page_type not in {"current", "archive"}:
         raise ValueError("page_type must be 'current' or 'archive'")
 
-    http = session or requests.Session()
-    response = http.get(page_url, timeout=30)
+    client = http_client or HttpClient(session=session) if session else get_default_http_client()
+    response = client.get(page_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "lxml")
 
@@ -169,7 +171,10 @@ def discover_page_assets(
     )
 
 
-def discover_current_and_archive() -> tuple[PageDiscovery, PageDiscovery]:
-    current = discover_page_assets(CURRENT_PAGE_URL, "current")
-    archive = discover_page_assets(ARCHIVE_PAGE_URL, "archive")
+def discover_current_and_archive(
+    http_client: HttpClient | None = None,
+) -> tuple[PageDiscovery, PageDiscovery]:
+    client = http_client or get_default_http_client()
+    current = discover_page_assets(CURRENT_PAGE_URL, "current", http_client=client)
+    archive = discover_page_assets(ARCHIVE_PAGE_URL, "archive", http_client=client)
     return current, archive
