@@ -1,0 +1,8 @@
+{
+  "name": "dcf-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "convex": "^1.31.2"
+  }
+}
