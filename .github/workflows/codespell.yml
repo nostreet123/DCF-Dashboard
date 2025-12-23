@@ -1,1 +1,17 @@
-# Placeholder for Phase 1 scaffold.
+name: Codespell
+on: [pull_request]
+
+jobs:
+  codespell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install codespell
+        run: pip install codespell
+      - name: Run codespell
+        # Skip binary/generated files and hidden dirs
+        run: codespell --skip="./.git,./.venv,./node_modules,./bun.lock,./.cache"
