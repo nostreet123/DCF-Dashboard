@@ -443,6 +443,21 @@ SEED_DATASETS = [
     },
 ]
 
+REGION_LABEL_TO_CODE = {
+    "us": "us",
+    "u.s.": "us",
+    "u.s": "us",
+    "europe": "europe",
+    "japan": "japan",
+    "aus, nz & canada": "ausnzcan",
+    "all emerging mkts": "emerging",
+    "only china": "china",
+    "just china": "china",
+    "only india": "india",
+    "just india": "india",
+    "global": "global",
+}
+
 REGIONAL_BASE_DATASETS = [
     "inshold",
     "totalbeta",
