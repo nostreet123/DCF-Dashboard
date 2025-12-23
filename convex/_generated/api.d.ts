@@ -9,6 +9,7 @@
  */
 
 import type * as assets from "../assets.js";
+import type * as metrics from "../metrics.js";
 import type * as seed from "../seed.js";
 import type * as snapshots from "../snapshots.js";
 import type * as syncErrors from "../syncErrors.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
+  metrics: typeof metrics;
   seed: typeof seed;
   snapshots: typeof snapshots;
   syncErrors: typeof syncErrors;
