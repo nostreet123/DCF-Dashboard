@@ -62,9 +62,9 @@ def _extract_region_from_text(stem: str, dataset_key: str, regions: list[dict]) 
         for token in region.get("fileTokens", []):
             token_lower = token.lower()
             # Use regex boundaries to match whole tokens only.
-            # We treat digits and letters as word characters [a-z0-9].
-            # Underscores and other punctuation are boundaries.
-            pattern = r"(?<![a-z0-9])" + re.escape(token_lower) + r"(?![a-z0-9])"
+            # We treat letters as word characters [a-z].
+            # Digits, underscores and other punctuation are boundaries.
+            pattern = r"(?<![a-z])" + re.escape(token_lower) + r"(?![a-z])"
             if re.search(pattern, search_text):
                 found_regions.add(region["code"])
 

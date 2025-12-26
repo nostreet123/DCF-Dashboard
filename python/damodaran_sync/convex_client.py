@@ -32,14 +32,13 @@ class ConvexSyncClient:
         return self._client.query("seed:getReference")
 
     def create_sync_log(self, sync_type: str, page_last_updated: str | None = None) -> str:
-        return self._client.mutation(
-            "syncLogs:create",
-            {
-                **self._token_arg(),
-                "syncType": sync_type,
-                "pageLastUpdated": page_last_updated,
-            },
-        )
+        payload: dict[str, Any] = {
+            **self._token_arg(),
+            "syncType": sync_type,
+        }
+        if page_last_updated is not None:
+            payload["pageLastUpdated"] = page_last_updated
+        return self._client.mutation("syncLogs:create", payload)
 
     def increment_sync_log(self, sync_log_id: str, delta: dict[str, int]) -> None:
         self._client.mutation(

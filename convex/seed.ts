@@ -583,6 +583,7 @@ export const getReference = query({
       datasets: datasets.map((dataset) => ({
         key: dataset.key,
         defaultRegionCode: dataset.defaultRegionCode,
+        dataType: dataset.dataType ?? "other",
       })),
       datasetMappings: datasetMappings.map((mapping) => ({
         pattern: mapping.pattern,

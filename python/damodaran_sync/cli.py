@@ -5,6 +5,7 @@ import sys
 
 from dotenv import load_dotenv
 
+from damodaran_sync import discover, sync
 from damodaran_sync.convex_client import ConvexSyncClient
 
 
@@ -27,13 +28,15 @@ def _cmd_seed() -> int:
 
 
 def _cmd_sync_current() -> int:
-    print("sync-current is not implemented yet")
-    return 1
+    client = ConvexSyncClient()
+    sync.process_page(discover.CURRENT_PAGE_URL, "current", client)
+    return 0
 
 
 def _cmd_sync_all() -> int:
-    print("sync-all is not implemented yet")
-    return 1
+    client = ConvexSyncClient()
+    sync.process_page(discover.ARCHIVE_PAGE_URL, "archive", client)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
