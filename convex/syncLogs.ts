@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 const requireSyncToken = (syncToken: string | null | undefined) => {
@@ -76,5 +76,17 @@ export const finish = mutation({
       status: args.status,
       completedAt: Date.now(),
     });
+  },
+});
+
+export const listRecent = query({
+  args: {
+    syncToken: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = args.limit ?? 20;
+    return ctx.db.query("syncLogs").order("desc").take(limit);
   },
 });
