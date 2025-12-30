@@ -1,9 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-const requireSyncToken = (syncToken: string | null | undefined) => {
+const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (expected && syncToken !== expected) {
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
     throw new Error("Invalid sync token");
   }
 };
@@ -52,13 +55,17 @@ export const deleteBySnapshotBuild = mutation({
   },
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+    const limit = Number(args.limit);
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 1000) {
+      throw new Error("Limit must be between 1 and 1000");
+    }
 
     const rows = await ctx.db
       .query("tableData")
       .withIndex("by_snapshot_build_rowIndex", (q) =>
         q.eq("snapshotId", args.snapshotId).eq("buildId", args.buildId),
       )
-      .take(args.limit);
+      .take(limit);
 
     for (const row of rows) {
       await ctx.db.delete(row._id);
@@ -76,7 +83,7 @@ export const listBySnapshot = query({
   },
   handler: async (ctx, args) => {
     const snapshot = await ctx.db.get(args.snapshotId);
-    if (!snapshot) {
+    if (!snapshot || !snapshot.activeBuildId) {
       return { rows: [], nextCursor: null };
     }
 

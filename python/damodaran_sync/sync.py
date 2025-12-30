@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import traceback
 import time
+import uuid
 from typing import Any
 
 from damodaran_sync import discover, download, excel_parse, transform, mapping_resolver
@@ -221,7 +222,6 @@ def process_page(
                 # User didn't specify build_id source, but keeping existing uuid is safer for now
                 # to avoid collisions if we re-process same file.
                 # Actually, uuid is better to ensure uniqueness of "build".
-                import uuid
                 build_id = uuid.uuid4().hex
 
                 # Upsert Snapshot

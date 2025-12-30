@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 import math
+import numbers
 import re
 from typing import Iterable
 
@@ -45,15 +47,19 @@ def _is_dimension_label(value: object) -> bool:
         return False
     if isinstance(value, str):
         return True
+    if isinstance(value, numbers.Number) and not isinstance(value, bool):
+        return True
     return False
 
 
 def _select_sheet(excel_file: pd.ExcelFile) -> str:
-    sheet_names = excel_file.sheet_names
-    normalized = {_normalize_sheet_name(name): name for name in sheet_names}
+    sheet_names = list(excel_file.sheet_names)
+    normalized: dict[str, list[str]] = defaultdict(list)
+    for name in sheet_names:
+        normalized[_normalize_sheet_name(name)].append(name)
     for preferred in PREFERRED_SHEET_NAMES:
         if preferred in normalized:
-            return normalized[preferred]
+            return normalized[preferred][0]
 
     best_name = sheet_names[0]
     best_count = -1
@@ -129,11 +135,19 @@ def _normalize_cell(value: object) -> object:
 
 def parse_excel(path: str | Path) -> ParsedTable:
     file_path = Path(path)
-    excel_file = pd.ExcelFile(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Excel file not found: {file_path}")
+    try:
+        excel_file = pd.ExcelFile(file_path)
+    except Exception as exc:
+        raise ValueError(f"Failed to open Excel file {file_path}: {exc}") from exc
     sheet_candidates = list(excel_file.sheet_names)
 
-    sheet_name = _select_sheet(excel_file)
-    frame = pd.read_excel(excel_file, sheet_name=sheet_name, header=None, dtype=object)
+    try:
+        sheet_name = _select_sheet(excel_file)
+        frame = pd.read_excel(excel_file, sheet_name=sheet_name, header=None, dtype=object)
+    except Exception as exc:
+        raise ValueError(f"Failed to parse Excel file {file_path}: {exc}") from exc
 
     header_row = _find_header_row(frame)
     header_values = frame.iloc[header_row].tolist()

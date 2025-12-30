@@ -39,10 +39,6 @@ def resolve_dataset_key(stem: str, mappings: list[dict]) -> tuple[str, bool]:
     return stem, False
 
 
-    # 3. Fallback
-    return stem, False
-
-
 def _extract_region_from_text(stem: str, dataset_key: str, regions: list[dict]) -> set[str]:
     """
     Extract region codes from stem by matching tokens using regex boundaries.
@@ -96,7 +92,7 @@ def resolve_region_code(
     """
     # Normalize inputs for consistent matching
     stem = stem.lower()
-    dataset_key = dataset_key.lower()
+    dataset_key_lower = dataset_key.lower()
 
     # 1. Link label check
     clean_label = link_label.lower().strip()
@@ -104,35 +100,17 @@ def resolve_region_code(
         return REGION_LABEL_TO_CODE[clean_label], None
 
     # 2. Token extraction from stem
-    found_regions = _extract_region_from_text(stem, dataset_key, regions)
+    found_regions = _extract_region_from_text(stem, dataset_key_lower, regions)
 
     if len(found_regions) == 1:
         return found_regions.pop(), None
     elif len(found_regions) > 1:
         return "unknown", f"ambiguous_regions_{'_'.join(sorted(found_regions))}"
 
-    # 3. Dataset default
-    # datasets is a dict mapping datasetKey -> dataset object (dict)
-    # dataset_key is already lowercased here, but keys in datasets dict might be case sensitive?
-    # Usually dataset keys are standard IDs. If they are camelCase in config, we might have an issue.
-    # However, existing code didn't normalize dataset_key before lookup.
-    # But Requirement 1 said "Exact matching should compare against dataset_key lowecased."
-    # If I normalized dataset_key, I might break lookup if keys are not lower.
-    # BUT, `_extract_region_from_text` needs normalized key.
-    # I will handle the dict lookup carefully.
-    # Let's check if I can keep original key for lookup.
-    # But wait, I am replacing the whole function.
-    # I'll check if I can access original key.
-    # I overwrote `dataset_key` variable.
-    # I should rename the argument or the variable.
-    # Actually, let's assume keys are case-insensitive or consistent.
-    # Given "Do not ask questions", I will assume standard keys are likely lowercase or snake_case.
-    # Or better, I will assume the `datasets` lookup expects the key as passed in?
-    # No, usually dataset keys are IDs.
-    # If I look at the test data: `mapped_exact`, `mapped_regex`. These are lower.
-    # I will proceed with using the lowercased key for lookup as well, assuming consistency.
-    
-    dataset = datasets.get(dataset_key)
+    # 3. Dataset default (prefer normalized key, fallback to original casing)
+    dataset = datasets.get(dataset_key_lower)
+    if dataset is None and dataset_key_lower != dataset_key:
+        dataset = datasets.get(dataset_key)
     if dataset and dataset.get("defaultRegionCode"):
         return dataset["defaultRegionCode"], None
 
