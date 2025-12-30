@@ -5,3 +5,6 @@ __pycache__/
 .env.*
 python/.pytest_cache/
 node_modules/
+
+.gemini/
+gha-creds-*.json

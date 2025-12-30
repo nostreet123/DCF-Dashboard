@@ -30,11 +30,26 @@ const SnapshotMetadata = v.object({
   parsedAt: v.number(),
 });
 
-const requireSyncToken = (syncToken: string | null | undefined) => {
+const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (expected && syncToken !== expected) {
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
     throw new Error("Invalid sync token");
   }
+};
+
+const isDuplicateIdentityError = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unique") ||
+    message.includes("duplicate") ||
+    message.includes("already exists")
+  );
 };
 
 export const getByIdentity = query({
@@ -68,58 +83,78 @@ export const upsertByIdentity = mutation({
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
-    const existing = await ctx.db
-      .query("snapshots")
-      .withIndex("by_identity", (q) =>
-        q
-          .eq("datasetKey", args.datasetKey)
-          .eq("regionCode", args.regionCode)
-          .eq("asOfDate", args.asOfDate),
-      )
-      .unique();
+    const fetchExisting = () =>
+      ctx.db
+        .query("snapshots")
+        .withIndex("by_identity", (q) =>
+          q
+            .eq("datasetKey", args.datasetKey)
+            .eq("regionCode", args.regionCode)
+            .eq("asOfDate", args.asOfDate),
+        )
+        .unique();
+
+    let existing = await fetchExisting();
 
     if (!existing) {
-      const snapshotId = await ctx.db.insert("snapshots", {
-        datasetKey: args.datasetKey,
-        regionCode: args.regionCode,
-        asOfDate: args.asOfDate,
-        asOfDateSource: args.metadata.asOfDateSource,
-        asOfGranularity: args.metadata.asOfGranularity,
-        sourcePageUrl: args.metadata.sourcePageUrl,
-        sourceUrl: args.metadata.sourceUrl,
-        fileName: args.metadata.fileName,
-        linkLabel: args.metadata.linkLabel,
-        pageType: args.metadata.pageType,
-        pageLastUpdated: args.metadata.pageLastUpdated,
-        fileHash: args.metadata.fileHash,
-        previousFileHashes: [],
-        dataStatus: "ready",
-        activeBuildId: args.buildId,
-        pendingBuildId: undefined,
-        storageType: args.metadata.storageType,
-        externalProvider: args.metadata.externalProvider,
-        externalUrl: args.metadata.externalUrl,
-        externalRowCount: args.metadata.externalRowCount,
-        externalByteSize: args.metadata.externalByteSize,
-        sampleStrategy: args.metadata.sampleStrategy,
-        sampleRowCount: args.metadata.sampleRowCount,
-        sheetName: args.metadata.sheetName,
-        headerRow: args.metadata.headerRow,
-        columnNames: args.metadata.columnNames,
-        metricsKeys: args.metadata.metricsKeys,
-        rowCount: args.metadata.rowCount,
-        dataType: args.metadata.dataType,
-        sheetCandidates: args.metadata.sheetCandidates,
-        skippedSheets: args.metadata.skippedSheets,
-        downloadedAt: args.metadata.downloadedAt,
-        parsedAt: args.metadata.parsedAt,
-      });
+      try {
+        const snapshotId = await ctx.db.insert("snapshots", {
+          datasetKey: args.datasetKey,
+          regionCode: args.regionCode,
+          asOfDate: args.asOfDate,
+          asOfDateSource: args.metadata.asOfDateSource,
+          asOfGranularity: args.metadata.asOfGranularity,
+          sourcePageUrl: args.metadata.sourcePageUrl,
+          sourceUrl: args.metadata.sourceUrl,
+          fileName: args.metadata.fileName,
+          linkLabel: args.metadata.linkLabel,
+          pageType: args.metadata.pageType,
+          pageLastUpdated: args.metadata.pageLastUpdated,
+          fileHash: args.metadata.fileHash,
+          previousFileHashes: [],
+          dataStatus: "rebuilding",
+          activeBuildId: undefined,
+          pendingBuildId: args.buildId,
+          storageType: args.metadata.storageType,
+          externalProvider: args.metadata.externalProvider,
+          externalUrl: args.metadata.externalUrl,
+          externalRowCount: args.metadata.externalRowCount,
+          externalByteSize: args.metadata.externalByteSize,
+          sampleStrategy: args.metadata.sampleStrategy,
+          sampleRowCount: args.metadata.sampleRowCount,
+          sheetName: args.metadata.sheetName,
+          headerRow: args.metadata.headerRow,
+          columnNames: args.metadata.columnNames,
+          metricsKeys: args.metadata.metricsKeys,
+          rowCount: args.metadata.rowCount,
+          dataType: args.metadata.dataType,
+          sheetCandidates: args.metadata.sheetCandidates,
+          skippedSheets: args.metadata.skippedSheets,
+          downloadedAt: args.metadata.downloadedAt,
+          parsedAt: args.metadata.parsedAt,
+        });
 
-      return { snapshotId, action: "created" as const };
+        return { snapshotId, action: "created" as const };
+      } catch (error) {
+        if (!isDuplicateIdentityError(error)) {
+          throw error;
+        }
+        existing = await fetchExisting();
+        if (!existing) {
+          throw error;
+        }
+      }
     }
 
     if (existing.fileHash === args.metadata.fileHash) {
       return { snapshotId: existing._id, action: "unchanged" as const };
+    }
+
+    if (
+      existing.dataStatus === "rebuilding" &&
+      existing.pendingBuildId !== args.buildId
+    ) {
+      throw new Error("Snapshot rebuild already in progress");
     }
 
     await ctx.db.patch(existing._id, {

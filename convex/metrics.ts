@@ -3,22 +3,24 @@ import { query } from "./_generated/server";
 export const getCounts = query({
   args: {},
   handler: async (ctx) => {
-    const categories = await ctx.db.query("categories").collect();
-    const regions = await ctx.db.query("regions").collect();
-    const datasets = await ctx.db.query("datasets").collect();
-    const snapshots = await ctx.db.query("snapshots").collect();
-    
+    const [categories, regions, datasets, snapshots] = await Promise.all([
+      ctx.db.query("categories").count(),
+      ctx.db.query("regions").count(),
+      ctx.db.query("datasets").count(),
+      ctx.db.query("snapshots").count(),
+    ]);
+
     // Bounded count for tableData
     const LIMIT = 1000;
-    const tableData = await ctx.db.query("tableData").take(LIMIT + 1);
-    const tableDataCount = tableData.length > LIMIT ? LIMIT : tableData.length;
-    const isTableDataCapped = tableData.length > LIMIT;
+    const tableDataTotal = await ctx.db.query("tableData").count();
+    const tableDataCount = tableDataTotal > LIMIT ? LIMIT : tableDataTotal;
+    const isTableDataCapped = tableDataTotal > LIMIT;
 
     return {
-      categories: categories.length,
-      regions: regions.length,
-      datasets: datasets.length,
-      snapshots: snapshots.length,
+      categories,
+      regions,
+      datasets,
+      snapshots,
       tableData: tableDataCount,
       isTableDataCapped,
     };

@@ -1,9 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-const requireSyncToken = (syncToken: string | null | undefined) => {
+const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (expected && syncToken !== expected) {
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
     throw new Error("Invalid sync token");
   }
 };
@@ -87,6 +90,10 @@ export const listRecent = query({
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const limit = args.limit ?? 20;
-    return ctx.db.query("syncLogs").order("desc").take(limit);
+    return ctx.db
+      .query("syncLogs")
+      .withIndex("by_startedAt")
+      .order("desc")
+      .take(limit);
   },
 });

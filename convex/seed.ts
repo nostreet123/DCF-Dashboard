@@ -499,9 +499,12 @@ const SEED_DATASET_MAPPINGS = [
   },
 ];
 
-const requireSyncToken = (syncToken: string | null) => {
+const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (expected && syncToken !== expected) {
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
     throw new Error("Invalid sync token");
   }
 };
@@ -511,7 +514,7 @@ export const upsertAll = mutation({
     syncToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken ?? null);
+    requireSyncToken(args.syncToken);
 
     for (const category of SEED_CATEGORIES) {
       const existing = await ctx.db

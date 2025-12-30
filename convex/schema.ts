@@ -95,7 +95,7 @@ export default defineSchema({
     previousFileHashes: v.optional(v.array(v.string())),
 
     dataStatus: DataStatus,
-    activeBuildId: v.string(),
+    activeBuildId: v.optional(v.string()),
     pendingBuildId: v.optional(v.string()),
 
     storageType: StorageType,
