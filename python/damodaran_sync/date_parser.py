@@ -70,7 +70,7 @@ def parse_link_label_as_of_date(label: str) -> ParsedDate | None:
         except ValueError:
             return None
 
-    match = re.search(r"([a-z]+)\s+(\d{1,2}),?\s*(\d{4})", normalized)
+    match = re.match(r"^([a-z]+)\s+(\d{1,2}),?\s*(\d{4})", normalized)
     if match:
         month = _MONTH_MAP.get(match.group(1))
         if month is None:
@@ -103,9 +103,15 @@ def infer_date_from_filename(filename: str) -> ParsedDate | None:
         except ValueError:
             continue
 
-    numeric_pattern = re.compile(r"(20\d{2})[-_ ]?(0[1-9]|1[0-2])(?:[-_ ]?(0[1-9]|[12]\d|3[01]))?")
+    numeric_pattern = re.compile(
+        r"(\d{4})[-_ ]?(0[1-9]|1[0-2])(?:[-_ ]?(0[1-9]|[12]\d|3[01]))?"
+    )
+    current_year = date.today().year
+    min_year = 1900
     for match in numeric_pattern.finditer(stem):
         year = int(match.group(1))
+        if year < min_year or year > current_year:
+            continue
         month = int(match.group(2))
         day_raw = match.group(3)
         day = int(day_raw) if day_raw else 1

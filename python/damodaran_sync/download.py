@@ -142,10 +142,13 @@ def download_file(
 
 
 _DEFAULT_HTTP_CLIENT: HttpClient | None = None
+_DEFAULT_HTTP_CLIENT_LOCK = threading.Lock()
 
 
 def get_default_http_client() -> HttpClient:
     global _DEFAULT_HTTP_CLIENT
     if _DEFAULT_HTTP_CLIENT is None:
-        _DEFAULT_HTTP_CLIENT = HttpClient()
+        with _DEFAULT_HTTP_CLIENT_LOCK:
+            if _DEFAULT_HTTP_CLIENT is None:
+                _DEFAULT_HTTP_CLIENT = HttpClient()
     return _DEFAULT_HTTP_CLIENT

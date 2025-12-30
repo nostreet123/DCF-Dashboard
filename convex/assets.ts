@@ -1,9 +1,12 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-const requireSyncToken = (syncToken: string | null | undefined) => {
+const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (expected && syncToken !== expected) {
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
     throw new Error("Invalid sync token");
   }
 };
