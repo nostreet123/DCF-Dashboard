@@ -71,7 +71,12 @@ export const finish = mutation({
   args: {
     syncToken: v.optional(v.string()),
     syncLogId: v.id("syncLogs"),
-    status: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("success"),
+      v.literal("partial"),
+      v.literal("failed"),
+    ),
   },
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);

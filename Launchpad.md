@@ -33,8 +33,8 @@ Out of scope (for v1):
 
 - Snapshot identity = `(datasetKey, regionCode, asOfDate)` (all lowercase; `asOfDate` is `YYYY-MM-DD`).
 - `asOfDate` = (link-label date if parseable) else (page-level "last full update" date if present) else:
-  - for `pageType="archive"` only: optionally infer from filename when the filename deterministically encodes a period (record `asOfDateSource="filename_inferred"`), else skip/unparseable.
-  - for `pageType="current"`: skip/unparseable.
+  - for `pageType="archive"` only: optionally infer from filename when the filename deterministically encodes a period (record `asOfDateSource="filename_inferred"`), else skip/unparsable.
+  - for `pageType="current"`: skip/unparsable.
 - `fileHash` is used for change detection, not snapshot identity.
 - Table storage is generic rows in `tableData`:
   - `primaryKey` / `secondaryKey` = the "dimensions" (often first 1-2 columns)
@@ -51,7 +51,7 @@ Out of scope (for v1):
 - Define a deterministic recovery path for interrupted rebuilds (`dataStatus="rebuilding"` with `pendingBuildId`).
 - Externalization must consider per-row size limits for very wide tables, not just total row count / total bytes.
 - Explicitly document that only `.xls`/`.xlsx` assets are in scope (ignore `.xlsm`/`.csv`/`.zip` unless later expanded).
-- Log/record unparseable or ambiguous date labels (do not silently coerce).
+- Log/record unparsable or ambiguous date labels (do not silently coerce).
 - Prefer enum-style validation for fields like `dataType`, `pageType`, `storageType`, `asOfGranularity` to avoid drift.
 
 ---
@@ -387,12 +387,12 @@ Rules:
   - `7/25` -> `2025-07-01`
   - `July 2025` -> `2025-07-01`
   - `January 1, 2025 update` -> `2025-01-01`
-- If unparseable:
+- If unparsable:
   - Use a page-level "last full update" date if present in page text.
     - Set `asOfDateSource="page_last_update"`.
     - `asOfGranularity="day"` if a full date is present; otherwise `asOfGranularity="month"` and store `YYYY-MM-01`.
-  - Otherwise classify as `unparseable` and skip (do not silently use today's date).
-  - Record unparseable/ambiguous labels in `syncErrors`/`assets` for later review.
+  - Otherwise classify as `unparsable` and skip (do not silently use today's date).
+  - Record unparsable/ambiguous labels in `syncErrors`/`assets` for later review.
 
 Practical note (based on how the current page is structured):
 - On `datacurrent.html`, many link labels are region names ("US", "Europe", "Japan", ...) or "Download", not dates.

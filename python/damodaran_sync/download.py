@@ -100,8 +100,8 @@ def _sha256_stream(write_chunk: Callable[[bytes], None], iterator) -> tuple[str,
 
 
 def _file_name_from_url(url: str) -> str:
-    path = urlparse(url).path
-    return unquote(Path(path).name)
+    decoded_path = unquote(urlparse(url).path)
+    return Path(decoded_path).name
 
 
 def download_file(

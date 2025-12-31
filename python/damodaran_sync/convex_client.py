@@ -48,7 +48,14 @@ class ConvexSyncClient:
         return sanitized
 
     def _is_transient_error(self, exc: Exception) -> bool:
-        return isinstance(exc, (requests.RequestException, TimeoutError, OSError))
+        if isinstance(exc, (TimeoutError, OSError)):
+            return True
+        if isinstance(exc, requests.RequestException):
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                return resp.status_code == 429 or resp.status_code >= 500
+            return True
+        return False
 
     def _execute(
         self,
