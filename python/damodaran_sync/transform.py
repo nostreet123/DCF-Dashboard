@@ -112,7 +112,6 @@ def _should_use_secondary(header: str, values: Iterable[object]) -> bool:
 
     total = 0
     numeric_count = 0
-    date_like_count = 0
     unique_values: set[str] = set()
 
     for value in values:
@@ -121,15 +120,13 @@ def _should_use_secondary(header: str, values: Iterable[object]) -> bool:
         total += 1
         if _is_numeric(value):
             numeric_count += 1
-        if _is_date_like(value):
-            date_like_count += 1
         unique_values.add(str(value).strip())
 
     if total == 0:
         return False
 
-    non_numeric_or_date = total - numeric_count + date_like_count
-    dimension_ratio = non_numeric_or_date / total
+    non_numeric = total - numeric_count
+    dimension_ratio = non_numeric / total
     unique_ratio = len(unique_values) / total if total else 1.0
 
     if _header_is_dimension(header):
@@ -147,13 +144,12 @@ def _row_payload(row: NormalizedRow) -> dict[str, object]:
 
 
 def _compute_size(rows: list[NormalizedRow]) -> tuple[int, int]:
-    payloads = [_row_payload(row) for row in rows]
-    approx_bytes = len(json.dumps(payloads, default=str).encode("utf-8"))
-    max_row_bytes = 0
-    for row in rows:
-        row_bytes = len(json.dumps(_row_payload(row), default=str).encode("utf-8"))
-        if row_bytes > max_row_bytes:
-            max_row_bytes = row_bytes
+    serialized = [
+        json.dumps(_row_payload(row), default=str).encode("utf-8")
+        for row in rows
+    ]
+    approx_bytes = sum(len(row) for row in serialized) + 2 + max(0, len(serialized) - 1)
+    max_row_bytes = max((len(row) for row in serialized), default=0)
     return approx_bytes, max_row_bytes
 
 
