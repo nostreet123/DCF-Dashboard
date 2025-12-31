@@ -218,10 +218,7 @@ def process_page(
                 if transformed.sample_row_count is not None:
                     metadata["sampleRowCount"] = transformed.sample_row_count
 
-                build_id = download_res.sha256  # Use hash as build ID for stability or keep uuid?
-                # User didn't specify build_id source, but keeping existing uuid is safer for now
-                # to avoid collisions if we re-process same file.
-                # Actually, uuid is better to ensure uniqueness of "build".
+                # Use UUID for unique build identification per sync attempt.
                 build_id = uuid.uuid4().hex
 
                 # Upsert Snapshot
@@ -261,17 +258,9 @@ def process_page(
 
                 client.increment_sync_log(sync_log_id, {"rowsInserted": total_inserted})
 
-                # Finalize ONLY if updated (rebuild)
-                if upsert_res.action == "updated":
+                # Finalize snapshot to set activeBuildId (for both new and updated snapshots)
+                if upsert_res.action in ("created", "updated"):
                     client.finalize_snapshot(upsert_res.snapshot_id, build_id, metadata)
-                
-                # Note: if action is 'created', the snapshot is new and valid immediately after insertion?
-                # Usually 'created' implies we just made it. 'updated' implies we are replacing an existing one.
-                # If 'created', do we need to finalize?
-                # The schema/logic for finalize usually switches the "active" build.
-                # If it's a NEW snapshot, it might need finalization to set the initial build as active?
-                # The prompt says: "Only call finalize_snapshot when action == updated (snapshot is rebuilding). Do not call finalize for created/unchanged."
-                # I will strictly follow the prompt.
 
                 # Cleanup previous build
                 if upsert_res.previous_build_id:
@@ -285,15 +274,26 @@ def process_page(
             except Exception as e:
                 error_count += 1
                 client.increment_sync_log(sync_log_id, {"errorCount": 1})
-                
+
+                current_stage = locals().get("stage", "pre_download")
+                current_dataset = locals().get("dataset_key", "unknown")
+                current_region = locals().get("region_code", "unknown")
+
                 client.append_sync_error(
                     sync_log_id,
                     asset.file_name,
-                    stage,
+                    current_stage,
                     f"{type(e).__name__}: {str(e)}",
                 )
-                logger.error(f"Error processing {asset.file_name}: {e}")
-                traceback.print_exc()
+                logger.error(
+                    "Error processing %s (dataset=%s, region=%s, url=%s) at stage=%s",
+                    asset.file_name,
+                    current_dataset,
+                    current_region,
+                    asset.source_url,
+                    current_stage,
+                    exc_info=True,
+                )
 
         # Finish Log
         final_status = "success"

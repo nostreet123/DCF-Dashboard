@@ -125,7 +125,7 @@ def discover_page_assets(
     if page_type not in {"current", "archive"}:
         raise ValueError("page_type must be 'current' or 'archive'")
 
-    client = http_client or HttpClient(session=session) if session else get_default_http_client()
+    client = http_client or (HttpClient(session=session) if session else get_default_http_client())
     response = client.get(page_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "lxml")

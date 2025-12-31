@@ -31,16 +31,18 @@ export const insertBatch = mutation({
       throw new Error("Batch too large: max 100 rows per call");
     }
 
-    for (const row of args.rows) {
-      await ctx.db.insert("tableData", {
-        snapshotId: args.snapshotId,
-        buildId: args.buildId,
-        rowIndex: row.rowIndex,
-        primaryKey: row.primaryKey,
-        secondaryKey: row.secondaryKey,
-        metrics: row.metrics,
-      });
-    }
+    await Promise.all(
+      args.rows.map((row) =>
+        ctx.db.insert("tableData", {
+          snapshotId: args.snapshotId,
+          buildId: args.buildId,
+          rowIndex: row.rowIndex,
+          primaryKey: row.primaryKey,
+          secondaryKey: row.secondaryKey,
+          metrics: row.metrics,
+        }),
+      ),
+    );
 
     return { inserted: args.rows.length };
   },
@@ -55,9 +57,12 @@ export const deleteBySnapshotBuild = mutation({
   },
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const limit = Number(args.limit);
-    if (!Number.isInteger(limit) || limit <= 0 || limit > 1000) {
-      throw new Error("Limit must be between 1 and 1000");
+    if (
+      !Number.isInteger(args.limit) ||
+      args.limit <= 0 ||
+      args.limit > 1000
+    ) {
+      throw new Error("Limit must be an integer between 1 and 1000");
     }
 
     const rows = await ctx.db
@@ -65,7 +70,7 @@ export const deleteBySnapshotBuild = mutation({
       .withIndex("by_snapshot_build_rowIndex", (q) =>
         q.eq("snapshotId", args.snapshotId).eq("buildId", args.buildId),
       )
-      .take(limit);
+      .take(args.limit);
 
     for (const row of rows) {
       await ctx.db.delete(row._id);

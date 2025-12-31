@@ -90,7 +90,7 @@ def infer_date_from_filename(filename: str) -> ParsedDate | None:
     candidates: list[ParsedDate] = []
 
     month_pattern = re.compile(
-        r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[-_ ]?(\d{2,4})"
+        r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[-_ ]?(\d{2}|\d{4})"
     )
     for match in month_pattern.finditer(stem):
         month = _MONTH_MAP.get(match.group(1))
