@@ -37,6 +37,14 @@ const SyncStage = v.union(
   v.literal("upload"),
 );
 
+const RunStatus = v.union(v.literal("success"), v.literal("error"));
+
+const TraceStorage = v.union(
+  v.literal("none"),
+  v.literal("inline"),
+  v.literal("external"),
+);
+
 export default defineSchema({
   // -----------------------------
   // Reference tables
@@ -97,6 +105,7 @@ export default defineSchema({
     dataStatus: DataStatus,
     activeBuildId: v.optional(v.string()),
     pendingBuildId: v.optional(v.string()),
+    primaryKeyNormComplete: v.optional(v.boolean()),
 
     storageType: StorageType,
     externalProvider: v.optional(v.string()),
@@ -128,6 +137,7 @@ export default defineSchema({
     buildId: v.string(),
     rowIndex: v.number(),
     primaryKey: v.string(),
+    primaryKeyNorm: v.string(),
     secondaryKey: v.optional(v.string()),
     metrics: v.any(),
   })
@@ -136,6 +146,17 @@ export default defineSchema({
       "snapshotId",
       "buildId",
       "primaryKey",
+    ])
+    .index("by_snapshot_build_primaryKeyNorm", [
+      "snapshotId",
+      "buildId",
+      "primaryKeyNorm",
+    ])
+    .index("by_snapshot_build_primaryKeyNorm_secondaryKey", [
+      "snapshotId",
+      "buildId",
+      "primaryKeyNorm",
+      "secondaryKey",
     ]),
 
   // -----------------------------
@@ -186,4 +207,39 @@ export default defineSchema({
   })
     .index("by_pageType_discoveredAt", ["pageType", "discoveredAt"])
     .index("by_resolved_discoveredAt", ["resolved", "discoveredAt"]),
+
+  // -----------------------------
+  // Valuation runs
+  // -----------------------------
+  valuationRuns: defineTable({
+    createdAt: v.number(),
+    engineVersion: v.string(),
+    status: RunStatus,
+    error: v.optional(v.string()),
+    inputs: v.any(),
+    normalizedInputs: v.optional(v.any()),
+    provenance: v.optional(v.any()),
+    resultSummary: v.optional(v.any()),
+    primaryKeyNorm: v.optional(v.string()),
+    regionCode: v.optional(v.string()),
+    asOfDate: v.optional(v.string()),
+    traceStorage: TraceStorage,
+    trace: v.optional(v.any()),
+    traceByteSize: v.optional(v.number()),
+    traceId: v.optional(v.id("valuationRunTraces")),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_primaryKeyNorm_createdAt", ["primaryKeyNorm", "createdAt"])
+    .index("by_primaryKeyNorm_region_createdAt", [
+      "primaryKeyNorm",
+      "regionCode",
+      "createdAt",
+    ]),
+
+  valuationRunTraces: defineTable({
+    runId: v.id("valuationRuns"),
+    createdAt: v.number(),
+    byteSize: v.number(),
+    trace: v.any(),
+  }).index("by_runId", ["runId"]),
 });

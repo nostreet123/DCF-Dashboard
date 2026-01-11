@@ -141,6 +141,43 @@ class ConvexSyncClient:
                 )
         return result
 
+    def get_snapshot_by_identity(
+        self, dataset_key: str, region_code: str, as_of_date: str
+    ) -> dict[str, Any] | None:
+        result = self._query(
+            "snapshots:getByIdentity",
+            {
+                "datasetKey": dataset_key,
+                "regionCode": region_code,
+                "asOfDate": as_of_date,
+            },
+            include_token=False,
+        )
+        if result is None:
+            return None
+        if not isinstance(result, dict):
+            self._log_invalid_response("snapshots:getByIdentity", result)
+            raise ValueError(
+                f"Unexpected snapshots:getByIdentity response: {result!r}"
+            )
+        return result
+
+    def get_snapshot_by_id(self, snapshot_id: str) -> dict[str, Any] | None:
+        result = self._query(
+            "snapshots:getById",
+            {
+                "snapshotId": snapshot_id,
+            },
+            include_token=False,
+        )
+        if result is None:
+            return None
+        if not isinstance(result, dict):
+            self._log_invalid_response("snapshots:getById", result)
+            raise ValueError(f"Unexpected snapshots:getById response: {result!r}")
+        return result
+
+
     def create_sync_log(self, sync_type: str, page_last_updated: str | None = None) -> str:
         payload: dict[str, Any] = {
             "syncType": sync_type,
@@ -197,6 +234,8 @@ class ConvexSyncClient:
         as_of_date: str,
         build_id: str,
         metadata: dict[str, Any],
+        *,
+        force_rebuild: bool = False,
     ) -> SnapshotUpsertResult:
         result = self._mutation(
             "snapshots:upsertByIdentity",
@@ -205,6 +244,7 @@ class ConvexSyncClient:
                 "regionCode": region_code,
                 "asOfDate": as_of_date,
                 "buildId": build_id,
+                "forceRebuild": force_rebuild,
                 "metadata": metadata,
             },
         )
@@ -237,6 +277,15 @@ class ConvexSyncClient:
             },
         )
 
+    def mark_primary_key_norm_complete(self, snapshot_id: str, build_id: str) -> None:
+        self._mutation(
+            "snapshots:markPrimaryKeyNormComplete",
+            {
+                "snapshotId": snapshot_id,
+                "buildId": build_id,
+            },
+        )
+
     def insert_rows(self, snapshot_id: str, build_id: str, rows: list[dict[str, Any]]) -> int:
         result = self._mutation(
             "tableData:insertBatch",
@@ -250,6 +299,11 @@ class ConvexSyncClient:
             self._log_invalid_response("tableData:insertBatch", result)
             raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
         inserted = result.get("inserted", 0)
+        if isinstance(inserted, float):
+            if not inserted.is_integer():
+                self._log_invalid_response("tableData:insertBatch", result)
+                raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
+            inserted = int(inserted)
         if not isinstance(inserted, int):
             self._log_invalid_response("tableData:insertBatch", result)
             raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
@@ -270,9 +324,186 @@ class ConvexSyncClient:
                 f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
             )
         deleted = result.get("deleted", 0)
+        if isinstance(deleted, float):
+            if not deleted.is_integer():
+                self._log_invalid_response("tableData:deleteBySnapshotBuild", result)
+                raise ValueError(
+                    f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
+                )
+            deleted = int(deleted)
         if not isinstance(deleted, int):
             self._log_invalid_response("tableData:deleteBySnapshotBuild", result)
             raise ValueError(
                 f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
             )
         return deleted
+
+    def delete_non_active_rows_page(
+        self,
+        snapshot_id: str,
+        active_build_id: str,
+        cursor: str | None = None,
+        limit: int = 500,
+    ) -> tuple[int, str | None]:
+        result = self._mutation(
+            "tableData:deleteNonActiveRowsPage",
+            {
+                "snapshotId": snapshot_id,
+                "activeBuildId": active_build_id,
+                **({"cursor": cursor} if cursor is not None else {}),
+                "limit": limit,
+            },
+        )
+        if not isinstance(result, dict):
+            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
+            raise ValueError(
+                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
+            )
+        deleted = result.get("deleted", 0)
+        if isinstance(deleted, float):
+            if not deleted.is_integer():
+                self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
+                raise ValueError(
+                    f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
+                )
+            deleted = int(deleted)
+        if not isinstance(deleted, int):
+            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
+            raise ValueError(
+                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
+            )
+        next_cursor = result.get("nextCursor")
+        if next_cursor is not None and not isinstance(next_cursor, str):
+            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
+            raise ValueError(
+                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
+            )
+        return deleted, next_cursor
+
+    def backfill_primary_key_norm_page(
+        self,
+        snapshot_id: str,
+        build_id: str,
+        cursor: str | None = None,
+        limit: int = 500,
+    ) -> tuple[int, str | None]:
+        result = self._mutation(
+            "tableData:backfillPrimaryKeyNormPage",
+            {
+                "snapshotId": snapshot_id,
+                "buildId": build_id,
+                **({"cursor": cursor} if cursor is not None else {}),
+                "limit": limit,
+            },
+        )
+        if not isinstance(result, dict):
+            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
+            raise ValueError(
+                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        updated = result.get("updated", 0)
+        if isinstance(updated, float):
+            if not updated.is_integer():
+                self._log_invalid_response(
+                    "tableData:backfillPrimaryKeyNormPage", result
+                )
+                raise ValueError(
+                    "Unexpected tableData:backfillPrimaryKeyNormPage response: "
+                    f"{result!r}"
+                )
+            updated = int(updated)
+        if not isinstance(updated, int):
+            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
+            raise ValueError(
+                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        next_cursor = result.get("nextCursor")
+        if next_cursor is not None and not isinstance(next_cursor, str):
+            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
+            raise ValueError(
+                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        return updated, next_cursor
+
+    def backfill_missing_primary_key_norm_page(
+        self,
+        cursor: str | None = None,
+        limit: int = 500,
+    ) -> tuple[int, str | None, list[tuple[str, str]]]:
+        result = self._mutation(
+            "tableData:backfillMissingPrimaryKeyNormPage",
+            {
+                **({"cursor": cursor} if cursor is not None else {}),
+                "limit": limit,
+            },
+        )
+        if not isinstance(result, dict):
+            self._log_invalid_response(
+                "tableData:backfillMissingPrimaryKeyNormPage", result
+            )
+            raise ValueError(
+                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        updated = result.get("updated", 0)
+        if isinstance(updated, float):
+            if not updated.is_integer():
+                self._log_invalid_response(
+                    "tableData:backfillMissingPrimaryKeyNormPage", result
+                )
+                raise ValueError(
+                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                    f"{result!r}"
+                )
+            updated = int(updated)
+        if not isinstance(updated, int):
+            self._log_invalid_response(
+                "tableData:backfillMissingPrimaryKeyNormPage", result
+            )
+            raise ValueError(
+                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        next_cursor = result.get("nextCursor")
+        if next_cursor is not None and not isinstance(next_cursor, str):
+            self._log_invalid_response(
+                "tableData:backfillMissingPrimaryKeyNormPage", result
+            )
+            raise ValueError(
+                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        seen_snapshots = result.get("seenSnapshots", [])
+        if not isinstance(seen_snapshots, list):
+            self._log_invalid_response(
+                "tableData:backfillMissingPrimaryKeyNormPage", result
+            )
+            raise ValueError(
+                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                f"{result!r}"
+            )
+        parsed_seen: list[tuple[str, str]] = []
+        for entry in seen_snapshots:
+            if not isinstance(entry, dict):
+                self._log_invalid_response(
+                    "tableData:backfillMissingPrimaryKeyNormPage", result
+                )
+                raise ValueError(
+                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                    f"{result!r}"
+                )
+            snapshot_id = entry.get("snapshotId")
+            build_id = entry.get("buildId")
+            if not isinstance(snapshot_id, str) or not isinstance(build_id, str):
+                self._log_invalid_response(
+                    "tableData:backfillMissingPrimaryKeyNormPage", result
+                )
+                raise ValueError(
+                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
+                    f"{result!r}"
+                )
+            parsed_seen.append((snapshot_id, build_id))
+        return updated, next_cursor, parsed_seen

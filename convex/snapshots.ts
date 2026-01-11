@@ -28,6 +28,7 @@ const SnapshotMetadata = v.object({
   skippedSheets: v.array(v.string()),
   downloadedAt: v.number(),
   parsedAt: v.number(),
+  primaryKeyNormComplete: v.optional(v.boolean()),
 });
 
 const requireSyncToken = (syncToken: string | undefined) => {
@@ -71,6 +72,15 @@ export const getByIdentity = query({
   },
 });
 
+export const getById = query({
+  args: {
+    snapshotId: v.id("snapshots"),
+  },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.snapshotId);
+  },
+});
+
 export const upsertByIdentity = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -78,6 +88,7 @@ export const upsertByIdentity = mutation({
     regionCode: v.string(),
     asOfDate: v.string(),
     buildId: v.string(),
+    forceRebuild: v.optional(v.boolean()),
     metadata: SnapshotMetadata,
   },
   handler: async (ctx, args) => {
@@ -132,6 +143,7 @@ export const upsertByIdentity = mutation({
           skippedSheets: args.metadata.skippedSheets,
           downloadedAt: args.metadata.downloadedAt,
           parsedAt: args.metadata.parsedAt,
+          primaryKeyNormComplete: args.metadata.primaryKeyNormComplete,
         });
 
         return { snapshotId, action: "created" as const };
@@ -146,7 +158,7 @@ export const upsertByIdentity = mutation({
       }
     }
 
-    if (existing.fileHash === args.metadata.fileHash) {
+    if (existing.fileHash === args.metadata.fileHash && !args.forceRebuild) {
       return { snapshotId: existing._id, action: "unchanged" as const };
     }
 
@@ -154,7 +166,17 @@ export const upsertByIdentity = mutation({
       existing.dataStatus === "rebuilding" &&
       existing.pendingBuildId !== args.buildId
     ) {
-      throw new Error("Snapshot rebuild already in progress");
+      if (!args.forceRebuild) {
+        throw new Error("Snapshot rebuild already in progress");
+      }
+      await ctx.db.patch(existing._id, {
+        pendingBuildId: args.buildId,
+      });
+      return {
+        snapshotId: existing._id,
+        action: "updated" as const,
+        previousBuildId: existing.activeBuildId,
+      };
     }
 
     await ctx.db.patch(existing._id, {
@@ -234,6 +256,28 @@ export const finalizeRebuild = mutation({
       skippedSheets: args.metadata.skippedSheets,
       downloadedAt: args.metadata.downloadedAt,
       parsedAt: args.metadata.parsedAt,
+      primaryKeyNormComplete: args.metadata.primaryKeyNormComplete,
     });
+  },
+});
+
+export const markPrimaryKeyNormComplete = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    snapshotId: v.id("snapshots"),
+    buildId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+
+    const snapshot = await ctx.db.get(args.snapshotId);
+    if (!snapshot) {
+      throw new Error("Snapshot not found");
+    }
+    if (snapshot.activeBuildId !== args.buildId) {
+      throw new Error("Build ID does not match active build");
+    }
+
+    await ctx.db.patch(args.snapshotId, { primaryKeyNormComplete: true });
   },
 });
