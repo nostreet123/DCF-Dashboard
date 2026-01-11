@@ -139,6 +139,14 @@ def process_page(
                     skip_count += 1
                     continue
 
+                snapshot = None
+                if not force_rebuild:
+                    snapshot = client.get_snapshot_by_identity(
+                        dataset_key,
+                        region_code,
+                        asset.as_of_date,
+                    )
+
                 # 7. Validate URL before download (treat 404 as missing asset)
                 response = download.get_default_http_client().get(
                     asset.source_url,
@@ -173,6 +181,16 @@ def process_page(
                 client.increment_sync_log(sync_log_id, {"assetsDownloaded": 1})
                 downloaded_at = int(time.time() * 1000)
 
+                if (
+                    not force_rebuild
+                    and snapshot
+                    and snapshot.get("activeBuildId")
+                    and snapshot.get("fileHash") == download_res.sha256
+                ):
+                    client.increment_sync_log(sync_log_id, {"assetsSkipped": 1})
+                    skip_count += 1
+                    continue
+
                 # 10. Parse
                 parsed = excel_parse.parse_excel(download_res.path)
                 stage = "transform"
@@ -206,6 +224,7 @@ def process_page(
                     "skippedSheets": parsed.skipped_sheets,
                     "downloadedAt": downloaded_at,
                     "parsedAt": parsed_at,
+                    "primaryKeyNormComplete": True,
                 }
                 if asset.page_last_updated is not None:
                     metadata["pageLastUpdated"] = asset.page_last_updated
@@ -228,6 +247,7 @@ def process_page(
                     asset.as_of_date,
                     build_id,
                     metadata,
+                    force_rebuild=force_rebuild,
                 )
                 
                 # Actions: created, updated, unchanged
@@ -248,6 +268,7 @@ def process_page(
                         payload = {
                             "rowIndex": row.row_index,
                             "primaryKey": row.primary_key,
+                            "primaryKeyNorm": row.primary_key_norm,
                             "metrics": row.metrics,
                         }
                         if row.secondary_key is not None:

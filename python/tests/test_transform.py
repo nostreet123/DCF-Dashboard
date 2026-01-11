@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from damodaran_sync.excel_parse import ParsedTable
-from damodaran_sync.transform import transform_table
+from damodaran_sync.transform import normalize_primary_key, transform_table
 
 
 def test_secondary_key_detection():
@@ -56,3 +56,7 @@ def test_storage_type_convex_for_small_tables():
 
     result = transform_table(parsed)
     assert result.storage_type == "convex"
+
+
+def test_normalize_primary_key():
+    assert normalize_primary_key("  Software - (Entertainment) ") == "software entertainment"

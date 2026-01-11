@@ -36,6 +36,7 @@ METRIC_HEADER_KEYWORDS = {
 class NormalizedRow:
     row_index: int
     primary_key: str
+    primary_key_norm: str
     secondary_key: str | None
     metrics: dict[str, object]
 
@@ -62,6 +63,13 @@ def _is_empty(value: object) -> bool:
     if isinstance(value, str) and value.strip() == "":
         return True
     return False
+
+
+def normalize_primary_key(value: str) -> str:
+    lowered = value.lower()
+    normalized = re.sub(r"[^a-z0-9]+", " ", lowered)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
 
 
 def _is_numeric(value: object) -> bool:
@@ -138,6 +146,7 @@ def _should_use_secondary(header: str, values: Iterable[object]) -> bool:
 def _row_payload(row: NormalizedRow) -> dict[str, object]:
     return {
         "primaryKey": row.primary_key,
+        "primaryKeyNorm": row.primary_key_norm,
         "secondaryKey": row.secondary_key,
         "metrics": row.metrics,
     }
@@ -192,6 +201,7 @@ def transform_table(parsed: ParsedTable) -> TransformResult:
         if _is_empty(primary_value):
             continue
         primary_key = str(primary_value).strip()
+        primary_key_norm = normalize_primary_key(primary_key)
         secondary_key = None
         if use_secondary and len(row) > 1 and not _is_empty(row[1]):
             secondary_key = str(row[1]).strip()
@@ -205,6 +215,7 @@ def transform_table(parsed: ParsedTable) -> TransformResult:
             NormalizedRow(
                 row_index=index,
                 primary_key=primary_key,
+                primary_key_norm=primary_key_norm,
                 secondary_key=secondary_key,
                 metrics=metrics,
             )
