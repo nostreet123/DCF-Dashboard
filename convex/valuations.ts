@@ -150,7 +150,7 @@ export const listBySymbol = query({
   handler: async (ctx, args) => {
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
-      return ctx.db
+      const runs = await ctx.db
         .query("valuationRuns")
         .withIndex("by_primaryKeyNorm_region_createdAt", (q) =>
           q
@@ -158,16 +158,16 @@ export const listBySymbol = query({
             .eq("regionCode", args.regionCode),
         )
         .order("desc")
-        .take(limit)
-        .map(runSummary);
+        .take(limit);
+      return runs.map(runSummary);
     }
-    return ctx.db
+    const runs = await ctx.db
       .query("valuationRuns")
       .withIndex("by_primaryKeyNorm_createdAt", (q) =>
         q.eq("primaryKeyNorm", args.primaryKeyNorm),
       )
       .order("desc")
-      .take(limit)
-      .map(runSummary);
+      .take(limit);
+    return runs.map(runSummary);
   },
 });

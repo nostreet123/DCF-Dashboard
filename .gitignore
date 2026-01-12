@@ -3,6 +3,7 @@ __pycache__/
 .cache/
 .env
 .env.*
+!.env.example
 python/.pytest_cache/
 node_modules/
 
@@ -13,3 +14,6 @@ gha-creds-*.json
 .config/
 .replit
 replit.md
+
+out/
+

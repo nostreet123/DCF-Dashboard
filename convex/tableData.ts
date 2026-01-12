@@ -40,12 +40,18 @@ export const insertBatch = mutation({
     }
 
     for (const row of args.rows) {
+      const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
+      if (row.primaryKeyNorm !== primaryKeyNorm) {
+        throw new Error(
+          `primaryKeyNorm mismatch at row ${row.rowIndex}: expected ${primaryKeyNorm}`,
+        );
+      }
       await ctx.db.insert("tableData", {
         snapshotId: args.snapshotId,
         buildId: args.buildId,
         rowIndex: row.rowIndex,
         primaryKey: row.primaryKey,
-        primaryKeyNorm: row.primaryKeyNorm,
+        primaryKeyNorm,
         secondaryKey: row.secondaryKey,
         metrics: row.metrics,
       });
