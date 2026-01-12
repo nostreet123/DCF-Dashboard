@@ -11,3 +11,5 @@ gha-creds-*.json
 .codex/
 .claude/
 .config/
+.replit
+replit.md
