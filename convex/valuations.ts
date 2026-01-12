@@ -1,6 +1,16 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+const requireSyncToken = (syncToken: string | undefined) => {
+  const expected = process.env.DAMODARAN_SYNC_TOKEN;
+  if (!expected) {
+    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+  }
+  if (!syncToken || syncToken !== expected) {
+    throw new Error("Invalid sync token");
+  }
+};
+
 const TraceStorage = v.union(
   v.literal("none"),
   v.literal("inline"),
@@ -32,6 +42,7 @@ const normalizeLimit = (requested: number | undefined) => {
 
 export const create = mutation({
   args: {
+    syncToken: v.optional(v.string()),
     engineVersion: v.string(),
     status: RunStatus,
     error: v.optional(v.string()),
@@ -47,6 +58,7 @@ export const create = mutation({
     traceByteSize: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const createdAt = Date.now();
     const runId = await ctx.db.insert("valuationRuns", {
       createdAt,
@@ -83,11 +95,13 @@ export const create = mutation({
 
 export const attachTrace = mutation({
   args: {
+    syncToken: v.optional(v.string()),
     runId: v.id("valuationRuns"),
     trace: v.any(),
     traceByteSize: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
       throw new Error("Run not found");

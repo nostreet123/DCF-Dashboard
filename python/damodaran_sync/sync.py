@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import traceback
 import time
+import requests
 import uuid
 from typing import Any
 
@@ -147,26 +148,7 @@ def process_page(
                         asset.as_of_date,
                     )
 
-                # 7. Validate URL before download (treat 404 as missing asset)
-                response = download.get_default_http_client().get(
-                    asset.source_url,
-                    stream=True,
-                )
-                status_code = response.status_code
-                response.close()
-                if status_code == 404:
-                    _record_asset_resolution(
-                        client,
-                        asset,
-                        dataset_key,
-                        region_code,
-                        "missing_url",
-                    )
-                    client.increment_sync_log(sync_log_id, {"assetsSkipped": 1})
-                    skip_count += 1
-                    continue
-
-                # 8. Record Asset (valid URL or non-404; proceed to download)
+                # 7. Record Asset (proceed to download)
                 _record_asset_resolution(
                     client,
                     asset,
@@ -175,8 +157,25 @@ def process_page(
                     resolution_error,
                 )
 
-                # 9. Download
-                download_res = download.download_file(asset.source_url)
+                # 8. Download
+                stage = "download"
+                try:
+                    download_res = download.download_file(asset.source_url)
+                except requests.HTTPError as exc:
+                    response = exc.response
+                    status_code = response.status_code if response is not None else None
+                    if status_code == 404:
+                        _record_asset_resolution(
+                            client,
+                            asset,
+                            dataset_key,
+                            region_code,
+                            "missing_url",
+                        )
+                        client.increment_sync_log(sync_log_id, {"assetsSkipped": 1})
+                        skip_count += 1
+                        continue
+                    raise
                 stage = "parse"
                 client.increment_sync_log(sync_log_id, {"assetsDownloaded": 1})
                 downloaded_at = int(time.time() * 1000)
@@ -186,6 +185,7 @@ def process_page(
                     and snapshot
                     and snapshot.get("activeBuildId")
                     and snapshot.get("fileHash") == download_res.sha256
+                    and snapshot.get("dataStatus") == "ready"
                 ):
                     client.increment_sync_log(sync_log_id, {"assetsSkipped": 1})
                     skip_count += 1

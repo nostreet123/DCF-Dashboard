@@ -96,11 +96,24 @@ def normalize_inputs(
     provider: ReferenceProvider | None,
     selector: ReferenceSelector | None = None,
 ) -> tuple[NormalizedAssumptions, Provenance]:
+    def _ensure_list(name: str, values: list[float] | None, periods: int) -> None:
+        if values is None:
+            raise ValueError(f"{name} is required unless --use-convex is enabled")
+        if len(values) != periods:
+            raise ValueError(f"{name} must have {periods} values")
+
     if inputs.revenue_growth is None:
         raise ValueError("revenue_growth is required")
     if inputs.sales_to_capital is None:
         raise ValueError("sales_to_capital is required")
     if provider is None or selector is None:
+        periods = inputs.periods
+        _ensure_list("ebit_margin", inputs.ebit_margin, periods)
+        _ensure_list("tax_rate", inputs.tax_rate, periods)
+        _ensure_list("sales_to_capital", inputs.sales_to_capital, periods)
+        _ensure_list("wacc", inputs.wacc, periods)
+        if len(inputs.revenue_growth) != periods:
+            raise ValueError(f"revenue_growth must have {periods} values")
         normalized = NormalizedAssumptions(
             base_year=inputs.base_year,
             periods=inputs.periods,
