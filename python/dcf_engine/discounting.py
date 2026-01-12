@@ -16,9 +16,11 @@ def discount_fcff(inputs: NormalizedAssumptions, fcff: list[float]) -> Discounti
     discount_factor: list[float] = []
     pv_fcff: list[float] = []
 
+    cumulative = 1.0
     for idx in range(periods):
         wacc_t = inputs.wacc[idx]
-        df = 1.0 / ((1.0 + wacc_t) ** (idx + 1))
+        cumulative *= 1.0 + wacc_t
+        df = 1.0 / cumulative
         discount_factor.append(df)
         pv_fcff.append(fcff[idx] * df)
 

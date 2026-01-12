@@ -7,7 +7,6 @@ from dcf_engine.reference.provider import ReferenceProvider
 from dcf_engine.reference.profiles import wacc as wacc_profile
 from dcf_engine.reference.profiles import taxrate as taxrate_profile
 from dcf_engine.reference.profiles import margin as margin_profile
-from dcf_engine.reference.profiles import betas as betas_profile
 from dcf_engine.schema import InputAssumptions, NormalizedAssumptions
 
 
