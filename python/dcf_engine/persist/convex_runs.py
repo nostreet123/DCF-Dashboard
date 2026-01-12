@@ -21,8 +21,6 @@ class ConvexRunPersister:
         if not self._convex_url:
             raise ValueError("CONVEX_URL is required")
         self._sync_token = os.getenv("DAMODARAN_SYNC_TOKEN")
-        if not self._sync_token:
-            raise ValueError("DAMODARAN_SYNC_TOKEN is required to save runs")
         self._client = ConvexClient(self._convex_url)
 
     def save(
@@ -38,6 +36,8 @@ class ConvexRunPersister:
         error: str | None = None,
         include_trace: bool = True,
     ) -> dict[str, Any]:
+        if not self._sync_token:
+            raise ValueError("DAMODARAN_SYNC_TOKEN is required to save runs")
         status = "success" if error is None else "error"
         trace_payload = trace.model_dump() if trace and include_trace else None
         trace_storage = "none"
