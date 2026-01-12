@@ -1,6 +1,14 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+const SyncStage = v.union(
+  v.literal("discover"),
+  v.literal("download"),
+  v.literal("parse"),
+  v.literal("transform"),
+  v.literal("upload"),
+);
+
 const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
   if (!expected) {
@@ -16,7 +24,7 @@ export const append = mutation({
     syncToken: v.optional(v.string()),
     syncLogId: v.id("syncLogs"),
     file: v.string(),
-    stage: v.string(),
+    stage: SyncStage,
     error: v.string(),
   },
   handler: async (ctx, args) => {

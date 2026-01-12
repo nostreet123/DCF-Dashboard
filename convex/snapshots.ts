@@ -1,17 +1,36 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+const DataType = v.union(
+  v.literal("industry"),
+  v.literal("country"),
+  v.literal("timeseries"),
+  v.literal("other"),
+);
+
+const PageType = v.union(v.literal("current"), v.literal("archive"));
+
+const AsOfDateSource = v.union(
+  v.literal("label"),
+  v.literal("page_last_update"),
+  v.literal("filename_inferred"),
+);
+
+const AsOfGranularity = v.union(v.literal("day"), v.literal("month"));
+
+const StorageType = v.union(v.literal("convex"), v.literal("external"));
+
 const SnapshotMetadata = v.object({
-  asOfDateSource: v.string(),
-  asOfGranularity: v.string(),
+  asOfDateSource: AsOfDateSource,
+  asOfGranularity: AsOfGranularity,
   sourcePageUrl: v.string(),
   sourceUrl: v.string(),
   fileName: v.string(),
   linkLabel: v.string(),
-  pageType: v.string(),
+  pageType: PageType,
   pageLastUpdated: v.optional(v.string()),
   fileHash: v.string(),
-  storageType: v.string(),
+  storageType: StorageType,
   externalProvider: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
   externalRowCount: v.optional(v.number()),
@@ -23,7 +42,7 @@ const SnapshotMetadata = v.object({
   columnNames: v.array(v.string()),
   metricsKeys: v.array(v.string()),
   rowCount: v.number(),
-  dataType: v.string(),
+  dataType: DataType,
   sheetCandidates: v.array(v.string()),
   skippedSheets: v.array(v.string()),
   downloadedAt: v.number(),
@@ -158,25 +177,24 @@ export const upsertByIdentity = mutation({
       }
     }
 
-    if (existing.fileHash === args.metadata.fileHash && !args.forceRebuild) {
-      return { snapshotId: existing._id, action: "unchanged" as const };
-    }
-
-    if (
-      existing.dataStatus === "rebuilding" &&
-      existing.pendingBuildId !== args.buildId
-    ) {
-      if (!args.forceRebuild) {
-        throw new Error("Snapshot rebuild already in progress");
+    if (existing.dataStatus === "rebuilding") {
+      if (existing.pendingBuildId !== args.buildId) {
+        if (!args.forceRebuild) {
+          throw new Error("Snapshot rebuild already in progress");
+        }
+        await ctx.db.patch(existing._id, {
+          pendingBuildId: args.buildId,
+        });
       }
-      await ctx.db.patch(existing._id, {
-        pendingBuildId: args.buildId,
-      });
       return {
         snapshotId: existing._id,
         action: "updated" as const,
         previousBuildId: existing.activeBuildId,
       };
+    }
+
+    if (existing.fileHash === args.metadata.fileHash && !args.forceRebuild) {
+      return { snapshotId: existing._id, action: "unchanged" as const };
     }
 
     await ctx.db.patch(existing._id, {

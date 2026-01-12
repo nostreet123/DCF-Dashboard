@@ -202,6 +202,8 @@ def transform_table(parsed: ParsedTable) -> TransformResult:
             continue
         primary_key = str(primary_value).strip()
         primary_key_norm = normalize_primary_key(primary_key)
+        if primary_key_norm == "":
+            continue
         secondary_key = None
         if use_secondary and len(row) > 1 and not _is_empty(row[1]):
             secondary_key = str(row[1]).strip()
