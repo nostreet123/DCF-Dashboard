@@ -37,19 +37,17 @@ def export_forecast_csv(forecast: ForecastTable, out_path: Path) -> None:
                 "fcff",
             ]
         )
-        for idx in range(len(forecast.t)):
-            writer.writerow(
-                [
-                    forecast.t[idx],
-                    forecast.years[idx],
-                    forecast.revenue[idx],
-                    forecast.revenue_growth[idx],
-                    forecast.ebit_margin[idx],
-                    forecast.ebit[idx],
-                    forecast.tax_rate[idx],
-                    forecast.nopat[idx],
-                    forecast.sales_to_capital[idx],
-                    forecast.reinvestment[idx],
-                    forecast.fcff[idx],
-                ]
-            )
+        rows = zip(
+            forecast.t,
+            forecast.years,
+            forecast.revenue,
+            forecast.revenue_growth,
+            forecast.ebit_margin,
+            forecast.ebit,
+            forecast.tax_rate,
+            forecast.nopat,
+            forecast.sales_to_capital,
+            forecast.reinvestment,
+            forecast.fcff,
+        )
+        writer.writerows(rows)
