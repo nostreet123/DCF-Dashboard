@@ -257,7 +257,8 @@ def process_page(
                     continue
 
                 # Insert Rows
-                BATCH_SIZE = 1000
+                # Convex insertBatch enforces a max of 100 rows per call.
+                BATCH_SIZE = 100
                 total_inserted = 0
                 
                 rows_to_insert = transformed.rows
