@@ -1,4 +1,3 @@
-import pytest
 from damodaran_sync.mapping_resolver import normalize_stem, resolve_dataset_key, resolve_region_code
 
 # Mock Data

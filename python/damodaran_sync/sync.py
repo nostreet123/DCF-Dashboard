@@ -257,7 +257,7 @@ def process_page(
                     continue
 
                 # Insert Rows
-                BATCH_SIZE = 100
+                BATCH_SIZE = 1000
                 total_inserted = 0
                 
                 rows_to_insert = transformed.rows
