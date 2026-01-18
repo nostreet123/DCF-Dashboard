@@ -1,15 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-
-const requireSyncToken = (syncToken: string | undefined) => {
-  const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (!expected) {
-    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
-  }
-  if (!syncToken || syncToken !== expected) {
-    throw new Error("Invalid sync token");
-  }
-};
+import { requireSyncToken } from "./syncAuth";
 
 const normalizePrimaryKey = (value: string) =>
   value
@@ -17,6 +8,23 @@ const normalizePrimaryKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const getMaxInsertRowsPerCall = () => {
+  const raw = process.env.TABLEDATA_INSERT_MAX_ROWS;
+  if (!raw) {
+    return 100;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return 100;
+  }
+  const floored = Math.floor(parsed);
+  if (floored <= 0) {
+    return 100;
+  }
+  // Keep headroom for other IO ops within this mutation.
+  return Math.min(900, floored);
+};
 
 export const insertBatch = mutation({
   args: {
@@ -35,8 +43,9 @@ export const insertBatch = mutation({
   },
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    if (args.rows.length > 100) {
-      throw new Error("Batch too large: max 100 rows per call");
+    const maxRows = getMaxInsertRowsPerCall();
+    if (args.rows.length > maxRows) {
+      throw new Error(`Batch too large: max ${maxRows} rows per call`);
     }
 
     for (const row of args.rows) {

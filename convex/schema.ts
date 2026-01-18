@@ -100,6 +100,8 @@ export default defineSchema({
     pageLastUpdated: v.optional(v.string()),
 
     fileHash: v.string(),
+    sourceEtag: v.optional(v.string()),
+    sourceLastModified: v.optional(v.string()),
     previousFileHashes: v.optional(v.array(v.string())),
 
     dataStatus: DataStatus,
@@ -178,6 +180,16 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_startedAt", ["startedAt"]),
+
+  syncManifests: defineTable({
+    pageType: PageType,
+    manifestHash: v.string(),
+    source: v.string(),
+    itemCount: v.number(),
+    fetchedAt: v.number(),
+  })
+    .index("by_pageType_fetchedAt", ["pageType", "fetchedAt"])
+    .index("by_manifestHash", ["manifestHash"]),
 
   syncErrors: defineTable({
     syncLogId: v.id("syncLogs"),

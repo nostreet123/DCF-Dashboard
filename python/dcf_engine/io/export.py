@@ -37,6 +37,31 @@ def export_forecast_csv(forecast: ForecastTable, out_path: Path) -> None:
                 "fcff",
             ]
         )
+        expected_len = len(forecast.t)
+        fields = {
+            "years": forecast.years,
+            "revenue": forecast.revenue,
+            "revenue_growth": forecast.revenue_growth,
+            "ebit_margin": forecast.ebit_margin,
+            "ebit": forecast.ebit,
+            "tax_rate": forecast.tax_rate,
+            "nopat": forecast.nopat,
+            "sales_to_capital": forecast.sales_to_capital,
+            "reinvestment": forecast.reinvestment,
+            "fcff": forecast.fcff,
+        }
+        mismatched = {
+            name: len(values) for name, values in fields.items() if len(values) != expected_len
+        }
+        if mismatched:
+            details = ", ".join(
+                ["t=" + str(expected_len)]
+                + [f"{name}={length}" for name, length in mismatched.items()]
+            )
+            raise ValueError(
+                "Forecast table lengths mismatch: "
+                f"expected {expected_len} for all fields, got {details}"
+            )
         rows = zip(
             forecast.t,
             forecast.years,

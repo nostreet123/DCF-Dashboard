@@ -1,15 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-
-const requireSyncToken = (syncToken: string | undefined) => {
-  const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (!expected) {
-    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
-  }
-  if (!syncToken || syncToken !== expected) {
-    throw new Error("Invalid sync token");
-  }
-};
+import { requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
   v.literal("none"),

@@ -68,7 +68,10 @@ def main(argv: list[str] | None = None) -> int:
         if provenance:
             payload["provenance"] = asdict(provenance)
         if args.include_trace:
-            payload["trace"] = trace.model_dump()
+            trace_payload = trace.model_dump()
+            if provenance:
+                trace_payload["assumption_sources"] = provenance.sources
+            payload["trace"] = trace_payload
         out_path = Path(args.out) if args.out else None
         if args.save_to_convex:
             persister = ConvexRunPersister()

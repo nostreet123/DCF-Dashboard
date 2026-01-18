@@ -13,8 +13,10 @@ import type * as metrics from "../metrics.js";
 import type * as reference from "../reference.js";
 import type * as seed from "../seed.js";
 import type * as snapshots from "../snapshots.js";
+import type * as syncAuth from "../syncAuth.js";
 import type * as syncErrors from "../syncErrors.js";
 import type * as syncLogs from "../syncLogs.js";
+import type * as syncManifests from "../syncManifests.js";
 import type * as tableData from "../tableData.js";
 import type * as valuations from "../valuations.js";
 
@@ -30,8 +32,10 @@ declare const fullApi: ApiFromModules<{
   reference: typeof reference;
   seed: typeof seed;
   snapshots: typeof snapshots;
+  syncAuth: typeof syncAuth;
   syncErrors: typeof syncErrors;
   syncLogs: typeof syncLogs;
+  syncManifests: typeof syncManifests;
   tableData: typeof tableData;
   valuations: typeof valuations;
 }>;
