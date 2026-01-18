@@ -1,0 +1,22 @@
+base_year: 2024
+currency: USD
+periods: 3
+
+revenue_t0: 100.0
+revenue_growth: [0.10, 0.08, 0.05]
+ebit_margin: [0.20, 0.21, 0.22]
+tax_rate: [0.25, 0.25, 0.25]
+sales_to_capital: [2.0, 2.0, 2.0]
+reinvestment_lag_years: 0
+
+wacc: [0.09, 0.09, 0.09]
+g_stable: 0.02
+wacc_stable: 0.08
+
+cash: 10.0
+debt: 20.0
+other_non_operating_assets: 0.0
+shares_outstanding: 10.0
+
+failure_probability: null
+distress_recovery_fraction: null

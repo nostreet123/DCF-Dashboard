@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from pathlib import Path
 from damodaran_sync.dataset_mappings import REGION_LABEL_TO_CODE
