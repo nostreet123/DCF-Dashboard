@@ -55,6 +55,22 @@ class TransformResult:
     metrics_keys: list[str]
 
 
+@dataclass(frozen=True)
+class TransformedRow:
+    primary_key: str
+    secondary_key: str | None
+    metrics: dict[str, object]
+    row_index: int = 0
+    primary_key_norm: str | None = None
+
+
+@dataclass(frozen=True)
+class TransformedTable:
+    rows: list[TransformedRow]
+    row_count: int
+    metrics_keys: list[str] | None = None
+
+
 def _is_empty(value: object) -> bool:
     if value is None:
         return True

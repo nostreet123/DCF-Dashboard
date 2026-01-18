@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from dcf_engine.reference.provider import ReferenceProvider
@@ -30,6 +30,7 @@ class Provenance:
     tax_rate: MetricProvenance | None = None
     ebit_margin: MetricProvenance | None = None
     beta: MetricProvenance | None = None
+    sources: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -133,10 +134,12 @@ def normalize_inputs(
             failure_probability=inputs.failure_probability,
             distress_recovery_fraction=inputs.distress_recovery_fraction,
         )
-        return normalized, Provenance()
+        sources = _build_sources(inputs, normalized, set())
+        return normalized, Provenance(sources=sources)
 
     provenance = Provenance()
     periods = inputs.periods
+    filled_from_convex: set[str] = set()
 
     wacc = inputs.wacc
     if wacc is None:
@@ -153,11 +156,13 @@ def normalize_inputs(
                 )
             )
         wacc = [resolved.value] * periods
+        filled_from_convex.add("wacc")
         provenance = Provenance(
             wacc=MetricProvenance(**metric, column=resolved.column),
             tax_rate=provenance.tax_rate,
             ebit_margin=provenance.ebit_margin,
             beta=provenance.beta,
+            sources=provenance.sources,
         )
 
     tax_rate = inputs.tax_rate
@@ -175,11 +180,13 @@ def normalize_inputs(
                 )
             )
         tax_rate = [resolved.value] * periods
+        filled_from_convex.add("tax_rate")
         provenance = Provenance(
             wacc=provenance.wacc,
             tax_rate=MetricProvenance(**metric, column=resolved.column),
             ebit_margin=provenance.ebit_margin,
             beta=provenance.beta,
+            sources=provenance.sources,
         )
 
     ebit_margin = inputs.ebit_margin
@@ -197,11 +204,13 @@ def normalize_inputs(
                 )
             )
         ebit_margin = [resolved.value] * periods
+        filled_from_convex.add("ebit_margin")
         provenance = Provenance(
             wacc=provenance.wacc,
             tax_rate=provenance.tax_rate,
             ebit_margin=MetricProvenance(**metric, column=resolved.column),
             beta=provenance.beta,
+            sources=provenance.sources,
         )
 
     normalized = NormalizedAssumptions(
@@ -224,4 +233,29 @@ def normalize_inputs(
         failure_probability=inputs.failure_probability,
         distress_recovery_fraction=inputs.distress_recovery_fraction,
     )
+    sources = _build_sources(inputs, normalized, filled_from_convex)
+    provenance = Provenance(
+        wacc=provenance.wacc,
+        tax_rate=provenance.tax_rate,
+        ebit_margin=provenance.ebit_margin,
+        beta=provenance.beta,
+        sources=sources,
+    )
     return normalized, provenance
+
+
+def _build_sources(
+    inputs: InputAssumptions,
+    normalized: NormalizedAssumptions,
+    filled_from_convex: set[str],
+) -> dict[str, str]:
+    sources: dict[str, str] = {}
+    fields_set = inputs.model_fields_set
+    for name in NormalizedAssumptions.model_fields:
+        if name in filled_from_convex:
+            sources[name] = "convex"
+        elif name in fields_set:
+            sources[name] = "user"
+        else:
+            sources[name] = "default"
+    return sources

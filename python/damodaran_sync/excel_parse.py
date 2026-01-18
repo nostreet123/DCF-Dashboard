@@ -181,3 +181,8 @@ def parse_excel(path: str | Path) -> ParsedTable:
         sheet_candidates=sheet_candidates,
         skipped_sheets=[name for name in sheet_candidates if name != sheet_name],
     )
+
+
+class ExcelParser:
+    def parse(self, filepath: str | Path) -> ParsedTable:
+        return parse_excel(filepath)

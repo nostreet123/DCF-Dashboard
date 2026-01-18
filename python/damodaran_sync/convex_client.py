@@ -31,6 +31,9 @@ class ConvexSyncClient:
         self._sync_token = sync_token or os.getenv("DAMODARAN_SYNC_TOKEN")
         self._client = ConvexClient(self._convex_url)
 
+    def clone(self) -> "ConvexSyncClient":
+        return ConvexSyncClient(self._convex_url, self._sync_token)
+
     def _token_arg(self) -> dict[str, Any]:
         return {"syncToken": self._sync_token} if self._sync_token is not None else {}
 
@@ -177,6 +180,59 @@ class ConvexSyncClient:
             raise ValueError(f"Unexpected snapshots:getById response: {result!r}")
         return result
 
+    def get_snapshots_by_identity_batch(
+        self, identities: list[dict[str, str]]
+    ) -> list[dict[str, Any]]:
+        if not identities:
+            return []
+        result = self._query(
+            "snapshots:getByIdentityBatch",
+            {
+                "identities": identities,
+            },
+            include_token=False,
+        )
+        if not isinstance(result, list):
+            self._log_invalid_response("snapshots:getByIdentityBatch", result)
+            raise ValueError(
+                f"Unexpected snapshots:getByIdentityBatch response: {result!r}"
+            )
+        return result
+
+    def get_latest_manifest(self, page_type: str) -> dict[str, Any] | None:
+        result = self._query(
+            "syncManifests:getLatest",
+            {
+                "pageType": page_type,
+            },
+            include_token=True,
+        )
+        if result is None:
+            return None
+        if not isinstance(result, dict):
+            self._log_invalid_response("syncManifests:getLatest", result)
+            raise ValueError(
+                f"Unexpected syncManifests:getLatest response: {result!r}"
+            )
+        return result
+
+    def upsert_manifest(
+        self, page_type: str, manifest_hash: str, source: str, item_count: int
+    ) -> str:
+        result = self._mutation(
+            "syncManifests:upsert",
+            {
+                "pageType": page_type,
+                "manifestHash": manifest_hash,
+                "source": source,
+                "itemCount": item_count,
+            },
+        )
+        if not isinstance(result, str):
+            self._log_invalid_response("syncManifests:upsert", result)
+            raise ValueError(f"Unexpected syncManifests:upsert response: {result!r}")
+        return result
+
 
     def create_sync_log(self, sync_type: str, page_last_updated: str | None = None) -> str:
         payload: dict[str, Any] = {
@@ -226,6 +282,19 @@ class ConvexSyncClient:
                 "asset": asset,
             },
         )
+
+    def record_assets_batch(self, assets: list[dict[str, Any]], chunk_size: int = 1000) -> None:
+        if not assets:
+            return
+        if chunk_size <= 0:
+            chunk_size = len(assets)
+        for start in range(0, len(assets), chunk_size):
+            self._mutation(
+                "assets:recordBatch",
+                {
+                    "assets": assets[start : start + chunk_size],
+                },
+            )
 
     def upsert_snapshot(
         self,

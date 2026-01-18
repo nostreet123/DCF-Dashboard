@@ -1,5 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
+import { requireSyncToken } from "./syncAuth";
 
 const DataType = v.union(
   v.literal("industry"),
@@ -30,6 +32,8 @@ const SnapshotMetadata = v.object({
   pageType: PageType,
   pageLastUpdated: v.optional(v.string()),
   fileHash: v.string(),
+  sourceEtag: v.optional(v.string()),
+  sourceLastModified: v.optional(v.string()),
   storageType: StorageType,
   externalProvider: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
@@ -50,14 +54,17 @@ const SnapshotMetadata = v.object({
   primaryKeyNormComplete: v.optional(v.boolean()),
 });
 
-const requireSyncToken = (syncToken: string | undefined) => {
-  const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (!expected) {
-    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
-  }
-  if (!syncToken || syncToken !== expected) {
-    throw new Error("Invalid sync token");
-  }
+type SnapshotBatchResult = {
+  datasetKey: string;
+  regionCode: string;
+  asOfDate: string;
+  snapshotId: Id<"snapshots">;
+  fileHash: string;
+  sourceEtag?: string;
+  sourceLastModified?: string;
+  dataStatus?: string;
+  activeBuildId?: string;
+  primaryKeyNormComplete: boolean;
 };
 
 const isDuplicateIdentityError = (error: unknown) => {
@@ -71,6 +78,8 @@ const isDuplicateIdentityError = (error: unknown) => {
     message.includes("already exists")
   );
 };
+
+const MAX_IDENTITY_BATCH = 100;
 
 export const getByIdentity = query({
   args: {
@@ -97,6 +106,62 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     return ctx.db.get(args.snapshotId);
+  },
+});
+
+export const getByIdentityBatch = query({
+  args: {
+    identities: v.array(
+      v.object({
+        datasetKey: v.string(),
+        regionCode: v.string(),
+        asOfDate: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    if (args.identities.length === 0) {
+      return [];
+    }
+    if (args.identities.length > MAX_IDENTITY_BATCH) {
+      throw new Error(
+        `Too many identities (${args.identities.length}); max ${MAX_IDENTITY_BATCH}. Reduce DAMODARAN_SNAPSHOT_BATCH_SIZE.`,
+      );
+    }
+
+    const results: SnapshotBatchResult[] = [];
+    const seen = new Set<string>();
+    for (const identity of args.identities) {
+      const key = `${identity.datasetKey}||${identity.regionCode}||${identity.asOfDate}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      const snapshot = await ctx.db
+        .query("snapshots")
+        .withIndex("by_identity", (q) =>
+          q
+            .eq("datasetKey", identity.datasetKey)
+            .eq("regionCode", identity.regionCode)
+            .eq("asOfDate", identity.asOfDate),
+        )
+        .unique();
+      if (snapshot) {
+        results.push({
+          datasetKey: identity.datasetKey,
+          regionCode: identity.regionCode,
+          asOfDate: identity.asOfDate,
+          snapshotId: snapshot._id,
+          fileHash: snapshot.fileHash,
+          sourceEtag: snapshot.sourceEtag,
+          sourceLastModified: snapshot.sourceLastModified,
+          dataStatus: snapshot.dataStatus,
+          activeBuildId: snapshot.activeBuildId,
+          primaryKeyNormComplete: snapshot.primaryKeyNormComplete ?? false,
+        });
+      }
+    }
+    return results;
   },
 });
 
@@ -141,6 +206,8 @@ export const upsertByIdentity = mutation({
           pageType: args.metadata.pageType,
           pageLastUpdated: args.metadata.pageLastUpdated,
           fileHash: args.metadata.fileHash,
+          sourceEtag: args.metadata.sourceEtag,
+          sourceLastModified: args.metadata.sourceLastModified,
           previousFileHashes: [],
           dataStatus: "rebuilding",
           activeBuildId: undefined,
@@ -253,6 +320,8 @@ export const finalizeRebuild = mutation({
       pageType: args.metadata.pageType,
       pageLastUpdated: args.metadata.pageLastUpdated,
       fileHash: args.metadata.fileHash,
+      sourceEtag: args.metadata.sourceEtag,
+      sourceLastModified: args.metadata.sourceLastModified,
       previousFileHashes: nextPreviousHashes,
       dataStatus: "ready",
       activeBuildId: args.buildId,
