@@ -1,0 +1,29 @@
+base_year: 2024
+currency: USD
+periods: 5
+
+revenue_t0: 1000.0
+revenue_growth: [0.06, 0.05, 0.04, 0.035, 0.03]
+# Leave these as null to resolve from Convex when --use-convex is set.
+ebit_margin: null
+tax_rate: null
+sales_to_capital: [2.0, 2.0, 2.0, 2.0, 2.0]
+reinvestment_lag_years: 0
+
+wacc: null
+g_stable: 0.02
+wacc_stable: 0.08
+
+cash: 50.0
+debt: 200.0
+other_non_operating_assets: 0.0
+shares_outstanding: 100.0
+
+failure_probability: null
+distress_recovery_fraction: null
+
+reference:
+  primary_key_norm: software entertainment
+  region_code: us
+  as_of_date: 2026-01-09
+  policy: latest

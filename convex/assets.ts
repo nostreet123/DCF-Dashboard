@@ -1,15 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-
-const requireSyncToken = (syncToken: string | undefined) => {
-  const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (!expected) {
-    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
-  }
-  if (!syncToken || syncToken !== expected) {
-    throw new Error("Invalid sync token");
-  }
-};
+import { requireSyncToken } from "./syncAuth";
 
 export const record = mutation({
   args: {
@@ -46,5 +37,48 @@ export const record = mutation({
       resolutionError: args.asset.resolutionError,
       discoveredAt: Date.now(),
     });
+  },
+});
+
+export const recordBatch = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    assets: v.array(
+      v.object({
+        sourcePageUrl: v.string(),
+        pageType: v.string(),
+        pageLastUpdated: v.optional(v.string()),
+        sourceUrl: v.string(),
+        fileName: v.string(),
+        linkLabel: v.string(),
+        resolved: v.boolean(),
+        resolvedDatasetKey: v.optional(v.string()),
+        resolvedRegionCode: v.optional(v.string()),
+        resolvedAsOfDate: v.optional(v.string()),
+        resolvedAsOfDateSource: v.optional(v.string()),
+        resolutionError: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const discoveredAt = Date.now();
+    for (const asset of args.assets) {
+      await ctx.db.insert("assets", {
+        sourcePageUrl: asset.sourcePageUrl,
+        pageType: asset.pageType,
+        pageLastUpdated: asset.pageLastUpdated,
+        sourceUrl: asset.sourceUrl,
+        fileName: asset.fileName,
+        linkLabel: asset.linkLabel,
+        resolved: asset.resolved,
+        resolvedDatasetKey: asset.resolvedDatasetKey,
+        resolvedRegionCode: asset.resolvedRegionCode,
+        resolvedAsOfDate: asset.resolvedAsOfDate,
+        resolvedAsOfDateSource: asset.resolvedAsOfDateSource,
+        resolutionError: asset.resolutionError,
+        discoveredAt,
+      });
+    }
   },
 });

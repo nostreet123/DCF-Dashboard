@@ -77,8 +77,8 @@ def _find_header_row(frame: pd.DataFrame, max_scan: int = 50) -> int:
     best_index = 0
     best_count = -1
 
-    for idx in range(limit):
-        row = frame.iloc[idx].tolist()
+    rows = frame.head(limit).values.tolist()
+    for idx, row in enumerate(rows):
         non_empty = _count_non_empty(row)
         if non_empty > best_count and _is_dimension_label(row[0]):
             best_count = non_empty
@@ -161,12 +161,12 @@ def parse_excel(path: str | Path) -> ParsedTable:
     column_names = _make_unique(column_names)
 
     rows: list[list[object]] = []
-    for idx in range(header_row + 1, len(frame)):
-        row_values = frame.iloc[idx].tolist()
+    data_rows = frame.iloc[header_row + 1:].values.tolist()
+    for row_values in data_rows:
         if len(row_values) < len(column_names):
             row_values = row_values + [None] * (len(column_names) - len(row_values))
         if len(row_values) > len(column_names):
-            row_values = row_values[: len(column_names)]
+            row_values = row_values[:len(column_names)]
         normalized = [_normalize_cell(value) for value in row_values]
         if all(value is None for value in normalized):
             continue
@@ -181,3 +181,8 @@ def parse_excel(path: str | Path) -> ParsedTable:
         sheet_candidates=sheet_candidates,
         skipped_sheets=[name for name in sheet_candidates if name != sheet_name],
     )
+
+
+class ExcelParser:
+    def parse(self, filepath: str | Path) -> ParsedTable:
+        return parse_excel(filepath)

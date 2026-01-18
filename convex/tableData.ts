@@ -1,14 +1,29 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireSyncToken } from "./syncAuth";
 
-const requireSyncToken = (syncToken: string | undefined) => {
-  const expected = process.env.DAMODARAN_SYNC_TOKEN;
-  if (!expected) {
-    throw new Error("Missing DAMODARAN_SYNC_TOKEN");
+const normalizePrimaryKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getMaxInsertRowsPerCall = () => {
+  const raw = process.env.TABLEDATA_INSERT_MAX_ROWS;
+  if (!raw) {
+    return 100;
   }
-  if (!syncToken || syncToken !== expected) {
-    throw new Error("Invalid sync token");
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return 100;
   }
+  const floored = Math.floor(parsed);
+  if (floored <= 0) {
+    return 100;
+  }
+  // Keep headroom for other IO ops within this mutation.
+  return Math.min(900, floored);
 };
 
 export const insertBatch = mutation({
@@ -20,6 +35,7 @@ export const insertBatch = mutation({
       v.object({
         rowIndex: v.number(),
         primaryKey: v.string(),
+        primaryKeyNorm: v.string(),
         secondaryKey: v.optional(v.string()),
         metrics: v.any(),
       }),
@@ -27,22 +43,28 @@ export const insertBatch = mutation({
   },
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    if (args.rows.length > 100) {
-      throw new Error("Batch too large: max 100 rows per call");
+    const maxRows = getMaxInsertRowsPerCall();
+    if (args.rows.length > maxRows) {
+      throw new Error(`Batch too large: max ${maxRows} rows per call`);
     }
 
-    await Promise.all(
-      args.rows.map((row) =>
-        ctx.db.insert("tableData", {
-          snapshotId: args.snapshotId,
-          buildId: args.buildId,
-          rowIndex: row.rowIndex,
-          primaryKey: row.primaryKey,
-          secondaryKey: row.secondaryKey,
-          metrics: row.metrics,
-        }),
-      ),
-    );
+    for (const row of args.rows) {
+      const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
+      if (row.primaryKeyNorm !== primaryKeyNorm) {
+        throw new Error(
+          `primaryKeyNorm mismatch at row ${row.rowIndex}: expected ${primaryKeyNorm}`,
+        );
+      }
+      await ctx.db.insert("tableData", {
+        snapshotId: args.snapshotId,
+        buildId: args.buildId,
+        rowIndex: row.rowIndex,
+        primaryKey: row.primaryKey,
+        primaryKeyNorm,
+        secondaryKey: row.secondaryKey,
+        metrics: row.metrics,
+      });
+    }
 
     return { inserted: args.rows.length };
   },
@@ -108,6 +130,120 @@ export const listBySnapshot = query({
     return {
       rows: result.page,
       nextCursor: result.continueCursor ?? null,
+    };
+  },
+});
+
+export const deleteNonActiveRowsPage = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    snapshotId: v.id("snapshots"),
+    activeBuildId: v.string(),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = args.limit ?? 500;
+    const result = await ctx.db
+      .query("tableData")
+      .withIndex("by_snapshot_build_rowIndex", (q) =>
+        q.eq("snapshotId", args.snapshotId),
+      )
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
+
+    let deleted = 0;
+    for (const row of result.page) {
+      if (row.buildId !== args.activeBuildId) {
+        await ctx.db.delete(row._id);
+        deleted += 1;
+      }
+    }
+
+    return {
+      deleted,
+      nextCursor: result.continueCursor ?? null,
+    };
+  },
+});
+
+export const backfillPrimaryKeyNormPage = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    snapshotId: v.id("snapshots"),
+    buildId: v.string(),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = args.limit ?? 500;
+    const result = await ctx.db
+      .query("tableData")
+      .withIndex("by_snapshot_build_rowIndex", (q) =>
+        q.eq("snapshotId", args.snapshotId).eq("buildId", args.buildId),
+      )
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
+
+    let updated = 0;
+    for (const row of result.page) {
+      if (row.primaryKeyNorm) {
+        continue;
+      }
+      const normalized = normalizePrimaryKey(row.primaryKey);
+      await ctx.db.patch(row._id, { primaryKeyNorm: normalized });
+      updated += 1;
+    }
+
+    return {
+      updated,
+      nextCursor: result.continueCursor ?? null,
+    };
+  },
+});
+
+export const backfillMissingPrimaryKeyNormPage = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = args.limit ?? 500;
+    const result = await ctx.db.query("tableData").paginate({
+      cursor: args.cursor ?? null,
+      numItems: limit,
+    });
+
+    let updated = 0;
+    const seenSnapshots = new Map<string, { snapshotId: any; buildId: string }>();
+    for (const row of result.page) {
+      const snapshotKey = `${row.snapshotId}:${row.buildId}`;
+      if (!seenSnapshots.has(snapshotKey)) {
+        seenSnapshots.set(snapshotKey, {
+          snapshotId: row.snapshotId,
+          buildId: row.buildId,
+        });
+      }
+      if (row.primaryKeyNorm) {
+        continue;
+      }
+      const normalized = normalizePrimaryKey(row.primaryKey);
+      await ctx.db.patch(row._id, { primaryKeyNorm: normalized });
+      updated += 1;
+    }
+
+    return {
+      updated,
+      nextCursor: result.continueCursor ?? null,
+      seenSnapshots: Array.from(seenSnapshots.values()),
     };
   },
 });

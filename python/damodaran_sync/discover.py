@@ -20,6 +20,13 @@ IGNORED_EXTENSIONS = {".xlsm", ".csv", ".zip"}
 
 
 @dataclass(frozen=True)
+class Asset:
+    url: str
+    name: str
+    label: str
+
+
+@dataclass(frozen=True)
 class DiscoveredAsset:
     source_page_url: str
     page_type: str

@@ -3,8 +3,18 @@ __pycache__/
 .cache/
 .env
 .env.*
+!.env.example
 python/.pytest_cache/
 node_modules/
+.coverage
+.coverage.*
 
 .gemini/
 gha-creds-*.json
+.codex/
+.claude/
+.config/
+.replit
+replit.md
+
+out/

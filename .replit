@@ -1,0 +1,47 @@
+onBoot = "mkdir -p \"$PWD/.codex\" && ln -snf \"$PWD/.codex\" \"$HOME/.codex\""
+modules = ["nodejs-20"]
+
+run = "echo 'Environment ready! Use codex in the shell.'"
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Convex Dev"
+
+[[workflows.workflow]]
+name = "Convex Dev"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bunx convex dev --once"
+
+[nix]
+channel = "stable-24_05"
+packages = ["python311"]
+
+[[ports]]
+localPort = 14481
+externalPort = 80
+
+[[ports]]
+localPort = 22227
+externalPort = 3000
+exposeLocalhost = true
+
+[userenv]
+
+[userenv.shared]
