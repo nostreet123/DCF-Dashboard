@@ -21,7 +21,7 @@ class DummyConvexClient:
         return "ok"
 
 
-def test_get_reference_unauthenticated(monkeypatch) -> None:
+def test_get_reference_authenticated(monkeypatch) -> None:
     monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClient)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",
@@ -32,4 +32,36 @@ def test_get_reference_unauthenticated(monkeypatch) -> None:
 
     assert result == {"regions": [], "datasets": [], "datasetMappings": []}
     assert DummyConvexClient.last_instance is not None
-    assert DummyConvexClient.last_instance.queries == [("seed:getReference", {})]
+    assert DummyConvexClient.last_instance.queries == [
+        ("seed:getReference", {"syncToken": "secret-token"})
+    ]
+
+
+def test_sync_log_idempotency_args(monkeypatch) -> None:
+    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClient)
+    client = convex_client.ConvexSyncClient(
+        convex_url="http://example",
+        sync_token="secret-token",
+    )
+
+    request_id = "req-123"
+    event_id = "evt-456"
+
+    client.create_sync_log("full_current", request_id=request_id)
+    client.increment_sync_log("log-1", {"assetsDiscovered": 1}, event_id=event_id)
+    client.append_sync_error(
+        "log-1",
+        "file.csv",
+        "download",
+        "boom",
+        event_id=event_id,
+    )
+
+    assert DummyConvexClient.last_instance is not None
+    mutations = DummyConvexClient.last_instance.mutations
+    assert mutations[0][0] == "syncLogs:create"
+    assert mutations[0][1]["requestId"] == request_id
+    assert mutations[1][0] == "syncLogs:increment"
+    assert mutations[1][1]["eventId"] == event_id
+    assert mutations[2][0] == "syncErrors:append"
+    assert mutations[2][1]["eventId"] == event_id

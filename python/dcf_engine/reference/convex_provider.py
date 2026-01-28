@@ -13,7 +13,13 @@ class ConvexReferenceProvider(ReferenceProvider):
         self._convex_url = convex_url or os.getenv("CONVEX_URL")
         if not self._convex_url:
             raise ValueError("CONVEX_URL is required")
+        self._sync_token = os.getenv("DAMODARAN_SYNC_TOKEN")
+        if not self._sync_token:
+            raise ValueError("DAMODARAN_SYNC_TOKEN is required")
         self._client = ConvexClient(self._convex_url)
+
+    def _token_arg(self) -> dict[str, Any]:
+        return {"syncToken": self._sync_token}
 
     def _snapshot_from_payload(self, payload: dict[str, Any]) -> SnapshotRef:
         return SnapshotRef(
@@ -32,6 +38,7 @@ class ConvexReferenceProvider(ReferenceProvider):
             {
                 "datasetKey": dataset_key,
                 "regionCode": region_code,
+                **self._token_arg(),
             },
         )
         if result is None:
@@ -47,6 +54,7 @@ class ConvexReferenceProvider(ReferenceProvider):
                 "datasetKey": dataset_key,
                 "regionCode": region_code,
                 "targetDate": target_date,
+                **self._token_arg(),
             },
         )
         if result is None:
@@ -65,6 +73,7 @@ class ConvexReferenceProvider(ReferenceProvider):
             "datasetKey": dataset_key,
             "regionCode": region_code,
             "primaryKeyNorm": primary_key_norm,
+            **self._token_arg(),
         }
         if as_of_date is not None:
             payload["asOfDate"] = as_of_date
