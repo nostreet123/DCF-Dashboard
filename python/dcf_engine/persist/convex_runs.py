@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from dataclasses import asdict
 from typing import Any
 
@@ -35,6 +36,7 @@ class ConvexRunPersister:
         as_of_date: str | None,
         error: str | None = None,
         include_trace: bool = True,
+        request_id: str | None = None,
     ) -> dict[str, Any]:
         if not self._sync_token:
             raise ValueError("DAMODARAN_SYNC_TOKEN is required to save runs")
@@ -58,6 +60,7 @@ class ConvexRunPersister:
             "status": status,
             "inputs": inputs.model_dump(),
             "traceStorage": trace_storage,
+            "requestId": request_id or uuid.uuid4().hex,
         }
         if error is not None:
             payload["error"] = error

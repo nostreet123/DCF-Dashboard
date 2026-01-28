@@ -56,6 +56,7 @@ class DummyConvexClient:
 
 def test_convex_reference_provider_queries(monkeypatch):
     monkeypatch.setattr(convex_provider, "ConvexClient", DummyConvexClient)
+    monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
     provider = convex_provider.ConvexReferenceProvider(convex_url="http://example")
 
     snapshot = provider.get_latest_snapshot("wacc", "us")
