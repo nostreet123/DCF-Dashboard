@@ -9,6 +9,18 @@ export const getLatest = query({
     syncToken: v.optional(v.string()),
     pageType: PageType,
   },
+  returns: v.union(
+    v.object({
+      _id: v.id("syncManifests"),
+      _creationTime: v.number(),
+      pageType: PageType,
+      manifestHash: v.string(),
+      source: v.string(),
+      itemCount: v.number(),
+      fetchedAt: v.number(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const result = await ctx.db
@@ -28,6 +40,7 @@ export const upsert = mutation({
     source: v.string(),
     itemCount: v.number(),
   },
+  returns: v.id("syncManifests"),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const existing = await ctx.db

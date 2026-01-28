@@ -45,6 +45,24 @@ const TraceStorage = v.union(
   v.literal("external"),
 );
 
+const DuplicateScanStatus = v.union(
+  v.literal("idle"),
+  v.literal("running"),
+  v.literal("complete"),
+  v.literal("stopped"),
+  v.literal("error"),
+);
+
+const DuplicateScanPhase = v.union(v.literal("snapshots"), v.literal("assets"));
+
+const DuplicateCleanupStatus = v.union(
+  v.literal("idle"),
+  v.literal("running"),
+  v.literal("complete"),
+  v.literal("stopped"),
+  v.literal("error"),
+);
+
 export default defineSchema({
   // -----------------------------
   // Reference tables
@@ -131,6 +149,7 @@ export default defineSchema({
     parsedAt: v.number(),
   })
     .index("by_identity", ["datasetKey", "regionCode", "asOfDate"])
+    .index("by_dataStatus", ["dataStatus"])
     .index("by_dataset_region", ["datasetKey", "regionCode"])
     .index("by_asOfDate", ["asOfDate"]),
 
@@ -169,6 +188,7 @@ export default defineSchema({
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
     status: SyncStatus,
+    requestId: v.optional(v.string()),
 
     assetsDiscovered: v.number(),
     assetsDownloaded: v.number(),
@@ -179,7 +199,24 @@ export default defineSchema({
     pageLastUpdated: v.optional(v.string()),
   })
     .index("by_status", ["status"])
-    .index("by_startedAt", ["startedAt"]),
+    .index("by_startedAt", ["startedAt"])
+    .index("by_requestId", ["requestId"]),
+
+  syncLogIncrements: defineTable({
+    syncLogId: v.id("syncLogs"),
+    eventId: v.string(),
+    createdAt: v.number(),
+    delta: v.object({
+      assetsDiscovered: v.optional(v.number()),
+      assetsDownloaded: v.optional(v.number()),
+      assetsSkipped: v.optional(v.number()),
+      rowsInserted: v.optional(v.number()),
+      errorCount: v.optional(v.number()),
+    }),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_syncLogId_createdAt", ["syncLogId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 
   syncManifests: defineTable({
     pageType: PageType,
@@ -197,7 +234,128 @@ export default defineSchema({
     error: v.string(),
     timestamp: v.number(),
     stage: SyncStage,
-  }).index("by_syncLogId_timestamp", ["syncLogId", "timestamp"]),
+    eventId: v.optional(v.string()),
+  })
+    .index("by_syncLogId_timestamp", ["syncLogId", "timestamp"])
+    .index("by_eventId", ["eventId"])
+    .index("by_timestamp", ["timestamp"]),
+
+  auditLogs: defineTable({
+    action: v.string(),
+    source: v.string(),
+    createdAt: v.number(),
+    details: v.optional(v.any()),
+  }).index("by_createdAt", ["createdAt"]),
+
+  duplicateScanState: defineTable({
+    key: v.string(),
+    status: DuplicateScanStatus,
+    phase: DuplicateScanPhase,
+    pageLimit: v.number(),
+
+    snapshotCursor: v.optional(v.string()),
+    snapshotCarry: v.optional(
+      v.object({
+        datasetKey: v.string(),
+        regionCode: v.string(),
+        asOfDate: v.string(),
+        ids: v.array(v.id("snapshots")),
+      }),
+    ),
+    assetCursor: v.optional(v.string()),
+    assetCarry: v.optional(
+      v.object({
+        assetKey: v.string(),
+        ids: v.array(v.id("assets")),
+      }),
+    ),
+
+    snapshotPagesScanned: v.number(),
+    assetPagesScanned: v.number(),
+    snapshotDuplicateGroups: v.number(),
+    assetDuplicateGroups: v.number(),
+
+    snapshotSample: v.optional(
+      v.array(
+        v.object({
+          datasetKey: v.string(),
+          regionCode: v.string(),
+          asOfDate: v.string(),
+          count: v.number(),
+          ids: v.array(v.id("snapshots")),
+        }),
+      ),
+    ),
+    assetSample: v.optional(
+      v.array(
+        v.object({
+          assetKey: v.string(),
+          count: v.number(),
+          ids: v.array(v.id("assets")),
+        }),
+      ),
+    ),
+
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    inFlightUntil: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
+  duplicateCleanupState: defineTable({
+    key: v.string(),
+    status: DuplicateCleanupStatus,
+    phase: DuplicateScanPhase,
+    scanId: v.id("duplicateScanState"),
+    dryRun: v.boolean(),
+    pageLimit: v.number(),
+
+    groupCursor: v.optional(v.string()),
+
+    currentSnapshotGroupId: v.optional(v.id("duplicateSnapshotGroups")),
+    snapshotDeleteIds: v.optional(v.array(v.id("snapshots"))),
+    currentSnapshotId: v.optional(v.id("snapshots")),
+    snapshotDeleteCursor: v.optional(v.string()),
+
+    currentAssetGroupId: v.optional(v.id("duplicateAssetGroups")),
+    assetDeleteIds: v.optional(v.array(v.id("assets"))),
+    assetDeleteIndex: v.optional(v.number()),
+
+    snapshotGroupsProcessed: v.number(),
+    snapshotsDeleted: v.number(),
+    tableRowsDeleted: v.number(),
+    assetGroupsProcessed: v.number(),
+    assetsDeleted: v.number(),
+
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    inFlightUntil: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
+  duplicateSnapshotGroups: defineTable({
+    scanId: v.id("duplicateScanState"),
+    datasetKey: v.string(),
+    regionCode: v.string(),
+    asOfDate: v.string(),
+    count: v.number(),
+    ids: v.array(v.id("snapshots")),
+    createdAt: v.number(),
+  })
+    .index("by_scanId", ["scanId"])
+    .index("by_scanId_identity", ["scanId", "datasetKey", "regionCode", "asOfDate"]),
+
+  duplicateAssetGroups: defineTable({
+    scanId: v.id("duplicateScanState"),
+    assetKey: v.string(),
+    count: v.number(),
+    ids: v.array(v.id("assets")),
+    createdAt: v.number(),
+  })
+    .index("by_scanId", ["scanId"])
+    .index("by_scanId_assetKey", ["scanId", "assetKey"]),
 
   assets: defineTable({
     sourcePageUrl: v.string(),
@@ -215,10 +373,12 @@ export default defineSchema({
     resolvedAsOfDateSource: v.optional(AsOfDateSource),
     resolutionError: v.optional(v.string()),
 
+    assetKey: v.optional(v.string()),
     discoveredAt: v.number(),
   })
     .index("by_pageType_discoveredAt", ["pageType", "discoveredAt"])
-    .index("by_resolved_discoveredAt", ["resolved", "discoveredAt"]),
+    .index("by_resolved_discoveredAt", ["resolved", "discoveredAt"])
+    .index("by_assetKey", ["assetKey"]),
 
   // -----------------------------
   // Valuation runs
@@ -228,6 +388,7 @@ export default defineSchema({
     engineVersion: v.string(),
     status: RunStatus,
     error: v.optional(v.string()),
+    requestId: v.optional(v.string()),
     inputs: v.any(),
     normalizedInputs: v.optional(v.any()),
     provenance: v.optional(v.any()),
@@ -246,12 +407,15 @@ export default defineSchema({
       "primaryKeyNorm",
       "regionCode",
       "createdAt",
-    ]),
+    ])
+    .index("by_requestId", ["requestId"]),
 
   valuationRunTraces: defineTable({
     runId: v.id("valuationRuns"),
     createdAt: v.number(),
     byteSize: v.number(),
     trace: v.any(),
-  }).index("by_runId", ["runId"]),
+  })
+    .index("by_runId", ["runId"])
+    .index("by_createdAt", ["createdAt"]),
 });

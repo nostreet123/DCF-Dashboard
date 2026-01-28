@@ -1,7 +1,44 @@
 import { query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import { requireSyncToken } from "./syncAuth";
 
 const MAX_SNAPSHOT_SCAN = 50;
+
+const SnapshotRef = v.object({
+  snapshotId: v.id("snapshots"),
+  datasetKey: v.string(),
+  regionCode: v.string(),
+  asOfDate: v.string(),
+  activeBuildId: v.optional(v.string()),
+  columnNames: v.array(v.string()),
+  metricsKeys: v.array(v.string()),
+});
+
+const SnapshotRow = v.object({
+  rowIndex: v.number(),
+  primaryKey: v.string(),
+  primaryKeyNorm: v.string(),
+  secondaryKey: v.union(v.string(), v.null()),
+  metrics: v.any(),
+});
+
+const pickBestRow = <T extends { rowIndex: number; _creationTime: number }>(rows: T[]) => {
+  if (rows.length === 0) {
+    return null;
+  }
+  let best = rows[0];
+  for (let i = 1; i < rows.length; i += 1) {
+    const candidate = rows[i];
+    if (candidate.rowIndex < best.rowIndex) {
+      best = candidate;
+      continue;
+    }
+    if (candidate.rowIndex === best.rowIndex && candidate._creationTime > best._creationTime) {
+      best = candidate;
+    }
+  }
+  return best;
+};
 
 const toSnapshotRef = (snapshot: any) => ({
   snapshotId: snapshot._id,
@@ -51,10 +88,13 @@ const findSnapshotAtOrBefore = async (
 
 export const getLatestSnapshot = query({
   args: {
+    syncToken: v.optional(v.string()),
     datasetKey: v.string(),
     regionCode: v.string(),
   },
+  returns: v.union(SnapshotRef, v.null()),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const snapshot = await findLatestSnapshot(
       ctx,
       args.datasetKey,
@@ -69,11 +109,14 @@ export const getLatestSnapshot = query({
 
 export const getSnapshotAtOrBefore = query({
   args: {
+    syncToken: v.optional(v.string()),
     datasetKey: v.string(),
     regionCode: v.string(),
     targetDate: v.string(),
   },
+  returns: v.union(SnapshotRef, v.null()),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const snapshot = await findSnapshotAtOrBefore(
       ctx,
       args.datasetKey,
@@ -89,13 +132,22 @@ export const getSnapshotAtOrBefore = query({
 
 export const getRow = query({
   args: {
+    syncToken: v.optional(v.string()),
     datasetKey: v.string(),
     regionCode: v.string(),
     asOfDate: v.optional(v.string()),
     primaryKeyNorm: v.string(),
     secondaryKey: v.optional(v.string()),
   },
+  returns: v.union(
+    v.object({
+      snapshot: SnapshotRef,
+      row: SnapshotRow,
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const snapshot = args.asOfDate
       ? await findSnapshotAtOrBefore(
           ctx,
@@ -113,7 +165,7 @@ export const getRow = query({
     const buildId = snapshot.activeBuildId;
 
     if (args.secondaryKey) {
-      const row = await ctx.db
+      const matches = await ctx.db
         .query("tableData")
         .withIndex("by_snapshot_build_primaryKeyNorm_secondaryKey", (q: any) =>
           q
@@ -122,10 +174,25 @@ export const getRow = query({
             .eq("primaryKeyNorm", args.primaryKeyNorm)
             .eq("secondaryKey", args.secondaryKey),
         )
-        .unique();
+        .take(2);
 
-      if (!row) {
+      if (matches.length === 0) {
         return null;
+      }
+
+      let row = matches[0];
+      if (matches.length > 1) {
+        const allMatches = await ctx.db
+          .query("tableData")
+          .withIndex("by_snapshot_build_primaryKeyNorm_secondaryKey", (q: any) =>
+            q
+              .eq("snapshotId", snapshot._id)
+              .eq("buildId", buildId)
+              .eq("primaryKeyNorm", args.primaryKeyNorm)
+              .eq("secondaryKey", args.secondaryKey),
+          )
+          .collect();
+        row = pickBestRow(allMatches) ?? matches[0];
       }
 
       return {
@@ -158,10 +225,12 @@ export const getRow = query({
       const secondaryKeys = rows
         .map((row: any) => row.secondaryKey)
         .filter((value: any) => value !== undefined && value !== null);
-      throw new Error(
-        `Secondary key required for ${args.primaryKeyNorm}. ` +
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message:
+          `Secondary key required for ${args.primaryKeyNorm}. ` +
           `Available secondary keys: ${secondaryKeys.join(", ")}`,
-      );
+      });
     }
 
     const row = rows[0];

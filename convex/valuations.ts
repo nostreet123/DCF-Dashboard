@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
@@ -9,6 +10,73 @@ const TraceStorage = v.union(
 );
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
+
+const RunDoc = v.object({
+  _id: v.id("valuationRuns"),
+  _creationTime: v.number(),
+  createdAt: v.number(),
+  engineVersion: v.string(),
+  status: RunStatus,
+  error: v.optional(v.string()),
+  requestId: v.optional(v.string()),
+  inputs: v.any(),
+  normalizedInputs: v.optional(v.any()),
+  provenance: v.optional(v.any()),
+  resultSummary: v.optional(v.any()),
+  primaryKeyNorm: v.optional(v.string()),
+  regionCode: v.optional(v.string()),
+  asOfDate: v.optional(v.string()),
+  traceStorage: TraceStorage,
+  trace: v.optional(v.any()),
+  traceByteSize: v.optional(v.number()),
+  traceId: v.optional(v.id("valuationRunTraces")),
+});
+
+const TraceDoc = v.object({
+  _id: v.id("valuationRunTraces"),
+  _creationTime: v.number(),
+  runId: v.id("valuationRuns"),
+  createdAt: v.number(),
+  byteSize: v.number(),
+  trace: v.any(),
+});
+
+type RunPick = {
+  _id: Id<"valuationRuns">;
+  status: "success" | "error";
+  traceId?: Id<"valuationRunTraces">;
+  createdAt: number;
+  _creationTime: number;
+};
+
+const pickBestRun = <T extends RunPick>(runs: T[]) => {
+  if (runs.length === 0) {
+    return null;
+  }
+  const score = (run: RunPick) => [
+    run.status === "success" ? 1 : 0,
+    run.traceId ? 1 : 0,
+    run.createdAt ?? 0,
+    run._creationTime,
+  ];
+  let best = runs[0];
+  let bestScore = score(best);
+  for (let i = 1; i < runs.length; i += 1) {
+    const candidate = runs[i];
+    const candidateScore = score(candidate);
+    for (let j = 0; j < candidateScore.length; j += 1) {
+      if (candidateScore[j] > bestScore[j]) {
+        best = candidate;
+        bestScore = candidateScore;
+        break;
+      }
+      if (candidateScore[j] < bestScore[j]) {
+        break;
+      }
+    }
+  }
+  return best;
+};
 
 const runSummary = (run: any) => {
   const summary = { ...run };
@@ -26,7 +94,10 @@ const normalizeLimit = (requested: number | undefined) => {
   }
   const limit = Number(requested);
   if (!Number.isInteger(limit) || limit <= 0) {
-    throw new Error("Limit must be a positive integer");
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Limit must be a positive integer",
+    });
   }
   return Math.min(limit, MAX_LIMIT);
 };
@@ -47,15 +118,52 @@ export const create = mutation({
     traceStorage: TraceStorage,
     trace: v.optional(v.any()),
     traceByteSize: v.optional(v.number()),
+    requestId: v.optional(v.string()),
   },
+  returns: v.object({
+    runId: v.id("valuationRuns"),
+    traceId: v.optional(v.id("valuationRunTraces")),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+    if (args.requestId) {
+      const matches = await ctx.db
+        .query("valuationRuns")
+        .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+        .take(2);
+      if (matches.length > 0) {
+        let existing = matches[0];
+        if (matches.length > 1) {
+          const allMatches = await ctx.db
+            .query("valuationRuns")
+            .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+            .collect();
+          existing = pickBestRun(allMatches) ?? matches[0];
+        }
+        let traceId = existing.traceId;
+        if (
+          args.traceStorage === "external" &&
+          !traceId &&
+          args.trace !== undefined
+        ) {
+          traceId = await ctx.db.insert("valuationRunTraces", {
+            runId: existing._id,
+            createdAt: Date.now(),
+            byteSize: args.traceByteSize ?? 0,
+            trace: args.trace,
+          });
+          await ctx.db.patch(existing._id, { traceId });
+        }
+        return { runId: existing._id, traceId };
+      }
+    }
     const createdAt = Date.now();
     const runId = await ctx.db.insert("valuationRuns", {
       createdAt,
       engineVersion: args.engineVersion,
       status: args.status,
       error: args.error,
+      requestId: args.requestId,
       inputs: args.inputs,
       normalizedInputs: args.normalizedInputs,
       provenance: args.provenance,
@@ -91,11 +199,26 @@ export const attachTrace = mutation({
     trace: v.any(),
     traceByteSize: v.optional(v.number()),
   },
+  returns: v.object({
+    traceId: v.id("valuationRunTraces"),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
-      throw new Error("Run not found");
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Run not found",
+      });
+    }
+    if (run.traceStorage === "inline") {
+      throw new ConvexError({
+        code: "CONFLICT",
+        message: "Trace already stored inline",
+      });
+    }
+    if (run.traceId) {
+      return { traceId: run.traceId };
     }
     const traceId = await ctx.db.insert("valuationRunTraces", {
       runId: args.runId,
@@ -110,10 +233,19 @@ export const attachTrace = mutation({
 
 export const get = query({
   args: {
+    syncToken: v.optional(v.string()),
     runId: v.id("valuationRuns"),
     includeTrace: v.optional(v.boolean()),
   },
+  returns: v.union(
+    v.object({
+      run: RunDoc,
+      trace: v.optional(TraceDoc),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
       return null;
@@ -126,7 +258,10 @@ export const get = query({
     }
     if (run.traceId) {
       const trace = await ctx.db.get(run.traceId);
-      return { run: runSummary(run), trace };
+      if (trace) {
+        return { run: runSummary(run), trace };
+      }
+      return { run: runSummary(run) };
     }
     return { run: runSummary(run) };
   },
@@ -134,11 +269,14 @@ export const get = query({
 
 export const listBySymbol = query({
   args: {
+    syncToken: v.optional(v.string()),
     primaryKeyNorm: v.string(),
     regionCode: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.array(RunDoc),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
       const runs = await ctx.db
