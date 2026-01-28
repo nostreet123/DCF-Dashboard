@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import type { MutationCtx } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const normalizePrimaryKey = (value: string) =>
@@ -8,6 +9,24 @@ const normalizePrimaryKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const normalizePageLimit = (
+  requested: number | undefined,
+  defaultLimit: number,
+  maxLimit: number,
+) => {
+  if (requested === undefined) {
+    return defaultLimit;
+  }
+  const limit = Number(requested);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Limit must be a positive integer",
+    });
+  }
+  return Math.min(limit, maxLimit);
+};
 
 const getMaxInsertRowsPerCall = () => {
   const raw = process.env.TABLEDATA_INSERT_MAX_ROWS;
@@ -26,6 +45,31 @@ const getMaxInsertRowsPerCall = () => {
   return Math.min(900, floored);
 };
 
+const logAudit = async (
+  ctx: MutationCtx,
+  action: string,
+  details: Record<string, unknown>,
+) => {
+  await ctx.db.insert("auditLogs", {
+    action,
+    source: "sync",
+    createdAt: Date.now(),
+    details,
+  });
+};
+
+const TableDataRow = v.object({
+  _id: v.id("tableData"),
+  _creationTime: v.number(),
+  snapshotId: v.id("snapshots"),
+  buildId: v.string(),
+  rowIndex: v.number(),
+  primaryKey: v.string(),
+  primaryKeyNorm: v.string(),
+  secondaryKey: v.optional(v.string()),
+  metrics: v.any(),
+});
+
 export const insertBatch = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -41,20 +85,83 @@ export const insertBatch = mutation({
       }),
     ),
   },
+  returns: v.object({
+    inserted: v.number(),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const maxRows = getMaxInsertRowsPerCall();
     if (args.rows.length > maxRows) {
-      throw new Error(`Batch too large: max ${maxRows} rows per call`);
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `Batch too large: max ${maxRows} rows per call`,
+      });
     }
 
+    let inserted = 0;
     for (const row of args.rows) {
       const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
       if (row.primaryKeyNorm !== primaryKeyNorm) {
-        throw new Error(
-          `primaryKeyNorm mismatch at row ${row.rowIndex}: expected ${primaryKeyNorm}`,
-        );
+        throw new ConvexError({
+          code: "BAD_REQUEST",
+          message:
+            `primaryKeyNorm mismatch at row ${row.rowIndex}: ` +
+            `expected ${primaryKeyNorm}`,
+        });
       }
+
+      const matches = await ctx.db
+        .query("tableData")
+        .withIndex("by_snapshot_build_rowIndex", (q) =>
+          q
+            .eq("snapshotId", args.snapshotId)
+            .eq("buildId", args.buildId)
+            .eq("rowIndex", row.rowIndex),
+        )
+        .take(2);
+      if (matches.length > 0) {
+        const rowMetricsJson = JSON.stringify(row.metrics);
+        const isEquivalent = (existing: any) => {
+          const sameSecondaryKey =
+            (existing.secondaryKey ?? null) === (row.secondaryKey ?? null);
+          const sameMetrics = JSON.stringify(existing.metrics) === rowMetricsJson;
+          return (
+            existing.primaryKey === row.primaryKey &&
+            existing.primaryKeyNorm === primaryKeyNorm &&
+            sameSecondaryKey &&
+            sameMetrics
+          );
+        };
+
+        if (matches.length === 1) {
+          if (!isEquivalent(matches[0])) {
+            throw new ConvexError({
+              code: "CONFLICT",
+              message: `Row ${row.rowIndex} already exists with different data`,
+            });
+          }
+          continue;
+        }
+
+        const allMatches = await ctx.db
+          .query("tableData")
+          .withIndex("by_snapshot_build_rowIndex", (q) =>
+            q
+              .eq("snapshotId", args.snapshotId)
+              .eq("buildId", args.buildId)
+              .eq("rowIndex", row.rowIndex),
+          )
+          .collect();
+        const allEquivalent = allMatches.every((existing: any) => isEquivalent(existing));
+        if (!allEquivalent) {
+          throw new ConvexError({
+            code: "CONFLICT",
+            message: `Row ${row.rowIndex} already exists with different data`,
+          });
+        }
+        continue;
+      }
+
       await ctx.db.insert("tableData", {
         snapshotId: args.snapshotId,
         buildId: args.buildId,
@@ -64,9 +171,10 @@ export const insertBatch = mutation({
         secondaryKey: row.secondaryKey,
         metrics: row.metrics,
       });
+      inserted += 1;
     }
 
-    return { inserted: args.rows.length };
+    return { inserted };
   },
 });
 
@@ -77,6 +185,9 @@ export const deleteBySnapshotBuild = mutation({
     buildId: v.string(),
     limit: v.number(),
   },
+  returns: v.object({
+    deleted: v.number(),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     if (
@@ -84,7 +195,10 @@ export const deleteBySnapshotBuild = mutation({
       args.limit <= 0 ||
       args.limit > 1000
     ) {
-      throw new Error("Limit must be an integer between 1 and 1000");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Limit must be an integer between 1 and 1000",
+      });
     }
 
     const rows = await ctx.db
@@ -98,29 +212,42 @@ export const deleteBySnapshotBuild = mutation({
       await ctx.db.delete(row._id);
     }
 
+    await logAudit(ctx, "tableData.deleteBySnapshotBuild", {
+      snapshotId: args.snapshotId,
+      buildId: args.buildId,
+      deleted: rows.length,
+    });
+
     return { deleted: rows.length };
   },
 });
 
 export const listBySnapshot = query({
   args: {
+    syncToken: v.optional(v.string()),
     snapshotId: v.id("snapshots"),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
+  returns: v.object({
+    rows: v.array(TableDataRow),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const snapshot = await ctx.db.get(args.snapshotId);
-    if (!snapshot || !snapshot.activeBuildId) {
+    const activeBuildId = snapshot?.activeBuildId;
+    if (!snapshot || !activeBuildId) {
       return { rows: [], nextCursor: null };
     }
 
-    const limit = args.limit ?? 100;
+    const limit = normalizePageLimit(args.limit, 100, 500);
     const result = await ctx.db
       .query("tableData")
       .withIndex("by_snapshot_build_rowIndex", (q) =>
         q
           .eq("snapshotId", args.snapshotId)
-          .eq("buildId", snapshot.activeBuildId),
+          .eq("buildId", activeBuildId),
       )
       .paginate({
         cursor: args.cursor ?? null,
@@ -142,9 +269,33 @@ export const deleteNonActiveRowsPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    deleted: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const limit = args.limit ?? 500;
+    const snapshot = await ctx.db.get(args.snapshotId);
+    if (!snapshot) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Snapshot not found",
+      });
+    }
+    if (!snapshot.activeBuildId) {
+      throw new ConvexError({
+        code: "CONFLICT",
+        message: "Snapshot has no active build",
+      });
+    }
+    if (snapshot.activeBuildId !== args.activeBuildId) {
+      throw new ConvexError({
+        code: "CONFLICT",
+        message: "Active build ID does not match",
+      });
+    }
+
+    const limit = normalizePageLimit(args.limit, 500, 1000);
     const result = await ctx.db
       .query("tableData")
       .withIndex("by_snapshot_build_rowIndex", (q) =>
@@ -163,6 +314,14 @@ export const deleteNonActiveRowsPage = mutation({
       }
     }
 
+    if (deleted > 0) {
+      await logAudit(ctx, "tableData.deleteNonActiveRowsPage", {
+        snapshotId: args.snapshotId,
+        activeBuildId: args.activeBuildId,
+        deleted,
+      });
+    }
+
     return {
       deleted,
       nextCursor: result.continueCursor ?? null,
@@ -178,9 +337,13 @@ export const backfillPrimaryKeyNormPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    updated: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const limit = args.limit ?? 500;
+    const limit = normalizePageLimit(args.limit, 500, 1000);
     const result = await ctx.db
       .query("tableData")
       .withIndex("by_snapshot_build_rowIndex", (q) =>
@@ -214,13 +377,26 @@ export const backfillMissingPrimaryKeyNormPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    updated: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+    seenSnapshots: v.array(
+      v.object({
+        snapshotId: v.id("snapshots"),
+        buildId: v.string(),
+      }),
+    ),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const limit = args.limit ?? 500;
-    const result = await ctx.db.query("tableData").paginate({
-      cursor: args.cursor ?? null,
-      numItems: limit,
-    });
+    const limit = normalizePageLimit(args.limit, 500, 1000);
+    const result = await ctx.db
+      .query("tableData")
+      .withIndex("by_snapshot_build_rowIndex", (q) => q)
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
 
     let updated = 0;
     const seenSnapshots = new Map<string, { snapshotId: any; buildId: string }>();

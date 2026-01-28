@@ -9,6 +9,7 @@
  */
 
 import type * as assets from "../assets.js";
+import type * as maintenance from "../maintenance.js";
 import type * as metrics from "../metrics.js";
 import type * as reference from "../reference.js";
 import type * as seed from "../seed.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
+  maintenance: typeof maintenance;
   metrics: typeof metrics;
   reference: typeof reference;
   seed: typeof seed;
