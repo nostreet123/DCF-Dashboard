@@ -2,6 +2,17 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
+type DataType = "industry" | "country" | "timeseries" | "other";
+
+type SeedDataset = {
+  key: string;
+  name: string;
+  description: string;
+  categorySlug: string;
+  dataType: DataType;
+  defaultRegionCode: string;
+};
+
 const SEED_CATEGORIES = [
   {
     slug: "corporate_governance",
@@ -122,7 +133,7 @@ const SEED_REGIONS = [
   },
 ];
 
-const SEED_DATASETS = [
+const SEED_DATASETS: SeedDataset[] = [
   {
     key: "inshold",
     name: "Insider and Institutional Holdings",

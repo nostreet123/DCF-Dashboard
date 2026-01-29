@@ -2,12 +2,20 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
+const PageType = v.union(v.literal("current"), v.literal("archive"));
+
+const AsOfDateSource = v.union(
+  v.literal("label"),
+  v.literal("page_last_update"),
+  v.literal("filename_inferred"),
+);
+
 export const record = mutation({
   args: {
     syncToken: v.optional(v.string()),
     asset: v.object({
       sourcePageUrl: v.string(),
-      pageType: v.string(),
+      pageType: PageType,
       pageLastUpdated: v.optional(v.string()),
       sourceUrl: v.string(),
       fileName: v.string(),
@@ -16,7 +24,7 @@ export const record = mutation({
       resolvedDatasetKey: v.optional(v.string()),
       resolvedRegionCode: v.optional(v.string()),
       resolvedAsOfDate: v.optional(v.string()),
-      resolvedAsOfDateSource: v.optional(v.string()),
+      resolvedAsOfDateSource: v.optional(AsOfDateSource),
       resolutionError: v.optional(v.string()),
     }),
   },
@@ -46,7 +54,7 @@ export const recordBatch = mutation({
     assets: v.array(
       v.object({
         sourcePageUrl: v.string(),
-        pageType: v.string(),
+        pageType: PageType,
         pageLastUpdated: v.optional(v.string()),
         sourceUrl: v.string(),
         fileName: v.string(),
@@ -55,7 +63,7 @@ export const recordBatch = mutation({
         resolvedDatasetKey: v.optional(v.string()),
         resolvedRegionCode: v.optional(v.string()),
         resolvedAsOfDate: v.optional(v.string()),
-        resolvedAsOfDateSource: v.optional(v.string()),
+        resolvedAsOfDateSource: v.optional(AsOfDateSource),
         resolutionError: v.optional(v.string()),
       }),
     ),

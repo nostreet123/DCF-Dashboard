@@ -33,7 +33,7 @@ def test_get_reference_authenticated(monkeypatch) -> None:
     assert result == {"regions": [], "datasets": [], "datasetMappings": []}
     assert DummyConvexClient.last_instance is not None
     assert DummyConvexClient.last_instance.queries == [
-        ("seed:getReference", {"syncToken": "secret-token"})
+        ("seed:getReference", {})
     ]
 
 
@@ -44,24 +44,20 @@ def test_sync_log_idempotency_args(monkeypatch) -> None:
         sync_token="secret-token",
     )
 
-    request_id = "req-123"
-    event_id = "evt-456"
-
-    client.create_sync_log("full_current", request_id=request_id)
-    client.increment_sync_log("log-1", {"assetsDiscovered": 1}, event_id=event_id)
+    client.create_sync_log("full_current")
+    client.increment_sync_log("log-1", {"assetsDiscovered": 1})
     client.append_sync_error(
         "log-1",
         "file.csv",
         "download",
         "boom",
-        event_id=event_id,
     )
 
     assert DummyConvexClient.last_instance is not None
     mutations = DummyConvexClient.last_instance.mutations
     assert mutations[0][0] == "syncLogs:create"
-    assert mutations[0][1]["requestId"] == request_id
+    assert "requestId" not in mutations[0][1]
     assert mutations[1][0] == "syncLogs:increment"
-    assert mutations[1][1]["eventId"] == event_id
+    assert "eventId" not in mutations[1][1]
     assert mutations[2][0] == "syncErrors:append"
-    assert mutations[2][1]["eventId"] == event_id
+    assert "eventId" not in mutations[2][1]

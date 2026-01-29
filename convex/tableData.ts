@@ -110,7 +110,8 @@ export const listBySnapshot = query({
   },
   handler: async (ctx, args) => {
     const snapshot = await ctx.db.get(args.snapshotId);
-    if (!snapshot || !snapshot.activeBuildId) {
+    const activeBuildId = snapshot?.activeBuildId;
+    if (!activeBuildId) {
       return { rows: [], nextCursor: null };
     }
 
@@ -118,9 +119,7 @@ export const listBySnapshot = query({
     const result = await ctx.db
       .query("tableData")
       .withIndex("by_snapshot_build_rowIndex", (q) =>
-        q
-          .eq("snapshotId", args.snapshotId)
-          .eq("buildId", snapshot.activeBuildId),
+        q.eq("snapshotId", args.snapshotId).eq("buildId", activeBuildId),
       )
       .paginate({
         cursor: args.cursor ?? null,
