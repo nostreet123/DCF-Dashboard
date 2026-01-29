@@ -5,7 +5,6 @@ import logging
 import os
 import time
 from typing import Any, Callable
-import uuid
 
 import requests
 from convex import ConvexClient
@@ -37,9 +36,6 @@ class ConvexSyncClient:
 
     def _token_arg(self) -> dict[str, Any]:
         return {"syncToken": self._sync_token} if self._sync_token is not None else {}
-
-    def _request_id(self) -> str:
-        return uuid.uuid4().hex
 
     def _sanitize_args(self, args: dict[str, Any] | None) -> dict[str, Any] | None:
         if args is None:
@@ -134,7 +130,7 @@ class ConvexSyncClient:
         self._mutation("seed:upsertAll", {})
 
     def get_reference(self) -> dict[str, Any]:
-        result = self._query("seed:getReference", {}, include_token=True)
+        result = self._query("seed:getReference", {}, include_token=False)
         if not isinstance(result, dict):
             self._log_invalid_response("seed:getReference", result)
             raise ValueError(f"Unexpected seed:getReference response: {result!r}")
@@ -157,7 +153,7 @@ class ConvexSyncClient:
                 "regionCode": region_code,
                 "asOfDate": as_of_date,
             },
-            include_token=True,
+            include_token=False,
         )
         if result is None:
             return None
@@ -174,7 +170,7 @@ class ConvexSyncClient:
             {
                 "snapshotId": snapshot_id,
             },
-            include_token=True,
+            include_token=False,
         )
         if result is None:
             return None
@@ -193,7 +189,7 @@ class ConvexSyncClient:
             {
                 "identities": identities,
             },
-            include_token=True,
+            include_token=False,
         )
         if not isinstance(result, list):
             self._log_invalid_response("snapshots:getByIdentityBatch", result)
@@ -241,12 +237,9 @@ class ConvexSyncClient:
         self,
         sync_type: str,
         page_last_updated: str | None = None,
-        *,
-        request_id: str | None = None,
     ) -> str:
         payload: dict[str, Any] = {
             "syncType": sync_type,
-            "requestId": request_id or self._request_id(),
         }
         if page_last_updated is not None:
             payload["pageLastUpdated"] = page_last_updated
@@ -260,14 +253,11 @@ class ConvexSyncClient:
         self,
         sync_log_id: str,
         delta: dict[str, int],
-        *,
-        event_id: str | None = None,
     ) -> None:
         self._mutation(
             "syncLogs:increment",
             {
                 "syncLogId": sync_log_id,
-                "eventId": event_id or self._request_id(),
                 "delta": delta,
             },
         )
@@ -287,8 +277,6 @@ class ConvexSyncClient:
         file: str,
         stage: str,
         error: str,
-        *,
-        event_id: str | None = None,
     ) -> None:
         self._mutation(
             "syncErrors:append",
@@ -297,7 +285,6 @@ class ConvexSyncClient:
                 "file": file,
                 "stage": stage,
                 "error": error,
-                "eventId": event_id or self._request_id(),
             },
         )
 

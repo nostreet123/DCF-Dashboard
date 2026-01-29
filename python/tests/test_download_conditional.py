@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -31,11 +33,27 @@ class DummyClient:
         self._responses = list(responses)
         self.calls: list[dict[str, object]] = []
 
-    def get(self, url: str, **kwargs):
-        self.calls.append({"url": url, "kwargs": kwargs})
+    def _request(self, method: str, url: str, **kwargs):
+        self.calls.append({"method": method, "url": url, "kwargs": kwargs})
         if not self._responses:
             raise AssertionError("No more responses configured")
         return self._responses.pop(0)
+
+    def get(self, url: str, **kwargs):
+        return self._request("get", url, **kwargs)
+
+    def head(self, url: str, **kwargs):
+        return self._request("head", url, **kwargs)
+
+
+class DummyRateLimiter:
+    def __init__(self) -> None:
+        self.calls = 0
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            self.calls += 1
 
 
 def _etag(headers: dict[str, str] | None) -> dict[str, str]:
@@ -125,3 +143,136 @@ def test_conditional_get_200_captures_headers(tmp_path) -> None:
     assert result.etag == "etag-3"
     assert result.last_modified == "Mon, 12 Jan 2026 13:41:41 GMT"
     assert result.path.exists()
+
+
+def test_probe_remote_304_not_modified() -> None:
+    url = "https://example.com/test.xls"
+    response = DummyResponse(
+        304,
+        headers={"ETag": "etag-1", "Last-Modified": "Mon, 12 Jan 2026 13:41:41 GMT"},
+    )
+    client = DummyClient([response])
+
+    result = download.probe_remote(
+        url,
+        http_client=client,
+        etag="etag-1",
+        last_modified="Mon, 12 Jan 2026 13:41:41 GMT",
+    )
+
+    assert result is not None
+    assert result.not_modified is True
+    assert result.status_code == 304
+    assert result.etag == "etag-1"
+    assert result.last_modified == "Mon, 12 Jan 2026 13:41:41 GMT"
+
+    headers = _etag(client.calls[0]["kwargs"].get("headers"))
+    assert headers["If-None-Match"] == "etag-1"
+    assert headers["If-Modified-Since"] == "Mon, 12 Jan 2026 13:41:41 GMT"
+
+
+def test_probe_remote_404_not_found() -> None:
+    url = "https://example.com/missing.xls"
+    response = DummyResponse(404)
+    client = DummyClient([response])
+
+    result = download.probe_remote(
+        url,
+        http_client=client,
+        etag="etag-1",
+        last_modified="Mon, 12 Jan 2026 13:41:41 GMT",
+    )
+
+    assert result is not None
+    assert result.not_modified is False
+    assert result.status_code == 404
+    assert result.etag is None
+    assert result.last_modified is None
+
+
+def test_probe_remote_405_returns_none() -> None:
+    url = "https://example.com/nohead.xls"
+    response = DummyResponse(405)
+    client = DummyClient([response])
+
+    result = download.probe_remote(
+        url,
+        http_client=client,
+        etag="etag-1",
+    )
+
+    assert result is None
+
+
+def test_probe_remote_200_captures_headers() -> None:
+    url = "https://example.com/fresh.xls"
+    response = DummyResponse(
+        200,
+        headers={"ETag": "etag-2", "Last-Modified": "Mon, 12 Jan 2026 13:41:41 GMT"},
+    )
+    client = DummyClient([response])
+
+    result = download.probe_remote(
+        url,
+        http_client=client,
+        etag="etag-1",
+    )
+
+    assert result is not None
+    assert result.not_modified is False
+    assert result.status_code == 200
+    assert result.etag == "etag-2"
+    assert result.last_modified == "Mon, 12 Jan 2026 13:41:41 GMT"
+
+
+def test_probe_remote_no_conditions_returns_none() -> None:
+    client = DummyClient([])
+
+    result = download.probe_remote(
+        "https://example.com/skip.xls",
+        http_client=client,
+    )
+
+    assert result is None
+    assert len(client.calls) == 0
+
+
+def test_probe_remote_rate_limiter_threadsafe() -> None:
+    rate_limiter = DummyRateLimiter()
+
+    class DummySession:
+        def __init__(self, responses: list[DummyResponse]) -> None:
+            self._responses = list(responses)
+
+        def head(self, url: str, timeout: int, **kwargs):
+            if not self._responses:
+                raise AssertionError("No more responses configured")
+            return self._responses.pop(0)
+
+    thread_count = 5
+    session = DummySession(
+        [
+            DummyResponse(
+                200,
+                headers={
+                    "ETag": "etag-1",
+                    "Last-Modified": "Mon, 12 Jan 2026 13:41:41 GMT",
+                },
+            )
+            for _ in range(thread_count)
+        ]
+    )
+    client = download.HttpClient(session=session, rate_limiter=rate_limiter)
+
+    def _probe() -> download.ProbeResult | None:
+        return download.probe_remote(
+            "https://example.com/threaded.xls",
+            http_client=client,
+            etag="etag-1",
+        )
+
+    with ThreadPoolExecutor(max_workers=thread_count) as executor:
+        results = list(executor.map(lambda _: _probe(), range(thread_count)))
+
+    assert all(result is not None for result in results)
+    assert rate_limiter.calls == thread_count
