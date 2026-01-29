@@ -31,7 +31,10 @@ const convexUrl =
   envDot.CONVEX_URL ||
   envDot.VITE_CONVEX_URL ||
   envDot.NEXT_PUBLIC_CONVEX_URL;
-const syncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const syncToken =
+  process.env.DAMODARAN_SYNC_TOKEN ||
+  envLocal.DAMODARAN_SYNC_TOKEN ||
+  envDot.DAMODARAN_SYNC_TOKEN;
 
 if (!convexUrl) {
   console.error('Missing CONVEX_URL.');
