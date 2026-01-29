@@ -44,6 +44,11 @@ const DuplicateScanSampleAssets = v.array(
   }),
 );
 
+const makeDuplicateScanRunId = (): string => {
+  // No need for crypto-grade randomness; this is only for deconflicting scheduled jobs.
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const normalizeRetentionDays = (value: number | undefined, defaultDays: number) => {
   if (value === undefined) {
     return defaultDays;
@@ -597,6 +602,8 @@ export const getDuplicateScanState = query({
       status: v.string(),
       phase: v.string(),
       pageLimit: v.number(),
+
+      runId: v.optional(v.string()),
       snapshotCursor: v.optional(v.string()),
       snapshotCarry: v.optional(DuplicateSnapshotCarry),
       assetCursor: v.optional(v.string()),
@@ -862,11 +869,15 @@ export const startDuplicateScan = mutation({
     }
 
     const now = Date.now();
+    const runId = makeDuplicateScanRunId();
     const payload: {
       key: string;
       status: "running";
       phase: "snapshots";
       pageLimit: number;
+
+      runId: string;
+
       snapshotCursor?: string;
       snapshotCarry?: { datasetKey: string; regionCode: string; asOfDate: string; ids: Array<Id<"snapshots">> };
       assetCursor?: string;
@@ -897,6 +908,9 @@ export const startDuplicateScan = mutation({
       status: "running",
       phase: "snapshots",
       pageLimit,
+
+      runId,
+
       snapshotCursor: undefined,
       snapshotCarry: undefined,
       assetCursor: undefined,
@@ -919,13 +933,16 @@ export const startDuplicateScan = mutation({
       : await ctx.db.insert("duplicateScanState", payload);
 
     if (existing) {
-      await ctx.runMutation(internal.maintenance.clearDuplicateGroupsForScanInternal, {
-        scanId: stateId,
+      await ctx.scheduler.runAfter(0, internal.maintenance.resetDuplicateScanAndStartInternal, {
+        stateId,
+        runId,
       });
+      return stateId;
     }
 
     await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
       stateId,
+      runId,
     });
 
     return stateId;
@@ -1222,6 +1239,8 @@ export const getDuplicateScanStateInternal = internalQuery({
       status: v.string(),
       phase: v.string(),
       pageLimit: v.number(),
+
+      runId: v.optional(v.string()),
       snapshotCursor: v.optional(v.string()),
       snapshotCarry: v.optional(DuplicateSnapshotCarry),
       assetCursor: v.optional(v.string()),
@@ -1249,18 +1268,38 @@ export const updateDuplicateScanStateInternal = internalMutation({
   args: {
     stateId: v.id("duplicateScanState"),
     patch: v.any(),
+
+    // Optional: if provided and the state has a runId, only patch when it matches.
+    runId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const state = await ctx.db.get(args.stateId);
+    if (!state) {
+      return null;
+    }
+    if (state.runId && args.runId !== state.runId) {
+      return null;
+    }
     await ctx.db.patch(args.stateId, { ...args.patch, updatedAt: Date.now() });
     return null;
   },
 });
 
 export const clearDuplicateGroupsForScanInternal = internalMutation({
-  args: { scanId: v.id("duplicateScanState") },
+  args: {
+    scanId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const state = await ctx.db.get(args.scanId);
+    if (!state) {
+      return null;
+    }
+    if (state.runId && args.runId !== state.runId) {
+      return null;
+    }
     while (true) {
       const snap = await ctx.db
         .query("duplicateSnapshotGroups")
@@ -1292,6 +1331,7 @@ export const clearDuplicateGroupsForScanInternal = internalMutation({
 export const insertSnapshotGroupsInternal = internalMutation({
   args: {
     scanId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
     groups: v.array(
       v.object({
         datasetKey: v.string(),
@@ -1304,6 +1344,13 @@ export const insertSnapshotGroupsInternal = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const state = await ctx.db.get(args.scanId);
+    if (!state) {
+      return null;
+    }
+    if (state.runId && args.runId !== state.runId) {
+      return null;
+    }
     const now = Date.now();
     for (const group of args.groups) {
       await ctx.db.insert("duplicateSnapshotGroups", {
@@ -1323,6 +1370,7 @@ export const insertSnapshotGroupsInternal = internalMutation({
 export const insertAssetGroupsInternal = internalMutation({
   args: {
     scanId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
     groups: v.array(
       v.object({
         assetKey: v.string(),
@@ -1333,6 +1381,13 @@ export const insertAssetGroupsInternal = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const state = await ctx.db.get(args.scanId);
+    if (!state) {
+      return null;
+    }
+    if (state.runId && args.runId !== state.runId) {
+      return null;
+    }
     const now = Date.now();
     for (const group of args.groups) {
       await ctx.db.insert("duplicateAssetGroups", {
@@ -1348,11 +1403,17 @@ export const insertAssetGroupsInternal = internalMutation({
 });
 
 export const tryAcquireDuplicateScanLockInternal = internalMutation({
-  args: { stateId: v.id("duplicateScanState") },
+  args: {
+    stateId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
+  },
   returns: v.boolean(),
   handler: async (ctx, args) => {
     const state = await ctx.db.get(args.stateId);
     if (!state || state.status !== "running") {
+      return false;
+    }
+    if (state.runId && args.runId !== state.runId) {
       return false;
     }
     const now = Date.now();
@@ -1368,13 +1429,54 @@ export const tryAcquireDuplicateScanLockInternal = internalMutation({
 });
 
 export const releaseDuplicateScanLockInternal = internalMutation({
-  args: { stateId: v.id("duplicateScanState") },
+  args: {
+    stateId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const state = await ctx.db.get(args.stateId);
+    if (!state) {
+      return null;
+    }
+    if (state.runId && args.runId !== state.runId) {
+      return null;
+    }
     await ctx.db.patch(args.stateId, {
       inFlightUntil: undefined,
       updatedAt: Date.now(),
     });
+    return null;
+  },
+});
+
+export const resetDuplicateScanAndStartInternal = internalAction({
+  args: {
+    stateId: v.id("duplicateScanState"),
+    runId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const state = await ctx.runQuery(internal.maintenance.getDuplicateScanStateInternal, {
+      stateId: args.stateId,
+    });
+    if (!state || state.status !== "running") {
+      return null;
+    }
+    if (state.runId && state.runId !== args.runId) {
+      return null;
+    }
+
+    await ctx.runMutation(internal.maintenance.clearDuplicateGroupsForScanInternal, {
+      scanId: args.stateId,
+      runId: args.runId,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
+      stateId: args.stateId,
+      runId: args.runId,
+    });
+
     return null;
   },
 });
@@ -1448,14 +1550,17 @@ export const deleteTableDataBySnapshotPageInternal = internalMutation({
 });
 
 export const runDuplicateScanChunk = internalAction({
-  args: { stateId: v.id("duplicateScanState") },
+  args: {
+    stateId: v.id("duplicateScanState"),
+    runId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     let acquired = false;
     try {
       const locked = await ctx.runMutation(
         internal.maintenance.tryAcquireDuplicateScanLockInternal,
-        { stateId: args.stateId },
+        { stateId: args.stateId, runId: args.runId },
       );
       acquired = locked;
       if (!locked) {
@@ -1467,6 +1572,12 @@ export const runDuplicateScanChunk = internalAction({
       if (!state || state.status !== "running") {
         return null;
       }
+
+      // Back-compat: legacy scans have no runId; once runId is present, ignore stale jobs.
+      if (state.runId && args.runId !== state.runId) {
+        return null;
+      }
+      const effectiveRunId = state.runId ?? args.runId;
 
       const pageLimit = normalizePageLimit(state.pageLimit, 1000);
       const now = Date.now();
@@ -1489,6 +1600,7 @@ export const runDuplicateScanChunk = internalAction({
           for (let i = 0; i < res.duplicates.length; i += DuplicateGroupInsertBatch) {
             await ctx.runMutation(internal.maintenance.insertSnapshotGroupsInternal, {
               scanId: state._id,
+              runId: effectiveRunId,
               groups: res.duplicates.slice(i, i + DuplicateGroupInsertBatch),
             });
           }
@@ -1516,6 +1628,7 @@ export const runDuplicateScanChunk = internalAction({
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
           patch,
+          runId: effectiveRunId,
         });
       } else {
         const assetArgs: {
@@ -1535,6 +1648,7 @@ export const runDuplicateScanChunk = internalAction({
           for (let i = 0; i < res.duplicates.length; i += DuplicateGroupInsertBatch) {
             await ctx.runMutation(internal.maintenance.insertAssetGroupsInternal, {
               scanId: state._id,
+              runId: effectiveRunId,
               groups: res.duplicates.slice(i, i + DuplicateGroupInsertBatch),
             });
           }
@@ -1563,6 +1677,7 @@ export const runDuplicateScanChunk = internalAction({
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
           patch,
+          runId: effectiveRunId,
         });
       }
 
@@ -1572,6 +1687,7 @@ export const runDuplicateScanChunk = internalAction({
       if (refreshed && refreshed.status === "running") {
         await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
           stateId: state._id,
+          runId: effectiveRunId,
         });
       }
 
@@ -1583,12 +1699,14 @@ export const runDuplicateScanChunk = internalAction({
           status: "error",
           error: error instanceof Error ? error.message : String(error),
         },
+        runId: args.runId,
       });
       return null;
     } finally {
       if (acquired) {
         await ctx.runMutation(internal.maintenance.releaseDuplicateScanLockInternal, {
           stateId: args.stateId,
+          runId: args.runId,
         });
       }
     }
@@ -1942,6 +2060,8 @@ export const runDuplicateScanOnce = mutation({
       status: v.string(),
       phase: v.string(),
       pageLimit: v.number(),
+
+      runId: v.optional(v.string()),
       snapshotCursor: v.optional(v.string()),
       snapshotCarry: v.optional(DuplicateSnapshotCarry),
       assetCursor: v.optional(v.string()),
@@ -1974,6 +2094,7 @@ export const runDuplicateScanOnce = mutation({
     }
     await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
       stateId: state._id,
+      runId: state.runId,
     });
     return await ctx.db.get(state._id);
   },
@@ -1989,6 +2110,8 @@ export const runDuplicateScanTick = mutation({
       status: v.string(),
       phase: v.string(),
       pageLimit: v.number(),
+
+      runId: v.optional(v.string()),
       snapshotCursor: v.optional(v.string()),
       snapshotCarry: v.optional(DuplicateSnapshotCarry),
       assetCursor: v.optional(v.string()),
