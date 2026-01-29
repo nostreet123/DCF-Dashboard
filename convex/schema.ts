@@ -253,6 +253,9 @@ export default defineSchema({
     phase: DuplicateScanPhase,
     pageLimit: v.number(),
 
+    // Incremented on every start/restart to ignore stale scheduled work.
+    runId: v.optional(v.string()),
+
     snapshotCursor: v.optional(v.string()),
     snapshotCarry: v.optional(
       v.object({
