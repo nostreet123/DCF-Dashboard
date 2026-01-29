@@ -94,7 +94,6 @@ export const getLatestSnapshot = query({
   },
   returns: v.union(SnapshotRef, v.null()),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const snapshot = await findLatestSnapshot(
       ctx,
       args.datasetKey,
@@ -116,7 +115,6 @@ export const getSnapshotAtOrBefore = query({
   },
   returns: v.union(SnapshotRef, v.null()),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const snapshot = await findSnapshotAtOrBefore(
       ctx,
       args.datasetKey,
@@ -147,7 +145,6 @@ export const getRow = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const snapshot = args.asOfDate
       ? await findSnapshotAtOrBefore(
           ctx,

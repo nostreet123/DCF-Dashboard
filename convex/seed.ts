@@ -614,7 +614,6 @@ export const getReference = query({
     ),
   }),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const regions = await takeAll(
       ctx.db.query("regions").withIndex("by_code", (q) => q),
     );
