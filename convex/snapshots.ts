@@ -219,7 +219,6 @@ export const getByIdentity = query({
   },
   returns: v.union(SnapshotDoc, v.null()),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     return await findSnapshotByIdentity(
       ctx,
       args.datasetKey,
@@ -236,7 +235,6 @@ export const getById = query({
   },
   returns: v.union(SnapshotDoc, v.null()),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     return ctx.db.get(args.snapshotId);
   },
 });
@@ -267,7 +265,6 @@ export const getByIdentityBatch = query({
     }),
   ),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     if (args.identities.length === 0) {
       return [];
     }
