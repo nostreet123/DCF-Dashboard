@@ -130,7 +130,6 @@ class ConvexSyncClient:
         self._mutation("seed:upsertAll", {})
 
     def get_reference(self) -> dict[str, Any]:
-        # Reference data is intentionally unauthenticated.
         result = self._query("seed:getReference", {}, include_token=False)
         if not isinstance(result, dict):
             self._log_invalid_response("seed:getReference", result)
@@ -234,7 +233,11 @@ class ConvexSyncClient:
         return result
 
 
-    def create_sync_log(self, sync_type: str, page_last_updated: str | None = None) -> str:
+    def create_sync_log(
+        self,
+        sync_type: str,
+        page_last_updated: str | None = None,
+    ) -> str:
         payload: dict[str, Any] = {
             "syncType": sync_type,
         }
@@ -246,7 +249,11 @@ class ConvexSyncClient:
             raise ValueError(f"Unexpected syncLogs:create response: {result!r}")
         return result
 
-    def increment_sync_log(self, sync_log_id: str, delta: dict[str, int]) -> None:
+    def increment_sync_log(
+        self,
+        sync_log_id: str,
+        delta: dict[str, int],
+    ) -> None:
         self._mutation(
             "syncLogs:increment",
             {
@@ -264,7 +271,13 @@ class ConvexSyncClient:
             },
         )
 
-    def append_sync_error(self, sync_log_id: str, file: str, stage: str, error: str) -> None:
+    def append_sync_error(
+        self,
+        sync_log_id: str,
+        file: str,
+        stage: str,
+        error: str,
+    ) -> None:
         self._mutation(
             "syncErrors:append",
             {

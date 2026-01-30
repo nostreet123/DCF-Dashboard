@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireSyncToken } from "./syncAuth";
 
@@ -19,6 +19,8 @@ const AsOfDateSource = v.union(
 );
 
 const AsOfGranularity = v.union(v.literal("day"), v.literal("month"));
+
+const DataStatus = v.union(v.literal("ready"), v.literal("rebuilding"));
 
 const StorageType = v.union(v.literal("convex"), v.literal("external"));
 
@@ -54,6 +56,66 @@ const SnapshotMetadata = v.object({
   primaryKeyNormComplete: v.optional(v.boolean()),
 });
 
+const snapshotValidator = v.object({
+  _id: v.id("snapshots"),
+  _creationTime: v.number(),
+  datasetKey: v.string(),
+  regionCode: v.string(),
+  asOfDate: v.string(),
+  asOfDateSource: AsOfDateSource,
+  asOfGranularity: AsOfGranularity,
+  sourcePageUrl: v.string(),
+  sourceUrl: v.string(),
+  fileName: v.string(),
+  linkLabel: v.string(),
+  pageType: PageType,
+  pageLastUpdated: v.optional(v.string()),
+  fileHash: v.string(),
+  sourceEtag: v.optional(v.string()),
+  sourceLastModified: v.optional(v.string()),
+  previousFileHashes: v.optional(v.array(v.string())),
+  dataStatus: DataStatus,
+  activeBuildId: v.optional(v.string()),
+  pendingBuildId: v.optional(v.string()),
+  primaryKeyNormComplete: v.optional(v.boolean()),
+  storageType: StorageType,
+  externalProvider: v.optional(v.string()),
+  externalUrl: v.optional(v.string()),
+  externalRowCount: v.optional(v.number()),
+  externalByteSize: v.optional(v.number()),
+  sampleStrategy: v.optional(v.string()),
+  sampleRowCount: v.optional(v.number()),
+  sheetName: v.string(),
+  headerRow: v.number(),
+  columnNames: v.array(v.string()),
+  metricsKeys: v.array(v.string()),
+  rowCount: v.number(),
+  dataType: DataType,
+  sheetCandidates: v.array(v.string()),
+  skippedSheets: v.array(v.string()),
+  downloadedAt: v.number(),
+  parsedAt: v.number(),
+});
+
+const snapshotBatchResultValidator = v.object({
+  datasetKey: v.string(),
+  regionCode: v.string(),
+  asOfDate: v.string(),
+  snapshotId: v.id("snapshots"),
+  fileHash: v.string(),
+  sourceEtag: v.optional(v.string()),
+  sourceLastModified: v.optional(v.string()),
+  dataStatus: v.optional(DataStatus),
+  activeBuildId: v.optional(v.string()),
+  primaryKeyNormComplete: v.boolean(),
+});
+
+const upsertAction = v.union(
+  v.literal("created"),
+  v.literal("updated"),
+  v.literal("unchanged"),
+);
+
 type SnapshotBatchResult = {
   datasetKey: string;
   regionCode: string;
@@ -62,7 +124,7 @@ type SnapshotBatchResult = {
   fileHash: string;
   sourceEtag?: string;
   sourceLastModified?: string;
-  dataStatus?: string;
+  dataStatus?: "ready" | "rebuilding";
   activeBuildId?: string;
   primaryKeyNormComplete: boolean;
 };
@@ -87,6 +149,7 @@ export const getByIdentity = query({
     regionCode: v.string(),
     asOfDate: v.string(),
   },
+  returns: v.union(v.null(), snapshotValidator),
   handler: async (ctx, args) => {
     return ctx.db
       .query("snapshots")
@@ -104,6 +167,7 @@ export const getById = query({
   args: {
     snapshotId: v.id("snapshots"),
   },
+  returns: v.union(v.null(), snapshotValidator),
   handler: async (ctx, args) => {
     return ctx.db.get(args.snapshotId);
   },
@@ -119,14 +183,18 @@ export const getByIdentityBatch = query({
       }),
     ),
   },
+  returns: v.array(snapshotBatchResultValidator),
   handler: async (ctx, args) => {
     if (args.identities.length === 0) {
       return [];
     }
     if (args.identities.length > MAX_IDENTITY_BATCH) {
-      throw new Error(
-        `Too many identities (${args.identities.length}); max ${MAX_IDENTITY_BATCH}. Reduce DAMODARAN_SNAPSHOT_BATCH_SIZE.`,
-      );
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message:
+          `Too many identities (${args.identities.length}); ` +
+          `max ${MAX_IDENTITY_BATCH}. Reduce DAMODARAN_SNAPSHOT_BATCH_SIZE.`,
+      });
     }
 
     const results: SnapshotBatchResult[] = [];
@@ -175,6 +243,11 @@ export const upsertByIdentity = mutation({
     forceRebuild: v.optional(v.boolean()),
     metadata: SnapshotMetadata,
   },
+  returns: v.object({
+    snapshotId: v.id("snapshots"),
+    action: upsertAction,
+    previousBuildId: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
@@ -247,7 +320,10 @@ export const upsertByIdentity = mutation({
     if (existing.dataStatus === "rebuilding") {
       if (existing.pendingBuildId !== args.buildId) {
         if (!args.forceRebuild) {
-          throw new Error("Snapshot rebuild already in progress");
+          throw new ConvexError({
+            code: "CONFLICT",
+            message: "Snapshot rebuild already in progress",
+          });
         }
         await ctx.db.patch(existing._id, {
           pendingBuildId: args.buildId,
@@ -284,24 +360,37 @@ export const finalizeRebuild = mutation({
     buildId: v.string(),
     metadata: SnapshotMetadata,
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
     const existing = await ctx.db.get(args.snapshotId);
     if (!existing) {
-      throw new Error("Snapshot not found");
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Snapshot not found",
+      });
     }
 
     if (existing.dataStatus !== "rebuilding") {
-      throw new Error("Snapshot is not rebuilding");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Snapshot is not rebuilding",
+      });
     }
 
     if (!existing.pendingBuildId) {
-      throw new Error("Snapshot has no pending build");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Snapshot has no pending build",
+      });
     }
 
     if (existing.pendingBuildId !== args.buildId) {
-      throw new Error("Build ID does not match pending build");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Build ID does not match pending build",
+      });
     }
 
     const previousHashes = existing.previousFileHashes ?? [];
@@ -345,6 +434,7 @@ export const finalizeRebuild = mutation({
       parsedAt: args.metadata.parsedAt,
       primaryKeyNormComplete: args.metadata.primaryKeyNormComplete,
     });
+    return null;
   },
 });
 
@@ -354,17 +444,25 @@ export const markPrimaryKeyNormComplete = mutation({
     snapshotId: v.id("snapshots"),
     buildId: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
     const snapshot = await ctx.db.get(args.snapshotId);
     if (!snapshot) {
-      throw new Error("Snapshot not found");
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Snapshot not found",
+      });
     }
     if (snapshot.activeBuildId !== args.buildId) {
-      throw new Error("Build ID does not match active build");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Build ID does not match active build",
+      });
     }
 
     await ctx.db.patch(args.snapshotId, { primaryKeyNormComplete: true });
+    return null;
   },
 });

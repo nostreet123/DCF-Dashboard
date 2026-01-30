@@ -20,11 +20,23 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rebuild snapshots even if file hashes are unchanged.",
     )
+    sync_current.add_argument(
+        "--head-precheck",
+        action="store_true",
+        default=None,
+        help="Use HEAD with conditional headers to skip unchanged downloads.",
+    )
     sync_all = subparsers.add_parser("sync-all", help="Sync all archived datasets")
     sync_all.add_argument(
         "--force-rebuild",
         action="store_true",
         help="Rebuild snapshots even if file hashes are unchanged.",
+    )
+    sync_all.add_argument(
+        "--head-precheck",
+        action="store_true",
+        default=None,
+        help="Use HEAD with conditional headers to skip unchanged downloads.",
     )
 
     subparsers.add_parser(
@@ -78,15 +90,27 @@ def _cmd_seed() -> int:
     return 0
 
 
-def _cmd_sync_current(force_rebuild: bool) -> int:
+def _cmd_sync_current(force_rebuild: bool, head_precheck: bool | None) -> int:
     client = ConvexSyncClient()
-    sync.process_page(discover.CURRENT_PAGE_URL, "current", client, force_rebuild)
+    sync.process_page(
+        discover.CURRENT_PAGE_URL,
+        "current",
+        client,
+        force_rebuild,
+        head_precheck=head_precheck,
+    )
     return 0
 
 
-def _cmd_sync_all(force_rebuild: bool) -> int:
+def _cmd_sync_all(force_rebuild: bool, head_precheck: bool | None) -> int:
     client = ConvexSyncClient()
-    sync.process_page(discover.ARCHIVE_PAGE_URL, "archive", client, force_rebuild)
+    sync.process_page(
+        discover.ARCHIVE_PAGE_URL,
+        "archive",
+        client,
+        force_rebuild,
+        head_precheck=head_precheck,
+    )
     return 0
 
 
@@ -305,9 +329,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "seed":
         return _cmd_seed()
     if args.command == "sync-current":
-        return _cmd_sync_current(args.force_rebuild)
+        return _cmd_sync_current(args.force_rebuild, args.head_precheck)
     if args.command == "sync-all":
-        return _cmd_sync_all(args.force_rebuild)
+        return _cmd_sync_all(args.force_rebuild, args.head_precheck)
     if args.command == "status-primarykeynorm":
         return _cmd_status_primarykeynorm()
     if args.command == "cleanup-nonactive-tabledata":

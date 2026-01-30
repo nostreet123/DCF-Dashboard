@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
@@ -9,6 +9,35 @@ const TraceStorage = v.union(
 );
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
+
+const valuationRunValidator = v.object({
+  _id: v.id("valuationRuns"),
+  _creationTime: v.number(),
+  createdAt: v.number(),
+  engineVersion: v.string(),
+  status: RunStatus,
+  error: v.optional(v.string()),
+  inputs: v.any(),
+  normalizedInputs: v.optional(v.any()),
+  provenance: v.optional(v.any()),
+  resultSummary: v.optional(v.any()),
+  primaryKeyNorm: v.optional(v.string()),
+  regionCode: v.optional(v.string()),
+  asOfDate: v.optional(v.string()),
+  traceStorage: TraceStorage,
+  trace: v.optional(v.any()),
+  traceByteSize: v.optional(v.number()),
+  traceId: v.optional(v.id("valuationRunTraces")),
+});
+
+const valuationRunTraceValidator = v.object({
+  _id: v.id("valuationRunTraces"),
+  _creationTime: v.number(),
+  runId: v.id("valuationRuns"),
+  createdAt: v.number(),
+  byteSize: v.number(),
+  trace: v.any(),
+});
 
 const runSummary = (run: any) => {
   const summary = { ...run };
@@ -26,7 +55,10 @@ const normalizeLimit = (requested: number | undefined) => {
   }
   const limit = Number(requested);
   if (!Number.isInteger(limit) || limit <= 0) {
-    throw new Error("Limit must be a positive integer");
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Limit must be a positive integer",
+    });
   }
   return Math.min(limit, MAX_LIMIT);
 };
@@ -48,6 +80,10 @@ export const create = mutation({
     trace: v.optional(v.any()),
     traceByteSize: v.optional(v.number()),
   },
+  returns: v.object({
+    runId: v.id("valuationRuns"),
+    traceId: v.optional(v.id("valuationRunTraces")),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const createdAt = Date.now();
@@ -91,11 +127,17 @@ export const attachTrace = mutation({
     trace: v.any(),
     traceByteSize: v.optional(v.number()),
   },
+  returns: v.object({
+    traceId: v.id("valuationRunTraces"),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
-      throw new Error("Run not found");
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Run not found",
+      });
     }
     const traceId = await ctx.db.insert("valuationRunTraces", {
       runId: args.runId,
@@ -113,6 +155,13 @@ export const get = query({
     runId: v.id("valuationRuns"),
     includeTrace: v.optional(v.boolean()),
   },
+  returns: v.union(
+    v.null(),
+    v.object({
+      run: valuationRunValidator,
+      trace: v.optional(valuationRunTraceValidator),
+    }),
+  ),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (!run) {
@@ -126,7 +175,9 @@ export const get = query({
     }
     if (run.traceId) {
       const trace = await ctx.db.get(run.traceId);
-      return { run: runSummary(run), trace };
+      if (trace) {
+        return { run: runSummary(run), trace };
+      }
     }
     return { run: runSummary(run) };
   },
@@ -138,6 +189,7 @@ export const listBySymbol = query({
     regionCode: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
