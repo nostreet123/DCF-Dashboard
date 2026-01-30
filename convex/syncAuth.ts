@@ -4,7 +4,7 @@ export const requireSyncToken = (syncToken: string | undefined) => {
   const expected = process.env.DAMODARAN_SYNC_TOKEN;
   if (!expected) {
     throw new ConvexError({
-      code: "CONFIGURATION",
+      code: "MISSING_ENV",
       message: "Missing DAMODARAN_SYNC_TOKEN",
     });
   }

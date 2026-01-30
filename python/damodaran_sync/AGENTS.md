@@ -118,18 +118,23 @@ rg "pattern.*datasetKey" mapping_resolver.py -A 2
 | `DAMODARAN_RATE_LIMIT_SECONDS` | `0.5` | Min seconds between requests |
 | `DAMODARAN_SYNC_PROFILE` | `false` | Enable timing profiler |
 | `DAMODARAN_TRUST_ARCHIVE_IMMUTABLE` | `false` | Skip re-syncing archive snapshots |
+| `DAMODARAN_HEAD_PRECHECK` | `false` | Use HEAD precheck for conditional downloads |
+| `DAMODARAN_ASSET_BATCH_SIZE` | `50` | Snapshot identity batch size for prefetch |
 
 ## CLI Commands
 
 ```bash
 # Sync current data page
-python -m damodaran_sync.cli sync current
+python -m damodaran_sync.cli sync-current
 
 # Sync archive data page
-python -m damodaran_sync.cli sync archive
+python -m damodaran_sync.cli sync-all
 
 # Force rebuild all (ignores cache/304)
-python -m damodaran_sync.cli sync current --force
+python -m damodaran_sync.cli sync-current --force-rebuild
+
+# Enable HEAD precheck for conditional downloads
+python -m damodaran_sync.cli sync-current --head-precheck
 
 # Seed reference data
 python -m damodaran_sync.cli seed
