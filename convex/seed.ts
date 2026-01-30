@@ -122,6 +122,13 @@ const SEED_REGIONS = [
   },
 ];
 
+const DataType = v.union(
+  v.literal("industry"),
+  v.literal("country"),
+  v.literal("timeseries"),
+  v.literal("other"),
+);
+
 type SeedDataset = {
   key: string;
   name: string;
@@ -602,7 +609,7 @@ export const getReference = query({
       v.object({
         key: v.string(),
         defaultRegionCode: v.string(),
-        dataType: v.string(),
+        dataType: DataType,
       }),
     ),
     datasetMappings: v.array(
