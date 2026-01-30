@@ -194,12 +194,15 @@ const findSnapshotByIdentity = async (
     .withIndex("by_identity", (q: any) =>
       q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
     )
-    .take(2);
+    .take(3);
   if (matches.length === 0) {
     return null;
   }
   if (matches.length === 1) {
     return matches[0];
+  }
+  if (matches.length === 2) {
+    return pickBestSnapshot(matches) ?? matches[0];
   }
   const allMatches = await ctx.db
     .query("snapshots")

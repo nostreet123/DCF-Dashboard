@@ -50,12 +50,15 @@ const findExistingAsset = async (ctx: { db: any }, assetKey: string) => {
   const matches = await ctx.db
     .query("assets")
     .withIndex("by_assetKey", (q: any) => q.eq("assetKey", assetKey))
-    .take(2);
+    .take(3);
   if (matches.length === 0) {
     return null;
   }
   if (matches.length === 1) {
     return matches[0];
+  }
+  if (matches.length === 2) {
+    return pickBestAsset(matches) ?? matches[0];
   }
   const allMatches = await ctx.db
     .query("assets")
