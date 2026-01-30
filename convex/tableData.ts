@@ -146,27 +146,19 @@ export const insertBatch = mutation({
           );
         };
 
-        if (matches.length === 1) {
-          if (!isEquivalent(matches[0])) {
-            throw new ConvexError({
-              code: "CONFLICT",
-              message: `Row ${row.rowIndex} already exists with different data`,
-            });
-          }
-          continue;
-        }
-
-        const allMatches = await ctx.db
-          .query("tableData")
-          .withIndex("by_snapshot_build_rowIndex", (q) =>
-            q
-              .eq("snapshotId", args.snapshotId)
-              .eq("buildId", args.buildId)
-              .eq("rowIndex", row.rowIndex),
-          )
-          .collect();
-        const allEquivalent = allMatches.every((existing: any) => isEquivalent(existing));
-        if (!allEquivalent) {
+        const existingRows =
+          matches.length === 1
+            ? matches
+            : await ctx.db
+                .query("tableData")
+                .withIndex("by_snapshot_build_rowIndex", (q) =>
+                  q
+                    .eq("snapshotId", args.snapshotId)
+                    .eq("buildId", args.buildId)
+                    .eq("rowIndex", row.rowIndex),
+                )
+                .collect();
+        if (!existingRows.every((existing: any) => isEquivalent(existing))) {
           throw new ConvexError({
             code: "CONFLICT",
             message: `Row ${row.rowIndex} already exists with different data`,
