@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 import { requireSyncToken } from "./syncAuth";
 
 const DataType = v.union(
@@ -142,6 +142,95 @@ const isDuplicateIdentityError = (error: unknown) => {
 };
 
 const MAX_IDENTITY_BATCH = 100;
+const DEFAULT_REBUILD_LIMIT = 200;
+const MAX_REBUILD_LIMIT = 2000;
+
+const normalizeLimit = (
+  requested: number | undefined,
+  defaultLimit: number,
+  maxLimit: number,
+) => {
+  if (requested === undefined) {
+    return defaultLimit;
+  }
+  const parsed = Number(requested);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Limit must be a positive integer",
+    });
+  }
+  return Math.min(parsed, maxLimit);
+};
+
+type SnapshotPick = {
+  _id: Id<"snapshots">;
+  activeBuildId?: string;
+  pendingBuildId?: string;
+  downloadedAt?: number;
+  parsedAt?: number;
+  _creationTime: number;
+};
+
+const pickBestSnapshot = (snapshots: SnapshotPick[]) => {
+  if (snapshots.length === 0) {
+    return null;
+  }
+  const score = (snapshot: SnapshotPick) => [
+    snapshot.activeBuildId ? 1 : 0,
+    snapshot.pendingBuildId ? 1 : 0,
+    snapshot.downloadedAt ?? 0,
+    snapshot.parsedAt ?? 0,
+    snapshot._creationTime,
+  ];
+  let best = snapshots[0];
+  let bestScore = score(best);
+  for (let i = 1; i < snapshots.length; i += 1) {
+    const candidate = snapshots[i];
+    const candidateScore = score(candidate);
+    for (let j = 0; j < candidateScore.length; j += 1) {
+      if (candidateScore[j] > bestScore[j]) {
+        best = candidate;
+        bestScore = candidateScore;
+        break;
+      }
+      if (candidateScore[j] < bestScore[j]) {
+        break;
+      }
+    }
+  }
+  return best;
+};
+
+const findSnapshotByIdentity = async (
+  ctx: { db: any },
+  datasetKey: string,
+  regionCode: string,
+  asOfDate: string,
+) => {
+  const matches = await ctx.db
+    .query("snapshots")
+    .withIndex("by_identity", (q: any) =>
+      q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
+    )
+    .take(3);
+  if (matches.length === 0) {
+    return null;
+  }
+  if (matches.length === 1) {
+    return matches[0];
+  }
+  if (matches.length === 2) {
+    return pickBestSnapshot(matches) ?? matches[0];
+  }
+  const allMatches = await ctx.db
+    .query("snapshots")
+    .withIndex("by_identity", (q: any) =>
+      q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
+    )
+    .collect();
+  return pickBestSnapshot(allMatches) ?? matches[0];
+};
 
 export const getByIdentity = query({
   args: {
@@ -151,15 +240,7 @@ export const getByIdentity = query({
   },
   returns: v.union(v.null(), snapshotValidator),
   handler: async (ctx, args) => {
-    return ctx.db
-      .query("snapshots")
-      .withIndex("by_identity", (q) =>
-        q
-          .eq("datasetKey", args.datasetKey)
-          .eq("regionCode", args.regionCode)
-          .eq("asOfDate", args.asOfDate),
-      )
-      .unique();
+    return findSnapshotByIdentity(ctx, args.datasetKey, args.regionCode, args.asOfDate);
   },
 });
 
@@ -205,15 +286,12 @@ export const getByIdentityBatch = query({
         continue;
       }
       seen.add(key);
-      const snapshot = await ctx.db
-        .query("snapshots")
-        .withIndex("by_identity", (q) =>
-          q
-            .eq("datasetKey", identity.datasetKey)
-            .eq("regionCode", identity.regionCode)
-            .eq("asOfDate", identity.asOfDate),
-        )
-        .unique();
+      const snapshot = await findSnapshotByIdentity(
+        ctx,
+        identity.datasetKey,
+        identity.regionCode,
+        identity.asOfDate,
+      );
       if (snapshot) {
         results.push({
           datasetKey: identity.datasetKey,
@@ -230,6 +308,100 @@ export const getByIdentityBatch = query({
       }
     }
     return results;
+  },
+});
+
+export const listRebuilding = query({
+  args: {
+    syncToken: v.optional(v.string()),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    snapshots: v.array(
+      v.object({
+        _id: v.id("snapshots"),
+        datasetKey: v.string(),
+        regionCode: v.string(),
+        asOfDate: v.string(),
+        fileName: v.string(),
+        activeBuildId: v.optional(v.string()),
+        pendingBuildId: v.optional(v.string()),
+        downloadedAt: v.number(),
+        parsedAt: v.number(),
+      }),
+    ),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = normalizeLimit(
+      args.limit,
+      DEFAULT_REBUILD_LIMIT,
+      MAX_REBUILD_LIMIT,
+    );
+    const result = await ctx.db
+      .query("snapshots")
+      .withIndex("by_dataStatus", (q: any) => q.eq("dataStatus", "rebuilding"))
+      .paginate({ cursor: args.cursor ?? null, numItems: limit });
+    return {
+      snapshots: result.page.map((snapshot: any) => ({
+        _id: snapshot._id,
+        datasetKey: snapshot.datasetKey,
+        regionCode: snapshot.regionCode,
+        asOfDate: snapshot.asOfDate,
+        fileName: snapshot.fileName,
+        activeBuildId: snapshot.activeBuildId,
+        pendingBuildId: snapshot.pendingBuildId,
+        downloadedAt: snapshot.downloadedAt,
+        parsedAt: snapshot.parsedAt,
+      })),
+      nextCursor: result.continueCursor ?? null,
+    };
+  },
+});
+
+export const clearRebuilding = mutation({
+  args: {
+    syncToken: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    examined: v.number(),
+    cleared: v.number(),
+    clearedWithoutActive: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
+    const limit = normalizeLimit(
+      args.limit,
+      DEFAULT_REBUILD_LIMIT,
+      MAX_REBUILD_LIMIT,
+    );
+    const snapshots = await ctx.db
+      .query("snapshots")
+      .withIndex("by_dataStatus", (q: any) => q.eq("dataStatus", "rebuilding"))
+      .take(limit);
+    let cleared = 0;
+    let clearedWithoutActive = 0;
+    for (const snapshot of snapshots) {
+      if (snapshot.activeBuildId) {
+        await ctx.db.patch(snapshot._id, {
+          dataStatus: "ready",
+          pendingBuildId: undefined,
+        });
+        cleared += 1;
+        continue;
+      }
+      await ctx.db.patch(snapshot._id, {
+        dataStatus: "ready",
+        pendingBuildId: undefined,
+        fileHash: "cleared",
+      });
+      cleared += 1;
+      clearedWithoutActive += 1;
+    }
+    return { examined: snapshots.length, cleared, clearedWithoutActive };
   },
 });
 
@@ -251,18 +423,12 @@ export const upsertByIdentity = mutation({
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
-    const fetchExisting = () =>
-      ctx.db
-        .query("snapshots")
-        .withIndex("by_identity", (q) =>
-          q
-            .eq("datasetKey", args.datasetKey)
-            .eq("regionCode", args.regionCode)
-            .eq("asOfDate", args.asOfDate),
-        )
-        .unique();
-
-    let existing = await fetchExisting();
+    let existing = await findSnapshotByIdentity(
+      ctx,
+      args.datasetKey,
+      args.regionCode,
+      args.asOfDate,
+    );
 
     if (!existing) {
       try {
@@ -310,7 +476,12 @@ export const upsertByIdentity = mutation({
         if (!isDuplicateIdentityError(error)) {
           throw error;
         }
-        existing = await fetchExisting();
+        existing = await findSnapshotByIdentity(
+          ctx,
+          args.datasetKey,
+          args.regionCode,
+          args.asOfDate,
+        );
         if (!existing) {
           throw error;
         }
@@ -466,3 +637,4 @@ export const markPrimaryKeyNormComplete = mutation({
     return null;
   },
 });
+

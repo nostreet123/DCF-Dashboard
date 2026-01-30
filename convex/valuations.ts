@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
@@ -17,6 +18,7 @@ const valuationRunValidator = v.object({
   engineVersion: v.string(),
   status: RunStatus,
   error: v.optional(v.string()),
+  requestId: v.optional(v.string()),
   inputs: v.any(),
   normalizedInputs: v.optional(v.any()),
   provenance: v.optional(v.any()),
@@ -38,6 +40,43 @@ const valuationRunTraceValidator = v.object({
   byteSize: v.number(),
   trace: v.any(),
 });
+
+type RunPick = {
+  _id: Id<"valuationRuns">;
+  status: "success" | "error";
+  traceId?: Id<"valuationRunTraces">;
+  createdAt: number;
+  _creationTime: number;
+};
+
+const pickBestRun = <T extends RunPick>(runs: T[]) => {
+  if (runs.length === 0) {
+    return null;
+  }
+  const score = (run: RunPick) => [
+    run.status === "success" ? 1 : 0,
+    run.traceId ? 1 : 0,
+    run.createdAt ?? 0,
+    run._creationTime,
+  ];
+  let best = runs[0];
+  let bestScore = score(best);
+  for (let i = 1; i < runs.length; i += 1) {
+    const candidate = runs[i];
+    const candidateScore = score(candidate);
+    for (let j = 0; j < candidateScore.length; j += 1) {
+      if (candidateScore[j] > bestScore[j]) {
+        best = candidate;
+        bestScore = candidateScore;
+        break;
+      }
+      if (candidateScore[j] < bestScore[j]) {
+        break;
+      }
+    }
+  }
+  return best;
+};
 
 const runSummary = (run: any) => {
   const summary = { ...run };
@@ -79,6 +118,7 @@ export const create = mutation({
     traceStorage: TraceStorage,
     trace: v.optional(v.any()),
     traceByteSize: v.optional(v.number()),
+    requestId: v.optional(v.string()),
   },
   returns: v.object({
     runId: v.id("valuationRuns"),
@@ -86,12 +126,48 @@ export const create = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+
+    if (args.requestId) {
+      const matches = await ctx.db
+        .query("valuationRuns")
+        .withIndex("by_requestId", (q: any) => q.eq("requestId", args.requestId))
+        .take(2);
+      if (matches.length > 0) {
+        let existing = matches[0];
+        if (matches.length > 1) {
+          const allMatches = await ctx.db
+            .query("valuationRuns")
+            .withIndex("by_requestId", (q: any) =>
+              q.eq("requestId", args.requestId),
+            )
+            .collect();
+          existing = pickBestRun(allMatches) ?? matches[0];
+        }
+        let traceId = existing.traceId;
+        if (
+          args.traceStorage === "external" &&
+          !traceId &&
+          args.trace !== undefined
+        ) {
+          traceId = await ctx.db.insert("valuationRunTraces", {
+            runId: existing._id,
+            createdAt: Date.now(),
+            byteSize: args.traceByteSize ?? 0,
+            trace: args.trace,
+          });
+          await ctx.db.patch(existing._id, { traceId });
+        }
+        return { runId: existing._id, traceId };
+      }
+    }
+
     const createdAt = Date.now();
     const runId = await ctx.db.insert("valuationRuns", {
       createdAt,
       engineVersion: args.engineVersion,
       status: args.status,
       error: args.error,
+      requestId: args.requestId,
       inputs: args.inputs,
       normalizedInputs: args.normalizedInputs,
       provenance: args.provenance,
@@ -138,6 +214,15 @@ export const attachTrace = mutation({
         code: "NOT_FOUND",
         message: "Run not found",
       });
+    }
+    if (run.traceStorage === "inline") {
+      throw new ConvexError({
+        code: "CONFLICT",
+        message: "Trace already stored inline",
+      });
+    }
+    if (run.traceId) {
+      return { traceId: run.traceId };
     }
     const traceId = await ctx.db.insert("valuationRunTraces", {
       runId: args.runId,
@@ -195,7 +280,7 @@ export const listBySymbol = query({
     if (args.regionCode) {
       const runs = await ctx.db
         .query("valuationRuns")
-        .withIndex("by_primaryKeyNorm_region_createdAt", (q) =>
+        .withIndex("by_primaryKeyNorm_region_createdAt", (q: any) =>
           q
             .eq("primaryKeyNorm", args.primaryKeyNorm)
             .eq("regionCode", args.regionCode),
@@ -206,7 +291,7 @@ export const listBySymbol = query({
     }
     const runs = await ctx.db
       .query("valuationRuns")
-      .withIndex("by_primaryKeyNorm_createdAt", (q) =>
+      .withIndex("by_primaryKeyNorm_createdAt", (q: any) =>
         q.eq("primaryKeyNorm", args.primaryKeyNorm),
       )
       .order("desc")
@@ -214,3 +299,4 @@ export const listBySymbol = query({
     return runs.map(runSummary);
   },
 });
+
