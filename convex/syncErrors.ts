@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const SyncStage = v.union(
@@ -10,6 +10,16 @@ const SyncStage = v.union(
   v.literal("upload"),
 );
 
+const syncErrorValidator = v.object({
+  _id: v.id("syncErrors"),
+  _creationTime: v.number(),
+  syncLogId: v.id("syncLogs"),
+  file: v.string(),
+  error: v.string(),
+  timestamp: v.number(),
+  stage: SyncStage,
+});
+
 export const append = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -18,6 +28,7 @@ export const append = mutation({
     stage: SyncStage,
     error: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     await ctx.db.insert("syncErrors", {
@@ -27,6 +38,7 @@ export const append = mutation({
       error: args.error,
       timestamp: Date.now(),
     });
+    return null;
   },
 });
 
@@ -36,6 +48,7 @@ export const listBySyncLogId = query({
     syncLogId: v.id("syncLogs"),
     limit: v.optional(v.number()),
   },
+  returns: v.array(syncErrorValidator),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const DEFAULT_LIMIT = 200;
@@ -44,7 +57,10 @@ export const listBySyncLogId = query({
     if (args.limit !== undefined) {
       const requested = Number(args.limit);
       if (!Number.isInteger(requested) || requested <= 0) {
-        throw new Error("Limit must be a positive integer");
+        throw new ConvexError({
+          code: "BAD_REQUEST",
+          message: "Limit must be a positive integer",
+        });
       }
       limit = Math.min(requested, MAX_LIMIT);
     }
