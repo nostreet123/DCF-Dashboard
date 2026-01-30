@@ -251,6 +251,10 @@ def probe_remote(
                 last_modified=None,
                 not_modified=False,
             )
+        # Some origins restrict HEAD even when GET works (e.g. auth/CDN rules).
+        # Treat these as inconclusive so callers can fall back to GET.
+        if response.status_code in {401, 403}:
+            return None
         if response.status_code == 405:
             return None
         response.raise_for_status()

@@ -16,8 +16,8 @@ bun install                           # Convex TypeScript
 pip install -e ./python[dev]          # Python packages
 
 # Development
-bunx convex dev                       # Local Convex
-cd python && python -m damodaran_sync.cli sync current  # Run sync
+ bunx convex dev                       # Local Convex
+ cd python && python -m damodaran_sync.cli sync-current  # Run sync
 
 # Build & Test
 bunx convex deploy                    # Deploy Convex

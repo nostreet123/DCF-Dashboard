@@ -164,14 +164,9 @@ def _stable_manifest_hash(assets: list[discover.DiscoveredAsset]) -> str:
                 "asOfGranularity": asset.as_of_granularity or "",
             }
         )
-    manifest_items.sort(
-        key=lambda item: (
-            item["sourceUrl"],
-            item["fileName"],
-            item["linkLabel"],
-            item["asOfDate"],
-        )
-    )
+    # Sort by a total key to ensure deterministic ordering even when multiple
+    # assets share the same (sourceUrl, fileName, linkLabel, asOfDate).
+    manifest_items.sort(key=lambda item: tuple(item[k] for k in sorted(item.keys())))
     payload = json.dumps(
         manifest_items,
         separators=(",", ":"),
@@ -335,27 +330,18 @@ def _process_asset(
             and snapshot.get("dataStatus") == "ready"
             and (conditional_etag or conditional_last_modified)
         ):
-            with _maybe_time(timing, "head_precheck"):
-                probe = download.probe_remote(
-                    asset.source_url,
-                    etag=conditional_etag,
-                    last_modified=conditional_last_modified,
-                )
-            if probe is not None:
-                if probe.status_code == 404:
-                    client.record_asset(
-                        _build_asset_record(
-                            asset,
-                            dataset_key,
-                            region_code,
-                            "missing_url",
-                        )
+            try:
+                with _maybe_time(timing, "head_precheck"):
+                    probe = download.probe_remote(
+                        asset.source_url,
+                        etag=conditional_etag,
+                        last_modified=conditional_last_modified,
                     )
-                    outcome.skipped += 1
-                    return outcome
-                if probe.not_modified:
-                    outcome.skipped += 1
-                    return outcome
+            except Exception:
+                probe = None
+            if probe is not None and probe.not_modified:
+                outcome.skipped += 1
+                return outcome
         try:
             with _maybe_time(timing, "download"):
                 download_res = download.download_file(

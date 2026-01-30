@@ -1,7 +1,25 @@
 import { query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 const MAX_SNAPSHOT_SCAN = 50;
+
+const snapshotRefValidator = v.object({
+  snapshotId: v.id("snapshots"),
+  datasetKey: v.string(),
+  regionCode: v.string(),
+  asOfDate: v.string(),
+  activeBuildId: v.optional(v.string()),
+  columnNames: v.array(v.string()),
+  metricsKeys: v.array(v.string()),
+});
+
+const rowValidator = v.object({
+  rowIndex: v.number(),
+  primaryKey: v.string(),
+  primaryKeyNorm: v.string(),
+  secondaryKey: v.union(v.string(), v.null()),
+  metrics: v.any(),
+});
 
 const toSnapshotRef = (snapshot: any) => ({
   snapshotId: snapshot._id,
@@ -54,6 +72,7 @@ export const getLatestSnapshot = query({
     datasetKey: v.string(),
     regionCode: v.string(),
   },
+  returns: v.union(v.null(), snapshotRefValidator),
   handler: async (ctx, args) => {
     const snapshot = await findLatestSnapshot(
       ctx,
@@ -73,6 +92,7 @@ export const getSnapshotAtOrBefore = query({
     regionCode: v.string(),
     targetDate: v.string(),
   },
+  returns: v.union(v.null(), snapshotRefValidator),
   handler: async (ctx, args) => {
     const snapshot = await findSnapshotAtOrBefore(
       ctx,
@@ -95,6 +115,13 @@ export const getRow = query({
     primaryKeyNorm: v.string(),
     secondaryKey: v.optional(v.string()),
   },
+  returns: v.union(
+    v.null(),
+    v.object({
+      snapshot: snapshotRefValidator,
+      row: rowValidator,
+    }),
+  ),
   handler: async (ctx, args) => {
     const snapshot = args.asOfDate
       ? await findSnapshotAtOrBefore(
@@ -158,10 +185,12 @@ export const getRow = query({
       const secondaryKeys = rows
         .map((row: any) => row.secondaryKey)
         .filter((value: any) => value !== undefined && value !== null);
-      throw new Error(
-        `Secondary key required for ${args.primaryKeyNorm}. ` +
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message:
+          `Secondary key required for ${args.primaryKeyNorm}. ` +
           `Available secondary keys: ${secondaryKeys.join(", ")}`,
-      );
+      });
     }
 
     const row = rows[0];

@@ -21,7 +21,7 @@ class DummyConvexClient:
         return "ok"
 
 
-def test_get_reference_authenticated(monkeypatch) -> None:
+def test_get_reference_does_not_send_sync_token(monkeypatch) -> None:
     monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClient)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",

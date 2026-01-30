@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const normalizePrimaryKey = (value: string) =>
@@ -26,6 +26,18 @@ const getMaxInsertRowsPerCall = () => {
   return Math.min(900, floored);
 };
 
+const tableDataValidator = v.object({
+  _id: v.id("tableData"),
+  _creationTime: v.number(),
+  snapshotId: v.id("snapshots"),
+  buildId: v.string(),
+  rowIndex: v.number(),
+  primaryKey: v.string(),
+  primaryKeyNorm: v.string(),
+  secondaryKey: v.optional(v.string()),
+  metrics: v.any(),
+});
+
 export const insertBatch = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -41,19 +53,26 @@ export const insertBatch = mutation({
       }),
     ),
   },
+  returns: v.object({
+    inserted: v.number(),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const maxRows = getMaxInsertRowsPerCall();
     if (args.rows.length > maxRows) {
-      throw new Error(`Batch too large: max ${maxRows} rows per call`);
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `Batch too large: max ${maxRows} rows per call`,
+      });
     }
 
     for (const row of args.rows) {
       const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
       if (row.primaryKeyNorm !== primaryKeyNorm) {
-        throw new Error(
-          `primaryKeyNorm mismatch at row ${row.rowIndex}: expected ${primaryKeyNorm}`,
-        );
+        throw new ConvexError({
+          code: "BAD_REQUEST",
+          message: `primaryKeyNorm mismatch at row ${row.rowIndex}: expected ${primaryKeyNorm}`,
+        });
       }
       await ctx.db.insert("tableData", {
         snapshotId: args.snapshotId,
@@ -77,6 +96,9 @@ export const deleteBySnapshotBuild = mutation({
     buildId: v.string(),
     limit: v.number(),
   },
+  returns: v.object({
+    deleted: v.number(),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     if (
@@ -84,7 +106,10 @@ export const deleteBySnapshotBuild = mutation({
       args.limit <= 0 ||
       args.limit > 1000
     ) {
-      throw new Error("Limit must be an integer between 1 and 1000");
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Limit must be an integer between 1 and 1000",
+      });
     }
 
     const rows = await ctx.db
@@ -108,6 +133,10 @@ export const listBySnapshot = query({
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
+  returns: v.object({
+    rows: v.array(tableDataValidator),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     const snapshot = await ctx.db.get(args.snapshotId);
     const activeBuildId = snapshot?.activeBuildId;
@@ -141,6 +170,10 @@ export const deleteNonActiveRowsPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    deleted: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const limit = args.limit ?? 500;
@@ -177,6 +210,10 @@ export const backfillPrimaryKeyNormPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    updated: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const limit = args.limit ?? 500;
@@ -213,10 +250,23 @@ export const backfillMissingPrimaryKeyNormPage = mutation({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    updated: v.number(),
+    nextCursor: v.union(v.string(), v.null()),
+    seenSnapshots: v.array(
+      v.object({
+        snapshotId: v.id("snapshots"),
+        buildId: v.string(),
+      }),
+    ),
+  }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const limit = args.limit ?? 500;
-    const result = await ctx.db.query("tableData").paginate({
+    const result = await ctx.db
+      .query("tableData")
+      .withIndex("by_snapshot_build_rowIndex", (q) => q)
+      .paginate({
       cursor: args.cursor ?? null,
       numItems: limit,
     });

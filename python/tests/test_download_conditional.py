@@ -204,6 +204,20 @@ def test_probe_remote_405_returns_none() -> None:
     assert result is None
 
 
+def test_probe_remote_403_returns_none() -> None:
+    url = "https://example.com/forbidden.xls"
+    response = DummyResponse(403)
+    client = DummyClient([response])
+
+    result = download.probe_remote(
+        url,
+        http_client=client,
+        etag="etag-1",
+    )
+
+    assert result is None
+
+
 def test_probe_remote_200_captures_headers() -> None:
     url = "https://example.com/fresh.xls"
     response = DummyResponse(

@@ -23,6 +23,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sync_current.add_argument(
         "--head-precheck",
         action="store_true",
+        default=None,
         help="Use HEAD with conditional headers to skip unchanged downloads.",
     )
     sync_all = subparsers.add_parser("sync-all", help="Sync all archived datasets")
@@ -34,6 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sync_all.add_argument(
         "--head-precheck",
         action="store_true",
+        default=None,
         help="Use HEAD with conditional headers to skip unchanged downloads.",
     )
 
@@ -88,7 +90,7 @@ def _cmd_seed() -> int:
     return 0
 
 
-def _cmd_sync_current(force_rebuild: bool, head_precheck: bool) -> int:
+def _cmd_sync_current(force_rebuild: bool, head_precheck: bool | None) -> int:
     client = ConvexSyncClient()
     sync.process_page(
         discover.CURRENT_PAGE_URL,
@@ -100,7 +102,7 @@ def _cmd_sync_current(force_rebuild: bool, head_precheck: bool) -> int:
     return 0
 
 
-def _cmd_sync_all(force_rebuild: bool, head_precheck: bool) -> int:
+def _cmd_sync_all(force_rebuild: bool, head_precheck: bool | None) -> int:
     client = ConvexSyncClient()
     sync.process_page(
         discover.ARCHIVE_PAGE_URL,
