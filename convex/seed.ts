@@ -1,6 +1,17 @@
 import { mutation, query } from "./_generated/server";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
+
+type DataType = "industry" | "country" | "timeseries" | "other";
+
+type SeedDataset = {
+  key: string;
+  name: string;
+  description: string;
+  categorySlug: string;
+  dataType: DataType;
+  defaultRegionCode: string;
+};
 
 const SEED_CATEGORIES = [
   {
@@ -121,22 +132,6 @@ const SEED_REGIONS = [
     sortOrder: 999,
   },
 ];
-
-const DataType = v.union(
-  v.literal("industry"),
-  v.literal("country"),
-  v.literal("timeseries"),
-  v.literal("other"),
-);
-
-type SeedDataset = {
-  key: string;
-  name: string;
-  description: string;
-  categorySlug: string;
-  dataType: "industry" | "country" | "timeseries" | "other";
-  defaultRegionCode: string;
-};
 
 const SEED_DATASETS: SeedDataset[] = [
   {
@@ -516,6 +511,13 @@ const SEED_DATASET_MAPPINGS = [
   },
 ];
 
+const dataTypeValidator = v.union(
+  v.literal("industry"),
+  v.literal("country"),
+  v.literal("timeseries"),
+  v.literal("other"),
+);
+
 export const upsertAll = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -576,28 +578,12 @@ export const upsertAll = mutation({
         await ctx.db.insert("datasetMappings", mapping);
       }
     }
-
     return null;
   },
 });
 
-const MAX_REFERENCE_ROWS = 5000;
-
-const takeAll = async <T = any>(query: any, limit = MAX_REFERENCE_ROWS): Promise<T[]> => {
-  const results: T[] = await query.take(limit);
-  if (results.length >= limit) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: `Reference table exceeds ${limit} rows; increase MAX_REFERENCE_ROWS in seed:getReference`,
-    });
-  }
-  return results;
-};
-
 export const getReference = query({
-  args: {
-    syncToken: v.optional(v.string()),
-  },
+  args: {},
   returns: v.object({
     regions: v.array(
       v.object({
@@ -609,7 +595,7 @@ export const getReference = query({
       v.object({
         key: v.string(),
         defaultRegionCode: v.string(),
-        dataType: DataType,
+        dataType: dataTypeValidator,
       }),
     ),
     datasetMappings: v.array(
@@ -620,16 +606,19 @@ export const getReference = query({
       }),
     ),
   }),
-  handler: async (ctx, args) => {
-    const regions = await takeAll(
-      ctx.db.query("regions").withIndex("by_code", (q) => q),
-    );
-    const datasets = await takeAll(
-      ctx.db.query("datasets").withIndex("by_key", (q) => q),
-    );
-    const datasetMappings = await takeAll(
-      ctx.db.query("datasetMappings").withIndex("by_datasetKey", (q) => q),
-    );
+  handler: async (ctx) => {
+    const regions = await ctx.db
+      .query("regions")
+      .withIndex("by_code", (q) => q)
+      .collect();
+    const datasets = await ctx.db
+      .query("datasets")
+      .withIndex("by_key", (q) => q)
+      .collect();
+    const datasetMappings = await ctx.db
+      .query("datasetMappings")
+      .withIndex("by_identity", (q) => q)
+      .collect();
 
     return {
       regions: regions.map((region) => ({

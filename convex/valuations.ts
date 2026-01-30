@@ -11,7 +11,7 @@ const TraceStorage = v.union(
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
 
-const RunDoc = v.object({
+const valuationRunValidator = v.object({
   _id: v.id("valuationRuns"),
   _creationTime: v.number(),
   createdAt: v.number(),
@@ -32,7 +32,7 @@ const RunDoc = v.object({
   traceId: v.optional(v.id("valuationRunTraces")),
 });
 
-const TraceDoc = v.object({
+const valuationRunTraceValidator = v.object({
   _id: v.id("valuationRunTraces"),
   _creationTime: v.number(),
   runId: v.id("valuationRuns"),
@@ -126,17 +126,20 @@ export const create = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+
     if (args.requestId) {
       const matches = await ctx.db
         .query("valuationRuns")
-        .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+        .withIndex("by_requestId", (q: any) => q.eq("requestId", args.requestId))
         .take(2);
       if (matches.length > 0) {
         let existing = matches[0];
         if (matches.length > 1) {
           const allMatches = await ctx.db
             .query("valuationRuns")
-            .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+            .withIndex("by_requestId", (q: any) =>
+              q.eq("requestId", args.requestId),
+            )
             .collect();
           existing = pickBestRun(allMatches) ?? matches[0];
         }
@@ -157,6 +160,7 @@ export const create = mutation({
         return { runId: existing._id, traceId };
       }
     }
+
     const createdAt = Date.now();
     const runId = await ctx.db.insert("valuationRuns", {
       createdAt,
@@ -233,19 +237,17 @@ export const attachTrace = mutation({
 
 export const get = query({
   args: {
-    syncToken: v.optional(v.string()),
     runId: v.id("valuationRuns"),
     includeTrace: v.optional(v.boolean()),
   },
   returns: v.union(
-    v.object({
-      run: RunDoc,
-      trace: v.optional(TraceDoc),
-    }),
     v.null(),
+    v.object({
+      run: valuationRunValidator,
+      trace: v.optional(valuationRunTraceValidator),
+    }),
   ),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
       return null;
@@ -261,7 +263,6 @@ export const get = query({
       if (trace) {
         return { run: runSummary(run), trace };
       }
-      return { run: runSummary(run) };
     }
     return { run: runSummary(run) };
   },
@@ -269,19 +270,17 @@ export const get = query({
 
 export const listBySymbol = query({
   args: {
-    syncToken: v.optional(v.string()),
     primaryKeyNorm: v.string(),
     regionCode: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  returns: v.array(RunDoc),
+  returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
       const runs = await ctx.db
         .query("valuationRuns")
-        .withIndex("by_primaryKeyNorm_region_createdAt", (q) =>
+        .withIndex("by_primaryKeyNorm_region_createdAt", (q: any) =>
           q
             .eq("primaryKeyNorm", args.primaryKeyNorm)
             .eq("regionCode", args.regionCode),
@@ -292,7 +291,7 @@ export const listBySymbol = query({
     }
     const runs = await ctx.db
       .query("valuationRuns")
-      .withIndex("by_primaryKeyNorm_createdAt", (q) =>
+      .withIndex("by_primaryKeyNorm_createdAt", (q: any) =>
         q.eq("primaryKeyNorm", args.primaryKeyNorm),
       )
       .order("desc")
@@ -300,3 +299,4 @@ export const listBySymbol = query({
     return runs.map(runSummary);
   },
 });
+

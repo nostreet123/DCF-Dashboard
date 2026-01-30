@@ -69,6 +69,19 @@ class HttpClient:
             raise TransientHttpError(response.status_code, url)
         return response
 
+    @retry(
+        retry=retry_if_exception_type((requests.RequestException, TransientHttpError)),
+        wait=wait_exponential(multiplier=1, min=1, max=20),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
+    def head(self, url: str, **kwargs) -> Response:
+        self._rate_limiter.wait()
+        response = self._session.head(url, timeout=self._timeout, **kwargs)
+        if response.status_code == 429 or response.status_code >= 500:
+            raise TransientHttpError(response.status_code, url)
+        return response
+
 
 @dataclass(frozen=True)
 class DownloadResult:
@@ -80,6 +93,15 @@ class DownloadResult:
     etag: str | None = None
     last_modified: str | None = None
     not_modified: bool = False
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    url: str
+    status_code: int
+    etag: str | None
+    last_modified: str | None
+    not_modified: bool
 
 
 def _sha256_file(path: Path) -> str:
@@ -192,6 +214,60 @@ def download_file(
         etag=response_etag,
         last_modified=response_last_modified,
     )
+
+
+def probe_remote(
+    url: str,
+    http_client: HttpClient | None = None,
+    *,
+    etag: str | None = None,
+    last_modified: str | None = None,
+) -> ProbeResult | None:
+    if not (etag or last_modified):
+        return None
+    client = http_client or get_default_http_client()
+    request_headers: dict[str, str] = {}
+    if etag:
+        request_headers["If-None-Match"] = etag
+    if last_modified:
+        request_headers["If-Modified-Since"] = last_modified
+
+    response = client.head(url, headers=request_headers, allow_redirects=True)
+    response_close = getattr(response, "close", None)
+    try:
+        if response.status_code == 304:
+            return ProbeResult(
+                url=url,
+                status_code=304,
+                etag=response.headers.get("ETag") or etag,
+                last_modified=response.headers.get("Last-Modified") or last_modified,
+                not_modified=True,
+            )
+        if response.status_code == 404:
+            return ProbeResult(
+                url=url,
+                status_code=404,
+                etag=None,
+                last_modified=None,
+                not_modified=False,
+            )
+        # Some origins restrict HEAD even when GET works (e.g. auth/CDN rules).
+        # Treat these as inconclusive so callers can fall back to GET.
+        if response.status_code in {401, 403}:
+            return None
+        if response.status_code == 405:
+            return None
+        response.raise_for_status()
+        return ProbeResult(
+            url=url,
+            status_code=response.status_code,
+            etag=response.headers.get("ETag"),
+            last_modified=response.headers.get("Last-Modified"),
+            not_modified=False,
+        )
+    finally:
+        if response_close is not None:
+            response_close()
 
 
 _DEFAULT_HTTP_CLIENTS = threading.local()

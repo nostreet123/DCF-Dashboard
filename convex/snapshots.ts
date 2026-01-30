@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 import { requireSyncToken } from "./syncAuth";
 
 const DataType = v.union(
@@ -20,11 +20,43 @@ const AsOfDateSource = v.union(
 
 const AsOfGranularity = v.union(v.literal("day"), v.literal("month"));
 
-const StorageType = v.union(v.literal("convex"), v.literal("external"));
-
 const DataStatus = v.union(v.literal("ready"), v.literal("rebuilding"));
 
-const SnapshotDoc = v.object({
+const StorageType = v.union(v.literal("convex"), v.literal("external"));
+
+const SnapshotMetadata = v.object({
+  asOfDateSource: AsOfDateSource,
+  asOfGranularity: AsOfGranularity,
+  sourcePageUrl: v.string(),
+  sourceUrl: v.string(),
+  fileName: v.string(),
+  linkLabel: v.string(),
+  pageType: PageType,
+  pageLastUpdated: v.optional(v.string()),
+  fileHash: v.string(),
+  sourceEtag: v.optional(v.string()),
+  sourceLastModified: v.optional(v.string()),
+  storageType: StorageType,
+  externalProvider: v.optional(v.string()),
+  externalUrl: v.optional(v.string()),
+  externalRowCount: v.optional(v.number()),
+  externalByteSize: v.optional(v.number()),
+  sampleStrategy: v.optional(v.string()),
+  sampleRowCount: v.optional(v.number()),
+  sheetName: v.string(),
+  headerRow: v.number(),
+  columnNames: v.array(v.string()),
+  metricsKeys: v.array(v.string()),
+  rowCount: v.number(),
+  dataType: DataType,
+  sheetCandidates: v.array(v.string()),
+  skippedSheets: v.array(v.string()),
+  downloadedAt: v.number(),
+  parsedAt: v.number(),
+  primaryKeyNormComplete: v.optional(v.boolean()),
+});
+
+const snapshotValidator = v.object({
   _id: v.id("snapshots"),
   _creationTime: v.number(),
   datasetKey: v.string(),
@@ -65,37 +97,24 @@ const SnapshotDoc = v.object({
   parsedAt: v.number(),
 });
 
-const SnapshotMetadata = v.object({
-  asOfDateSource: AsOfDateSource,
-  asOfGranularity: AsOfGranularity,
-  sourcePageUrl: v.string(),
-  sourceUrl: v.string(),
-  fileName: v.string(),
-  linkLabel: v.string(),
-  pageType: PageType,
-  pageLastUpdated: v.optional(v.string()),
+const snapshotBatchResultValidator = v.object({
+  datasetKey: v.string(),
+  regionCode: v.string(),
+  asOfDate: v.string(),
+  snapshotId: v.id("snapshots"),
   fileHash: v.string(),
   sourceEtag: v.optional(v.string()),
   sourceLastModified: v.optional(v.string()),
-  storageType: StorageType,
-  externalProvider: v.optional(v.string()),
-  externalUrl: v.optional(v.string()),
-  externalRowCount: v.optional(v.number()),
-  externalByteSize: v.optional(v.number()),
-  sampleStrategy: v.optional(v.string()),
-  sampleRowCount: v.optional(v.number()),
-  sheetName: v.string(),
-  headerRow: v.number(),
-  columnNames: v.array(v.string()),
-  metricsKeys: v.array(v.string()),
-  rowCount: v.number(),
-  dataType: DataType,
-  sheetCandidates: v.array(v.string()),
-  skippedSheets: v.array(v.string()),
-  downloadedAt: v.number(),
-  parsedAt: v.number(),
-  primaryKeyNormComplete: v.optional(v.boolean()),
+  dataStatus: v.optional(DataStatus),
+  activeBuildId: v.optional(v.string()),
+  primaryKeyNormComplete: v.boolean(),
 });
+
+const upsertAction = v.union(
+  v.literal("created"),
+  v.literal("updated"),
+  v.literal("unchanged"),
+);
 
 type SnapshotBatchResult = {
   datasetKey: string;
@@ -105,7 +124,7 @@ type SnapshotBatchResult = {
   fileHash: string;
   sourceEtag?: string;
   sourceLastModified?: string;
-  dataStatus?: string;
+  dataStatus?: "ready" | "rebuilding";
   activeBuildId?: string;
   primaryKeyNormComplete: boolean;
 };
@@ -215,28 +234,21 @@ const findSnapshotByIdentity = async (
 
 export const getByIdentity = query({
   args: {
-    syncToken: v.optional(v.string()),
     datasetKey: v.string(),
     regionCode: v.string(),
     asOfDate: v.string(),
   },
-  returns: v.union(SnapshotDoc, v.null()),
+  returns: v.union(v.null(), snapshotValidator),
   handler: async (ctx, args) => {
-    return await findSnapshotByIdentity(
-      ctx,
-      args.datasetKey,
-      args.regionCode,
-      args.asOfDate,
-    );
+    return findSnapshotByIdentity(ctx, args.datasetKey, args.regionCode, args.asOfDate);
   },
 });
 
 export const getById = query({
   args: {
-    syncToken: v.optional(v.string()),
     snapshotId: v.id("snapshots"),
   },
-  returns: v.union(SnapshotDoc, v.null()),
+  returns: v.union(v.null(), snapshotValidator),
   handler: async (ctx, args) => {
     return ctx.db.get(args.snapshotId);
   },
@@ -244,7 +256,6 @@ export const getById = query({
 
 export const getByIdentityBatch = query({
   args: {
-    syncToken: v.optional(v.string()),
     identities: v.array(
       v.object({
         datasetKey: v.string(),
@@ -253,20 +264,7 @@ export const getByIdentityBatch = query({
       }),
     ),
   },
-  returns: v.array(
-    v.object({
-      datasetKey: v.string(),
-      regionCode: v.string(),
-      asOfDate: v.string(),
-      snapshotId: v.id("snapshots"),
-      fileHash: v.string(),
-      sourceEtag: v.optional(v.string()),
-      sourceLastModified: v.optional(v.string()),
-      dataStatus: v.optional(v.string()),
-      activeBuildId: v.optional(v.string()),
-      primaryKeyNormComplete: v.boolean(),
-    }),
-  ),
+  returns: v.array(snapshotBatchResultValidator),
   handler: async (ctx, args) => {
     if (args.identities.length === 0) {
       return [];
@@ -344,10 +342,10 @@ export const listRebuilding = query({
     );
     const result = await ctx.db
       .query("snapshots")
-      .withIndex("by_dataStatus", (q) => q.eq("dataStatus", "rebuilding"))
+      .withIndex("by_dataStatus", (q: any) => q.eq("dataStatus", "rebuilding"))
       .paginate({ cursor: args.cursor ?? null, numItems: limit });
     return {
-      snapshots: result.page.map((snapshot) => ({
+      snapshots: result.page.map((snapshot: any) => ({
         _id: snapshot._id,
         datasetKey: snapshot.datasetKey,
         regionCode: snapshot.regionCode,
@@ -382,7 +380,7 @@ export const clearRebuilding = mutation({
     );
     const snapshots = await ctx.db
       .query("snapshots")
-      .withIndex("by_dataStatus", (q) => q.eq("dataStatus", "rebuilding"))
+      .withIndex("by_dataStatus", (q: any) => q.eq("dataStatus", "rebuilding"))
       .take(limit);
     let cleared = 0;
     let clearedWithoutActive = 0;
@@ -419,36 +417,18 @@ export const upsertByIdentity = mutation({
   },
   returns: v.object({
     snapshotId: v.id("snapshots"),
-    action: v.union(
-      v.literal("created"),
-      v.literal("updated"),
-      v.literal("unchanged"),
-    ),
+    action: upsertAction,
     previousBuildId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
-    const fetchExisting = async () => {
-      const matches = await ctx.db
-        .query("snapshots")
-        .withIndex("by_identity", (q) =>
-          q
-            .eq("datasetKey", args.datasetKey)
-            .eq("regionCode", args.regionCode)
-            .eq("asOfDate", args.asOfDate),
-        )
-        .take(2);
-      if (matches.length > 1) {
-        throw new ConvexError({
-          code: "CONFLICT",
-          message: "Duplicate snapshot identity detected",
-        });
-      }
-      return matches[0] ?? null;
-    };
-
-    let existing = await fetchExisting();
+    let existing = await findSnapshotByIdentity(
+      ctx,
+      args.datasetKey,
+      args.regionCode,
+      args.asOfDate,
+    );
 
     if (!existing) {
       try {
@@ -496,7 +476,12 @@ export const upsertByIdentity = mutation({
         if (!isDuplicateIdentityError(error)) {
           throw error;
         }
-        existing = await fetchExisting();
+        existing = await findSnapshotByIdentity(
+          ctx,
+          args.datasetKey,
+          args.regionCode,
+          args.asOfDate,
+        );
         if (!existing) {
           throw error;
         }
@@ -560,21 +545,21 @@ export const finalizeRebuild = mutation({
 
     if (existing.dataStatus !== "rebuilding") {
       throw new ConvexError({
-        code: "CONFLICT",
+        code: "BAD_REQUEST",
         message: "Snapshot is not rebuilding",
       });
     }
 
     if (!existing.pendingBuildId) {
       throw new ConvexError({
-        code: "CONFLICT",
+        code: "BAD_REQUEST",
         message: "Snapshot has no pending build",
       });
     }
 
     if (existing.pendingBuildId !== args.buildId) {
       throw new ConvexError({
-        code: "CONFLICT",
+        code: "BAD_REQUEST",
         message: "Build ID does not match pending build",
       });
     }
@@ -643,7 +628,7 @@ export const markPrimaryKeyNormComplete = mutation({
     }
     if (snapshot.activeBuildId !== args.buildId) {
       throw new ConvexError({
-        code: "CONFLICT",
+        code: "BAD_REQUEST",
         message: "Build ID does not match active build",
       });
     }
@@ -652,3 +637,4 @@ export const markPrimaryKeyNormComplete = mutation({
     return null;
   },
 });
+

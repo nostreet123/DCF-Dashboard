@@ -4,23 +4,22 @@ import { requireSyncToken } from "./syncAuth";
 
 const PageType = v.union(v.literal("current"), v.literal("archive"));
 
+const syncManifestValidator = v.object({
+  _id: v.id("syncManifests"),
+  _creationTime: v.number(),
+  pageType: PageType,
+  manifestHash: v.string(),
+  source: v.string(),
+  itemCount: v.number(),
+  fetchedAt: v.number(),
+});
+
 export const getLatest = query({
   args: {
     syncToken: v.optional(v.string()),
     pageType: PageType,
   },
-  returns: v.union(
-    v.object({
-      _id: v.id("syncManifests"),
-      _creationTime: v.number(),
-      pageType: PageType,
-      manifestHash: v.string(),
-      source: v.string(),
-      itemCount: v.number(),
-      fetchedAt: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: v.union(v.null(), syncManifestValidator),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const result = await ctx.db

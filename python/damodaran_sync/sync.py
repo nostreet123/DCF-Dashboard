@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 _SYNC_CACHE: dict[str, str] = {}
 _SYNC_CACHE_LOCK = threading.Lock()
 _MAX_SNAPSHOT_IDENTITY_BATCH = 100
+_MAX_ASSET_BATCH = 500
 
 
 @dataclass
@@ -106,6 +107,30 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _asset_key(asset: dict[str, Any]) -> str:
+    def _part(value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value)
+
+    return "\x1f".join(
+        [
+            _part(asset.get("sourcePageUrl")),
+            _part(asset.get("pageType")),
+            _part(asset.get("pageLastUpdated")),
+            _part(asset.get("sourceUrl")),
+            _part(asset.get("fileName")),
+            _part(asset.get("linkLabel")),
+            "1" if asset.get("resolved") else "0",
+            _part(asset.get("resolvedDatasetKey")),
+            _part(asset.get("resolvedRegionCode")),
+            _part(asset.get("resolvedAsOfDate")),
+            _part(asset.get("resolvedAsOfDateSource")),
+            _part(asset.get("resolutionError")),
+        ]
+    )
+
+
 def _chunked(items: list[dict[str, str]], size: int) -> list[list[dict[str, str]]]:
     if size <= 0:
         return [items]
@@ -121,6 +146,34 @@ def _get_insert_batch_limits() -> tuple[int, int]:
     # Convex function arg limit is 16 MiB; keep an upper clamp.
     max_bytes = max(1024, min(16 * 1024 * 1024, max_bytes))
     return max_rows, max_bytes
+
+
+def _stable_manifest_hash(assets: list[discover.DiscoveredAsset]) -> str:
+    manifest_items: list[dict[str, str]] = []
+    for asset in assets:
+        manifest_items.append(
+            {
+                "sourcePageUrl": asset.source_page_url,
+                "pageType": asset.page_type,
+                "pageLastUpdated": asset.page_last_updated or "",
+                "sourceUrl": asset.source_url,
+                "fileName": asset.file_name,
+                "linkLabel": asset.link_label,
+                "asOfDate": asset.as_of_date or "",
+                "asOfDateSource": asset.as_of_date_source or "",
+                "asOfGranularity": asset.as_of_granularity or "",
+            }
+        )
+    # Sort by a total key to ensure deterministic ordering even when multiple
+    # assets share the same (sourceUrl, fileName, linkLabel, asOfDate).
+    manifest_items.sort(key=lambda item: tuple(item[k] for k in sorted(item.keys())))
+    payload = json.dumps(
+        manifest_items,
+        separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _estimate_payload_bytes(payload: dict[str, Any]) -> int:
@@ -214,6 +267,7 @@ def _process_asset(
     datasets_map: dict[str, Any],
     force_rebuild: bool,
     conditional_get_enabled: bool,
+    head_precheck_enabled: bool,
     bulk_failed: bool,
     trust_archive_immutable: bool,
     timing: _TimingSummary | None,
@@ -268,6 +322,26 @@ def _process_asset(
             if not (conditional_etag or conditional_last_modified):
                 conditional_etag = None
                 conditional_last_modified = None
+        if (
+            head_precheck_enabled
+            and not force_rebuild
+            and snapshot
+            and snapshot.get("activeBuildId")
+            and snapshot.get("dataStatus") == "ready"
+            and (conditional_etag or conditional_last_modified)
+        ):
+            try:
+                with _maybe_time(timing, "head_precheck"):
+                    probe = download.probe_remote(
+                        asset.source_url,
+                        etag=conditional_etag,
+                        last_modified=conditional_last_modified,
+                    )
+            except Exception:
+                probe = None
+            if probe is not None and probe.not_modified:
+                outcome.skipped += 1
+                return outcome
         try:
             with _maybe_time(timing, "download"):
                 download_res = download.download_file(
@@ -291,7 +365,6 @@ def _process_asset(
                 return outcome
             raise
         stage = "parse"
-        outcome.downloaded += 1
         downloaded_at = int(time.time() * 1000)
 
         if (
@@ -303,6 +376,8 @@ def _process_asset(
         ):
             outcome.skipped += 1
             return outcome
+
+        outcome.downloaded += 1
 
         if (
             not force_rebuild
@@ -484,6 +559,8 @@ def process_page(
     page_type: str,
     client: ConvexSyncClient,
     force_rebuild: bool = False,
+    *,
+    head_precheck: bool | None = None,
 ) -> None:
     logger.info(f"Starting sync for {page_type} page: {page_url}")
 
@@ -544,6 +621,9 @@ def process_page(
 
         if limit_assets is not None:
             assets = assets[:limit_assets]
+
+        if manifest_hash is None:
+            manifest_hash = _stable_manifest_hash(assets)
 
         sync_type = f"full_{page_type}"
         if profile_enabled:
@@ -640,7 +720,24 @@ def process_page(
             for item in resolved_assets
         ]
         if asset_records:
-            client.record_assets_batch(asset_records)
+            unique_records: list[dict[str, Any]] = []
+            seen_keys: set[str] = set()
+            for record in asset_records:
+                asset_key = _asset_key(record)
+                if asset_key in seen_keys:
+                    continue
+                seen_keys.add(asset_key)
+                unique_records.append(record)
+
+            requested_asset_batch = _env_int("DAMODARAN_ASSET_BATCH_SIZE", _MAX_ASSET_BATCH)
+            asset_batch_size = max(1, min(_MAX_ASSET_BATCH, requested_asset_batch))
+            if asset_batch_size != requested_asset_batch:
+                logger.warning(
+                    "Clamping DAMODARAN_ASSET_BATCH_SIZE=%s to %s",
+                    requested_asset_batch,
+                    asset_batch_size,
+                )
+            client.record_assets_batch(unique_records, chunk_size=asset_batch_size)
 
         # Bulk snapshot lookup to reduce per-asset roundtrips.
         snapshot_map: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -701,6 +798,11 @@ def process_page(
 
         trust_archive_immutable = _env_bool("DAMODARAN_TRUST_ARCHIVE_IMMUTABLE", False)
         conditional_get_enabled = _env_bool("DAMODARAN_CONDITIONAL_GET", True)
+        head_precheck_enabled = (
+            _env_bool("DAMODARAN_HEAD_PRECHECK", False)
+            if head_precheck is None
+            else head_precheck
+        )
         requested_workers = _env_int("DAMODARAN_SYNC_WORKERS", 1)
         max_workers = max(1, requested_workers)
         if max_workers != requested_workers:
@@ -723,6 +825,7 @@ def process_page(
                     datasets_map,
                     force_rebuild,
                     conditional_get_enabled,
+                    head_precheck_enabled,
                     bulk_failed,
                     trust_archive_immutable,
                     timing,
@@ -747,6 +850,7 @@ def process_page(
                     datasets_map,
                     force_rebuild,
                     conditional_get_enabled,
+                    head_precheck_enabled,
                     bulk_failed,
                     trust_archive_immutable,
                     timing,
