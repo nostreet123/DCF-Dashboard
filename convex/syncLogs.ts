@@ -1,6 +1,28 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
+
+const SyncStatus = v.union(
+  v.literal("running"),
+  v.literal("success"),
+  v.literal("partial"),
+  v.literal("failed"),
+);
+
+const syncLogValidator = v.object({
+  _id: v.id("syncLogs"),
+  _creationTime: v.number(),
+  syncType: v.string(),
+  startedAt: v.number(),
+  completedAt: v.optional(v.number()),
+  status: SyncStatus,
+  assetsDiscovered: v.number(),
+  assetsDownloaded: v.number(),
+  assetsSkipped: v.number(),
+  rowsInserted: v.number(),
+  errorCount: v.number(),
+  pageLastUpdated: v.optional(v.string()),
+});
 
 export const create = mutation({
   args: {
@@ -8,6 +30,7 @@ export const create = mutation({
     syncType: v.string(),
     pageLastUpdated: v.optional(v.string()),
   },
+  returns: v.id("syncLogs"),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
@@ -40,12 +63,16 @@ export const increment = mutation({
       errorCount: v.optional(v.number()),
     }),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
     const log = await ctx.db.get(args.syncLogId);
     if (!log) {
-      throw new Error("Sync log not found");
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Sync log not found",
+      });
     }
 
     await ctx.db.patch(args.syncLogId, {
@@ -55,6 +82,7 @@ export const increment = mutation({
       rowsInserted: log.rowsInserted + (args.delta.rowsInserted ?? 0),
       errorCount: log.errorCount + (args.delta.errorCount ?? 0),
     });
+    return null;
   },
 });
 
@@ -62,19 +90,16 @@ export const finish = mutation({
   args: {
     syncToken: v.optional(v.string()),
     syncLogId: v.id("syncLogs"),
-    status: v.union(
-      v.literal("running"),
-      v.literal("success"),
-      v.literal("partial"),
-      v.literal("failed"),
-    ),
+    status: SyncStatus,
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     await ctx.db.patch(args.syncLogId, {
       status: args.status,
       completedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -83,6 +108,7 @@ export const listRecent = query({
     syncToken: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.array(syncLogValidator),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const limit = args.limit ?? 20;

@@ -28,6 +28,7 @@ export const record = mutation({
       resolutionError: v.optional(v.string()),
     }),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     await ctx.db.insert("assets", {
@@ -45,6 +46,7 @@ export const record = mutation({
       resolutionError: args.asset.resolutionError,
       discoveredAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -68,6 +70,7 @@ export const recordBatch = mutation({
       }),
     ),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const discoveredAt = Date.now();
@@ -88,5 +91,6 @@ export const recordBatch = mutation({
         discoveredAt,
       });
     }
+    return null;
   },
 });

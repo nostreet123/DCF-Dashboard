@@ -511,10 +511,18 @@ const SEED_DATASET_MAPPINGS = [
   },
 ];
 
+const dataTypeValidator = v.union(
+  v.literal("industry"),
+  v.literal("country"),
+  v.literal("timeseries"),
+  v.literal("other"),
+);
+
 export const upsertAll = mutation({
   args: {
     syncToken: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
@@ -570,15 +578,47 @@ export const upsertAll = mutation({
         await ctx.db.insert("datasetMappings", mapping);
       }
     }
+    return null;
   },
 });
 
 export const getReference = query({
   args: {},
+  returns: v.object({
+    regions: v.array(
+      v.object({
+        code: v.string(),
+        fileTokens: v.array(v.string()),
+      }),
+    ),
+    datasets: v.array(
+      v.object({
+        key: v.string(),
+        defaultRegionCode: v.string(),
+        dataType: dataTypeValidator,
+      }),
+    ),
+    datasetMappings: v.array(
+      v.object({
+        pattern: v.string(),
+        datasetKey: v.string(),
+        isRegex: v.boolean(),
+      }),
+    ),
+  }),
   handler: async (ctx) => {
-    const regions = await ctx.db.query("regions").collect();
-    const datasets = await ctx.db.query("datasets").collect();
-    const datasetMappings = await ctx.db.query("datasetMappings").collect();
+    const regions = await ctx.db
+      .query("regions")
+      .withIndex("by_code", (q) => q)
+      .collect();
+    const datasets = await ctx.db
+      .query("datasets")
+      .withIndex("by_key", (q) => q)
+      .collect();
+    const datasetMappings = await ctx.db
+      .query("datasetMappings")
+      .withIndex("by_identity", (q) => q)
+      .collect();
 
     return {
       regions: regions.map((region) => ({

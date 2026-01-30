@@ -44,6 +44,14 @@ def test_stable_manifest_hash_is_order_independent() -> None:
     assert _stable_manifest_hash([asset_a, asset_b]) == _stable_manifest_hash([asset_b, asset_a])
 
 
+def test_stable_manifest_hash_ties_are_deterministic() -> None:
+    # Two assets can share the old sort key (source_url, file_name, link_label, as_of_date)
+    # but differ in other fields that are included in the hash.
+    asset_a = _asset(page_type="current")
+    asset_b = _asset(page_type="archive")
+    assert _stable_manifest_hash([asset_a, asset_b]) == _stable_manifest_hash([asset_b, asset_a])
+
+
 def test_stable_manifest_hash_changes_on_asset_change() -> None:
     assets = [_asset()]
     baseline = _stable_manifest_hash(assets)
