@@ -4,7 +4,6 @@ import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
-import { api } from "@/convex/_generated/api";
 
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
@@ -57,7 +56,8 @@ export async function POST(request: Request) {
       kpis: result.kpis,
     };
 
-    await convexClient.mutation(api.valuations.create, {
+    const createValuation = "valuations:create" as any;
+    await (convexClient as any).mutation(createValuation, {
       syncToken,
       engineVersion: "workbench-v1",
       status: "success",
