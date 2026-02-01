@@ -57,3 +57,9 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
   - US ticker: search → facts → preview → run → history.
   - Non-US manual import: preview/run marked manual.
   - Run replay reproduces KPI/tables for audit.
+
+## Verification Log
+
+- `bunx convex typecheck`: passed.
+- `cd python && pytest`: failed (pytest not available in environment).
+- Manual acceptance: pending.
