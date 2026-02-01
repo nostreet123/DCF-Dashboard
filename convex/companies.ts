@@ -60,24 +60,52 @@ export const search = query({
     const limit = normalizeLimit(args.limit);
     const symbolQuery = raw.toUpperCase();
     const nameQuery = raw.toLowerCase();
-    const MAX_SCAN = 200;
+    const PAGE_SIZE = 200;
+    const MAX_SCAN = 1000;
 
-    const candidates = await ctx.db
-      .query("companies")
-      .withIndex("by_symbol", (q: any) => q)
-      .take(MAX_SCAN);
+    const matches: any[] = [];
+    let cursor: string | null = null;
+    let scanned = 0;
 
-    const matches = candidates.filter((company: any) => {
-      if (company.symbol.includes(symbolQuery)) {
-        return true;
+    while (matches.length < limit && scanned < MAX_SCAN) {
+      const result = await ctx.db
+        .query("companies")
+        .withIndex("by_symbol", (q: any) => q)
+        .order("asc")
+        .paginate({
+          cursor,
+          numItems: PAGE_SIZE,
+        });
+
+      const page = result.page as any[];
+      if (page.length === 0) {
+        break;
       }
-      if (company.name && company.name.toLowerCase().includes(nameQuery)) {
-        return true;
-      }
-      return false;
-    });
+      scanned += page.length;
 
-    return matches.slice(0, limit);
+      for (const company of page) {
+        if (company.symbol.includes(symbolQuery)) {
+          matches.push(company);
+          if (matches.length >= limit) {
+            break;
+          }
+          continue;
+        }
+        if (company.name && company.name.toLowerCase().includes(nameQuery)) {
+          matches.push(company);
+          if (matches.length >= limit) {
+            break;
+          }
+        }
+      }
+
+      if (!result.continueCursor) {
+        break;
+      }
+      cursor = result.continueCursor;
+    }
+
+    return matches;
   },
 });
 
