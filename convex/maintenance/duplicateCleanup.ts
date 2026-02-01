@@ -163,6 +163,7 @@ export const startDuplicateCleanup = mutation({
       ? (await ctx.db.patch(existing._id, payload), existing._id)
       : await ctx.db.insert("duplicateCleanupState", payload);
 
+    // @ts-expect-error TS2589: internal action reference triggers deep instantiation.
     await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateCleanupChunk, {
       stateId,
     });
@@ -673,4 +674,3 @@ export const runDuplicateCleanupChunk = internalAction({
     }
   },
 });
-
