@@ -18,3 +18,4 @@ gha-creds-*.json
 replit.md
 
 out/
+.next/
