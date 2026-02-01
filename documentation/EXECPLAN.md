@@ -64,6 +64,7 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
 - `python3 -m venv .venv` then `.venv/bin/pytest`: passed (73 tests).
 - Manual acceptance (partial):
   - FastAPI `/sec/search` + `/sec/facts` for AAPL succeeded (placeholder `SEC_USER_AGENT`).
-  - Next.js `/api/dcf/preview` succeeded (scenario fields in snake_case).
   - Next.js `/api/company/search` succeeded via EDGAR fallback after `convex dev --once --typecheck=disable`.
-  - Blocked: `/api/company/facts` and `/api/dcf/run` (missing `DAMODARAN_SYNC_TOKEN` in Convex env), history/replay not validated.
+  - Next.js `/api/dcf/preview` succeeded (scenario fields in snake_case, base fair value ≈ 22.44).
+  - Blocked: `/api/company/facts` and `/api/dcf/run` (Convex env missing `DAMODARAN_SYNC_TOKEN`), history/replay not validated.
+  - Convex env update blocked: `convex env set` requires access token (`npx convex dev` login or `CONVEX_DEPLOY_KEY`).
