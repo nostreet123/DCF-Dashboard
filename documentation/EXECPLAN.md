@@ -62,4 +62,8 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
 
 - `bunx convex typecheck`: passed.
 - `python3 -m venv .venv` then `.venv/bin/pytest`: passed (73 tests).
-- Manual acceptance: pending.
+- Manual acceptance (partial):
+  - FastAPI `/sec/search` + `/sec/facts` for AAPL succeeded (placeholder `SEC_USER_AGENT`).
+  - Next.js `/api/dcf/preview` succeeded (scenario fields in snake_case).
+  - Next.js `/api/company/search` succeeded via EDGAR fallback after `convex dev --once --typecheck=disable`.
+  - Blocked: `/api/company/facts` and `/api/dcf/run` (missing `DAMODARAN_SYNC_TOKEN` in Convex env), history/replay not validated.
