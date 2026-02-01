@@ -103,6 +103,17 @@ const normalizeLimit = (requested: number | undefined) => {
   return Math.min(limit, MAX_LIMIT);
 };
 
+const normalizeSymbol = (symbol: string | undefined) => {
+  if (!symbol) {
+    return undefined;
+  }
+  const trimmed = symbol.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.toUpperCase();
+};
+
 export const create = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -128,6 +139,7 @@ export const create = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+    const symbol = normalizeSymbol(args.symbol);
 
     if (args.requestId) {
       const matches = await ctx.db
@@ -159,8 +171,8 @@ export const create = mutation({
           });
           await ctx.db.patch(existing._id, { traceId });
         }
-        if (args.symbol && !existing.symbol) {
-          await ctx.db.patch(existing._id, { symbol: args.symbol });
+        if (symbol && existing.symbol !== symbol) {
+          await ctx.db.patch(existing._id, { symbol });
         }
         return { runId: existing._id, traceId };
       }
@@ -173,7 +185,7 @@ export const create = mutation({
       status: args.status,
       error: args.error,
       requestId: args.requestId,
-      symbol: args.symbol,
+      symbol,
       inputs: args.inputs,
       normalizedInputs: args.normalizedInputs,
       provenance: args.provenance,
@@ -313,10 +325,17 @@ export const listByTicker = query({
   },
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
+    const symbol = normalizeSymbol(args.symbol);
+    if (!symbol) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Symbol is required",
+      });
+    }
     const limit = normalizeLimit(args.limit);
     const runs = await ctx.db
       .query("valuationRuns")
-      .withIndex("by_symbol_createdAt", (q: any) => q.eq("symbol", args.symbol))
+      .withIndex("by_symbol_createdAt", (q: any) => q.eq("symbol", symbol))
       .order("desc")
       .take(limit);
     return runs.map(runSummary);

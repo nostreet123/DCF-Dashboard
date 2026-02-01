@@ -13,6 +13,10 @@ import {
   pickSnapshotKeepId,
 } from "./shared";
 
+// @ts-expect-error TS2589: internal API reference triggers deep instantiation.
+const runDuplicateCleanupChunkAny: any = (internal as any).maintenance
+  .runDuplicateCleanupChunk;
+
 export const getDuplicateCleanupState = query({
   args: { syncToken: v.optional(v.string()) },
   returns: v.union(
@@ -163,8 +167,7 @@ export const startDuplicateCleanup = mutation({
       ? (await ctx.db.patch(existing._id, payload), existing._id)
       : await ctx.db.insert("duplicateCleanupState", payload);
 
-    // @ts-expect-error TS2589: internal action reference triggers deep instantiation.
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateCleanupChunk, {
+    await ctx.scheduler.runAfter(0, runDuplicateCleanupChunkAny, {
       stateId,
     });
 
@@ -369,7 +372,7 @@ export const runDuplicateCleanupChunk = internalAction({
           { stateId: state._id },
         );
         if (refreshed && refreshed.status === "running") {
-          await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateCleanupChunk, {
+          await ctx.scheduler.runAfter(0, runDuplicateCleanupChunkAny, {
             stateId: state._id,
           });
         }
