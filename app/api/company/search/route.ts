@@ -15,11 +15,20 @@ export async function GET(request: Request) {
   if (!q) {
     return errorResponse("BAD_REQUEST", "Missing q parameter", 400);
   }
+  const limitParam = searchParams.get("limit");
+  let limit = 20;
+  if (limitParam) {
+    const parsed = Number(limitParam);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+      return errorResponse("BAD_REQUEST", "Invalid limit parameter", 400);
+    }
+    limit = Math.min(parsed, 50);
+  }
 
   try {
     const results = await convexClient.query(api.companies.search, {
       q,
-      limit: 20,
+      limit,
     });
     if (results.length > 0) {
       return NextResponse.json({ results, source: "convex" });
@@ -38,7 +47,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetchDcfEngine<EdgarSearchResponse>(
-      `/sec/search?q=${encodeURIComponent(q)}`,
+      `/sec/search?q=${encodeURIComponent(q)}&limit=${limit}`,
       { method: "GET" },
     );
     return NextResponse.json({ results: response.results, source: "edgar" });
