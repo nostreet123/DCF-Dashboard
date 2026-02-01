@@ -178,7 +178,40 @@ export default defineSchema({
       "buildId",
       "primaryKeyNorm",
       "secondaryKey",
-    ]),
+    ])
+    .searchIndex("search_primaryKey", {
+      searchField: "primaryKey",
+      filterFields: ["snapshotId", "buildId"],
+    }),
+
+  // -----------------------------
+  // Fundamentals cache
+  // -----------------------------
+  companies: defineTable({
+    symbol: v.string(),
+    name: v.optional(v.string()),
+    cik: v.optional(v.string()),
+    country: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    source: v.string(),
+    updatedAt: v.number(),
+  }).index("by_symbol", ["symbol"]),
+
+  companyStatements: defineTable({
+    symbol: v.string(),
+    periodEnd: v.string(),
+    periodType: v.string(),
+    filingDate: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    revenue: v.optional(v.number()),
+    cash: v.optional(v.number()),
+    debt: v.optional(v.number()),
+    sharesOutstanding: v.optional(v.number()),
+    source: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_symbol_and_periodEnd", ["symbol", "periodEnd"])
+    .index("by_symbol_and_filingDate", ["symbol", "filingDate"]),
 
   // -----------------------------
   // Operational logs
@@ -392,6 +425,7 @@ export default defineSchema({
     status: RunStatus,
     error: v.optional(v.string()),
     requestId: v.optional(v.string()),
+    symbol: v.optional(v.string()),
     inputs: v.any(),
     normalizedInputs: v.optional(v.any()),
     provenance: v.optional(v.any()),
@@ -411,6 +445,7 @@ export default defineSchema({
       "regionCode",
       "createdAt",
     ])
+    .index("by_symbol_createdAt", ["symbol", "createdAt"])
     .index("by_requestId", ["requestId"]),
 
   valuationRunTraces: defineTable({
