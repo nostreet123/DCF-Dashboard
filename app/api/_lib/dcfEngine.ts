@@ -6,11 +6,26 @@ const resolveBaseUrl = () => {
   return baseUrl.replace(/\/+$/, "");
 };
 
+const extractErrorMessage = (data: unknown): string | null => {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const record = data as Record<string, unknown>;
+  const candidate = record.message ?? record.detail ?? record.error;
+  if (typeof candidate === "string") {
+    return candidate;
+  }
+  if (candidate !== undefined) {
+    return JSON.stringify(candidate);
+  }
+  return null;
+};
+
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const text = await response.text();
   const data = text ? (JSON.parse(text) as T) : ({} as T);
   if (!response.ok) {
-    const message = (data as { message?: string }).message;
+    const message = extractErrorMessage(data);
     throw new Error(message || `DCF engine error (${response.status})`);
   }
   return data;
