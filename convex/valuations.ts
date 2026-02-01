@@ -19,6 +19,7 @@ const valuationRunValidator = v.object({
   status: RunStatus,
   error: v.optional(v.string()),
   requestId: v.optional(v.string()),
+  symbol: v.optional(v.string()),
   inputs: v.any(),
   normalizedInputs: v.optional(v.any()),
   provenance: v.optional(v.any()),
@@ -119,6 +120,7 @@ export const create = mutation({
     trace: v.optional(v.any()),
     traceByteSize: v.optional(v.number()),
     requestId: v.optional(v.string()),
+    symbol: v.optional(v.string()),
   },
   returns: v.object({
     runId: v.id("valuationRuns"),
@@ -157,6 +159,9 @@ export const create = mutation({
           });
           await ctx.db.patch(existing._id, { traceId });
         }
+        if (args.symbol && !existing.symbol) {
+          await ctx.db.patch(existing._id, { symbol: args.symbol });
+        }
         return { runId: existing._id, traceId };
       }
     }
@@ -168,6 +173,7 @@ export const create = mutation({
       status: args.status,
       error: args.error,
       requestId: args.requestId,
+      symbol: args.symbol,
       inputs: args.inputs,
       normalizedInputs: args.normalizedInputs,
       provenance: args.provenance,
@@ -300,3 +306,19 @@ export const listBySymbol = query({
   },
 });
 
+export const listByTicker = query({
+  args: {
+    symbol: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(valuationRunValidator),
+  handler: async (ctx, args) => {
+    const limit = normalizeLimit(args.limit);
+    const runs = await ctx.db
+      .query("valuationRuns")
+      .withIndex("by_symbol_createdAt", (q: any) => q.eq("symbol", args.symbol))
+      .order("desc")
+      .take(limit);
+    return runs.map(runSummary);
+  },
+});
