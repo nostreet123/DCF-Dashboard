@@ -311,6 +311,61 @@ export const getByIdentityBatch = query({
   },
 });
 
+export const listByDatasetRegion = query({
+  args: {
+    datasetKey: v.string(),
+    regionCode: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    snapshots: v.array(
+      v.object({
+        _id: v.id("snapshots"),
+        asOfDate: v.string(),
+        asOfDateSource: AsOfDateSource,
+        asOfGranularity: AsOfGranularity,
+        dataStatus: DataStatus,
+        activeBuildId: v.optional(v.string()),
+        pendingBuildId: v.optional(v.string()),
+        fileName: v.string(),
+        downloadedAt: v.number(),
+        parsedAt: v.number(),
+      }),
+    ),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const limit = normalizeLimit(args.limit, 50, 200);
+    const result = await ctx.db
+      .query("snapshots")
+      .withIndex("by_identity", (q: any) =>
+        q.eq("datasetKey", args.datasetKey).eq("regionCode", args.regionCode),
+      )
+      .order("desc")
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
+
+    return {
+      snapshots: result.page.map((snapshot: any) => ({
+        _id: snapshot._id,
+        asOfDate: snapshot.asOfDate,
+        asOfDateSource: snapshot.asOfDateSource,
+        asOfGranularity: snapshot.asOfGranularity,
+        dataStatus: snapshot.dataStatus,
+        activeBuildId: snapshot.activeBuildId,
+        pendingBuildId: snapshot.pendingBuildId,
+        fileName: snapshot.fileName,
+        downloadedAt: snapshot.downloadedAt,
+        parsedAt: snapshot.parsedAt,
+      })),
+      nextCursor: result.continueCursor ?? null,
+    };
+  },
+});
+
 export const listRebuilding = query({
   args: {
     syncToken: v.optional(v.string()),
@@ -637,4 +692,3 @@ export const markPrimaryKeyNormComplete = mutation({
     return null;
   },
 });
-
