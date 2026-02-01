@@ -62,9 +62,10 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
 
 - `bunx convex typecheck`: passed.
 - `python3 -m venv .venv` then `.venv/bin/pytest`: passed (73 tests).
-- Manual acceptance (partial):
+- Manual acceptance: complete.
   - FastAPI `/sec/search` + `/sec/facts` for AAPL succeeded (placeholder `SEC_USER_AGENT`).
-  - Next.js `/api/company/search` succeeded via EDGAR fallback after `convex dev --once --typecheck=disable`.
+  - Next.js `/api/company/search` succeeded via EDGAR fallback.
   - Next.js `/api/dcf/preview` succeeded (scenario fields in snake_case, base fair value ≈ 22.44).
-  - Blocked: `/api/company/facts` and `/api/dcf/run` (Convex env missing `DAMODARAN_SYNC_TOKEN`), history/replay not validated.
-  - Convex env update blocked: `convex env set` requires access token (`npx convex dev` login or `CONVEX_DEPLOY_KEY`).
+  - Next.js `/api/company/facts` succeeded and persisted to Convex.
+  - Next.js `/api/dcf/run` succeeded and persisted valuation run.
+  - Replay/audit: `valuations:listByTicker` and `valuations:get` returned stored run + trace.
