@@ -61,13 +61,11 @@ export const search = query({
     const symbolQuery = raw.toUpperCase();
     const nameQuery = raw.toLowerCase();
     const PAGE_SIZE = 200;
-    const MAX_SCAN = 1000;
 
     const matches: any[] = [];
     let cursor: string | null = null;
-    let scanned = 0;
 
-    while (matches.length < limit && scanned < MAX_SCAN) {
+    while (matches.length < limit) {
       const result = await ctx.db
         .query("companies")
         .withIndex("by_symbol", (q: any) => q)
@@ -81,7 +79,6 @@ export const search = query({
       if (page.length === 0) {
         break;
       }
-      scanned += page.length;
 
       for (const company of page) {
         if (company.symbol.includes(symbolQuery)) {
