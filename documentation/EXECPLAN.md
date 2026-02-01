@@ -61,5 +61,5 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
 ## Verification Log
 
 - `bunx convex typecheck`: passed.
-- `cd python && pytest`: failed (pytest not available in environment).
+- `python3 -m venv .venv` then `.venv/bin/pytest`: passed (73 tests).
 - Manual acceptance: pending.
