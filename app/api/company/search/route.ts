@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { convexClient } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
-import { api } from "@/convex/_generated/api";
 
 type EdgarSearchResponse = {
   results: Array<{ symbol: string; name: string; cik: string }>;
@@ -26,7 +25,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await convexClient.query(api.companies.search, {
+    const searchCompanies = "companies:search" as any;
+    const results = await (convexClient as any).query(searchCompanies, {
       q,
       limit,
     });

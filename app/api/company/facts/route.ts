@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
-import { api } from "@/convex/_generated/api";
 
 type EdgarStatement = {
   period_end: string;
@@ -50,7 +49,9 @@ export async function GET(request: Request) {
 
   try {
     const syncToken = getSyncToken();
-    await convexClient.mutation(api.companies.upsertCompany, {
+    const upsertCompany = "companies:upsertCompany" as any;
+    const upsertBatch = "companyStatements:upsertBatch" as any;
+    await (convexClient as any).mutation(upsertCompany, {
       syncToken,
       symbol: facts.symbol,
       name: facts.name ?? undefined,
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
       updatedAt: facts.updated_at,
     }));
 
-    await convexClient.mutation(api.companyStatements.upsertBatch, {
+    await (convexClient as any).mutation(upsertBatch, {
       syncToken,
       symbol: facts.symbol,
       statements,
