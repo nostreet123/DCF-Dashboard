@@ -71,11 +71,8 @@ export const sanitizePayload = (payload: Record<string, unknown>): Record<string
 };
 
 const buildSeed = (payload: Record<string, unknown>): number => {
-  const requestId = typeof payload.requestId === "string" ? payload.requestId : null;
-  if (requestId) {
-    return hashToSeed(requestId);
-  }
   const core = sanitizePayload(payload);
+  delete core.requestId;
   const stable = stableStringify(core);
   return hashToSeed(stable);
 };

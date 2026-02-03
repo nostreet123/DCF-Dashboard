@@ -1,13 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createHash } from "crypto";
-
 import { parseMonteCarloPreset, sanitizePayload } from "../app/api/_lib/monteCarloPreset.ts";
-
-const hashToSeed = (value: string): number => {
-  const digest = createHash("sha256").update(value).digest();
-  return digest.readUInt32BE(0);
-};
 
 describe("monteCarloPreset", () => {
   it("returns off when mc param is missing", () => {
@@ -32,7 +25,7 @@ describe("monteCarloPreset", () => {
     assert.throws(() => parseMonteCarloPreset(request, payload), /Invalid mc parameter/);
   });
 
-  it("maps presets to runs/bins and uses requestId seed when present", () => {
+  it("maps presets to runs/bins and derives seed from inputs", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=default");
     const payload = { requestId: "req-123", symbol: "AAPL" };
     const result = parseMonteCarloPreset(request, payload);
@@ -40,13 +33,23 @@ describe("monteCarloPreset", () => {
     assert.ok(result.monteCarlo);
     assert.equal(result.monteCarlo.runs, 2000);
     assert.equal(result.monteCarlo.bins, 80);
-    assert.equal(result.monteCarlo.seed, hashToSeed("req-123"));
+    const withoutRequestId = parseMonteCarloPreset(request, { symbol: "AAPL" });
+    assert.equal(result.monteCarlo.seed, withoutRequestId.monteCarlo?.seed);
   });
 
   it("produces stable seeds regardless of object key insertion order", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=fast");
     const payloadA = { symbol: "AAPL", baseYear: 2024, periods: 5 };
     const payloadB = { periods: 5, baseYear: 2024, symbol: "AAPL" };
+    const seedA = parseMonteCarloPreset(request, payloadA).monteCarlo?.seed;
+    const seedB = parseMonteCarloPreset(request, payloadB).monteCarlo?.seed;
+    assert.equal(seedA, seedB);
+  });
+
+  it("ignores requestId differences when deriving seed", () => {
+    const request = new Request("http://localhost/api/dcf/preview?mc=fast");
+    const payloadA = { symbol: "AAPL", baseYear: 2024, requestId: "req-1" };
+    const payloadB = { symbol: "AAPL", baseYear: 2024, requestId: "req-2" };
     const seedA = parseMonteCarloPreset(request, payloadA).monteCarlo?.seed;
     const seedB = parseMonteCarloPreset(request, payloadB).monteCarlo?.seed;
     assert.equal(seedA, seedB);
