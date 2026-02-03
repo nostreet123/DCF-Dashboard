@@ -57,15 +57,18 @@ Implement the prototype architecture described in `documentation/ARCHITECTURE.md
   - US ticker: search → facts → preview → run → history.
   - Non-US manual import: preview/run marked manual.
   - Run replay reproduces KPI/tables for audit.
+  - Monte Carlo (optional): `POST /api/dcf/preview?mc=default` returns `monteCarlo`; `POST /api/dcf/run?mc=default` persists it.
 
 ## Verification Log
 
 - `bunx convex typecheck`: passed.
-- `python3 -m venv .venv` then `.venv/bin/pytest`: passed (73 tests).
+- `python3 -m venv .venv` then `.venv/bin/pytest`: passed (75 tests).
 - Manual acceptance: complete.
   - FastAPI `/sec/search` + `/sec/facts` for AAPL succeeded (placeholder `SEC_USER_AGENT`).
   - Next.js `/api/company/search` succeeded via EDGAR fallback.
   - Next.js `/api/dcf/preview` succeeded (scenario fields in snake_case, base fair value ≈ 22.44).
   - Next.js `/api/company/facts` succeeded and persisted to Convex.
   - Next.js `/api/dcf/run` succeeded and persisted valuation run.
+  - Next.js `/api/dcf/preview?mc=default` returned `monteCarlo.summary` + `monteCarlo.histogram` (deterministic seed).
+  - Next.js `/api/dcf/run?mc=default` persisted `resultSummary.monteCarlo` for run history rendering.
   - Replay/audit: `valuations:listByTicker` and `valuations:get` returned stored run + trace.

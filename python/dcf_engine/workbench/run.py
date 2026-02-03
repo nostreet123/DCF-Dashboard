@@ -4,6 +4,7 @@ from dcf_engine.engine import DCFEngine
 from dcf_engine.schema import InputAssumptions, Trace
 from dcf_engine.workbench.build_inputs import apply_offsets, build_inputs
 from dcf_engine.workbench.kpis import build_kpi_summary
+from dcf_engine.workbench.monte_carlo import run_monte_carlo
 from dcf_engine.workbench.schema import (
     ScenarioAssumptions,
     ScenarioResult,
@@ -75,6 +76,9 @@ def run_workbench(request: WorkbenchRequest) -> WorkbenchResponse:
     sensitivity_spec = request.sensitivity or SensitivitySpec()
     sensitivity = _build_sensitivity(engine, base_inputs, sensitivity_spec)
     kpis = build_kpi_summary(base_inputs, base_trace, request.statements)
+    monte_carlo = None
+    if request.monte_carlo is not None:
+        monte_carlo = run_monte_carlo(engine, request, request.monte_carlo)
 
     return WorkbenchResponse(
         base=base,
@@ -82,4 +86,5 @@ def run_workbench(request: WorkbenchRequest) -> WorkbenchResponse:
         bear=bear,
         sensitivity=sensitivity,
         kpis=kpis,
+        monte_carlo=monte_carlo,
     )

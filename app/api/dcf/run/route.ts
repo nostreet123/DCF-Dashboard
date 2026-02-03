@@ -4,6 +4,10 @@ import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
+import {
+  parseMonteCarloPreset,
+  sanitizePayload,
+} from "@/app/api/_lib/monteCarloPreset";
 
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
@@ -16,9 +20,21 @@ export async function POST(request: Request) {
     return errorResponse("BAD_REQUEST", "Invalid JSON payload", 400);
   }
 
+  const basePayload = sanitizePayload(payload);
+  let monteCarlo;
+  try {
+    ({ monteCarlo } = parseMonteCarloPreset(request, basePayload));
+  } catch (error) {
+    return errorResponse(
+      "BAD_REQUEST",
+      error instanceof Error ? error.message : "Invalid mc parameter",
+      400,
+    );
+  }
   const computePayload = {
-    ...payload,
+    ...basePayload,
     includeTrace: true,
+    ...(monteCarlo ? { monteCarlo } : {}),
   };
 
   let result: Record<string, any>;
@@ -54,6 +70,7 @@ export async function POST(request: Request) {
       bull: result.bull?.valuation,
       bear: result.bear?.valuation,
       kpis: result.kpis,
+      monteCarlo: result.monteCarlo,
     };
 
     const createValuation = "valuations:create" as any;
@@ -62,7 +79,7 @@ export async function POST(request: Request) {
       engineVersion: "workbench-v1",
       status: "success",
       error: undefined,
-      inputs: payload,
+      inputs: basePayload,
       normalizedInputs: undefined,
       provenance: undefined,
       resultSummary,
