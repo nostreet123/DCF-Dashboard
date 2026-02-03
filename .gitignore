@@ -9,6 +9,9 @@ node_modules/
 .coverage
 .coverage.*
 
+convex-export*.zip
+Gemini_Generated_Image_*.png
+
 .gemini/
 gha-creds-*.json
 .codex/

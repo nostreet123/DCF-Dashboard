@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,6 +31,58 @@ class SensitivitySpec(WorkbenchBaseModel):
         default_factory=lambda: [-0.02, -0.01, 0.0, 0.01, 0.02],
         alias="waccOffsets",
         description="Offsets applied to WACC.",
+    )
+
+
+class MonteCarloIndependence(WorkbenchBaseModel):
+    model: Literal["independent"] = Field(
+        "independent",
+        description="Sample each input independently.",
+    )
+
+
+class MonteCarloOneFactor(WorkbenchBaseModel):
+    model: Literal["oneFactor"] = Field(
+        "oneFactor",
+        description="Sample inputs from a shared latent factor plus idiosyncratic noise.",
+    )
+    loading: float = Field(
+        0.75,
+        ge=0.0,
+        le=0.99,
+        description=(
+            "Magnitude of the common factor loading. Same-sign inputs have "
+            "approximate normal-space correlation of loading^2."
+        ),
+    )
+
+
+MonteCarloDependenceSpec = Annotated[
+    MonteCarloIndependence | MonteCarloOneFactor,
+    Field(discriminator="model"),
+]
+
+
+class MonteCarloSpec(WorkbenchBaseModel):
+    runs: int = Field(
+        2000,
+        ge=100,
+        le=20_000,
+        description="Number of Monte Carlo simulations.",
+    )
+    seed: int | None = Field(
+        None,
+        description="Optional random seed for deterministic results.",
+    )
+    bins: int | None = Field(
+        None,
+        ge=10,
+        le=200,
+        description="Optional histogram bin count for mini distribution output.",
+    )
+    dependence: MonteCarloDependenceSpec | None = Field(
+        None,
+        description="Optional dependence model for correlated sampling.",
     )
 
 
@@ -73,6 +125,11 @@ class WorkbenchRequest(WorkbenchBaseModel):
     sensitivity: SensitivitySpec | None = Field(
         None,
         description="Sensitivity grid configuration.",
+    )
+    monte_carlo: MonteCarloSpec | None = Field(
+        None,
+        alias="monteCarlo",
+        description="Optional Monte Carlo simulation configuration.",
     )
     statements: list[StatementInput] | None = Field(
         None,
@@ -135,9 +192,46 @@ class SensitivityResult(WorkbenchBaseModel):
     )
 
 
+class MonteCarloSummary(WorkbenchBaseModel):
+    min: float = Field(..., description="Minimum simulated fair value per share.")
+    max: float = Field(..., description="Maximum simulated fair value per share.")
+    mean: float = Field(..., description="Mean simulated fair value per share.")
+    median: float = Field(..., description="Median simulated fair value per share.")
+    p10: float = Field(..., description="10th percentile fair value per share.")
+    p25: float = Field(..., description="25th percentile fair value per share.")
+    p75: float = Field(..., description="75th percentile fair value per share.")
+    p90: float = Field(..., description="90th percentile fair value per share.")
+
+
+class MonteCarloHistogram(WorkbenchBaseModel):
+    bin_centers: list[float] = Field(
+        default_factory=list,
+        alias="binCenters",
+        description="Histogram bin centers for plotting a mini distribution.",
+    )
+    density: list[float] = Field(
+        default_factory=list,
+        description="Normalized density heights (max=1).",
+    )
+
+
+class MonteCarloResult(WorkbenchBaseModel):
+    runs: int = Field(..., description="Completed simulation runs.")
+    seed: int | None = Field(None, description="Random seed used (if provided).")
+    summary: MonteCarloSummary = Field(..., description="Distribution summary stats.")
+    histogram: MonteCarloHistogram = Field(
+        ..., description="Histogram data for UI mini distribution."
+    )
+
+
 class WorkbenchResponse(WorkbenchBaseModel):
     base: ScenarioResult
     bull: ScenarioResult
     bear: ScenarioResult
     sensitivity: SensitivityResult
     kpis: KpiSummary
+    monte_carlo: MonteCarloResult | None = Field(
+        None,
+        alias="monteCarlo",
+        description="Optional Monte Carlo output for the base scenario.",
+    )
