@@ -38,6 +38,29 @@ const parseDependence = (): MonteCarloDependence | undefined => {
   return { model: "oneFactor", loading: parsed };
 };
 
+const SEED_SCENARIO_KEYS = [
+  "revenueGrowth",
+  "ebitMargin",
+  "taxRate",
+  "salesToCapital",
+  "wacc",
+  "gStable",
+  "waccStable",
+] as const;
+
+const SEED_TOP_LEVEL_KEYS = [
+  "periods",
+  "revenueT0",
+  "cash",
+  "debt",
+  "otherNonOperatingAssets",
+  "sharesOutstanding",
+  "reinvestmentLagYears",
+  "base",
+  "bull",
+  "bear",
+] as const;
+
 export const parseMonteCarloPreset = (
   request: Request,
   payload: Record<string, unknown>,
@@ -71,8 +94,7 @@ export const sanitizePayload = (payload: Record<string, unknown>): Record<string
 };
 
 const buildSeed = (payload: Record<string, unknown>): number => {
-  const core = sanitizePayload(payload);
-  delete core.requestId;
+  const core = extractSeedInputs(payload);
   const stable = stableStringify(core);
   return hashToSeed(stable);
 };
@@ -84,6 +106,40 @@ const hashToSeed = (value: string): number => {
 
 const stableStringify = (value: unknown): string => {
   return JSON.stringify(normalizeForStableStringify(value));
+};
+
+const extractSeedInputs = (payload: Record<string, unknown>): Record<string, unknown> => {
+  const seedInputs: Record<string, unknown> = {};
+  for (const key of SEED_TOP_LEVEL_KEYS) {
+    const value = payload[key];
+    if (value === undefined) {
+      continue;
+    }
+    if (key === "base" || key === "bull" || key === "bear") {
+      if (isRecord(value)) {
+        seedInputs[key] = pickScenarioInputs(value);
+      } else {
+        seedInputs[key] = value;
+      }
+      continue;
+    }
+    seedInputs[key] = value;
+  }
+  return seedInputs;
+};
+
+const pickScenarioInputs = (value: Record<string, unknown>): Record<string, unknown> => {
+  const picked: Record<string, unknown> = {};
+  for (const key of SEED_SCENARIO_KEYS) {
+    if (value[key] !== undefined) {
+      picked[key] = value[key];
+    }
+  }
+  return picked;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 
 const normalizeForStableStringify = (value: unknown): unknown => {
