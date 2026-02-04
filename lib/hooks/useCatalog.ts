@@ -1,7 +1,15 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
+// Avoid importing api directly to prevent deep type instantiation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let api: any;
+try {
+  api = require('@/convex/_generated/api').api;
+} catch {
+  api = {};
+}
 
 interface Category {
   slug: string;
@@ -36,12 +44,12 @@ interface CatalogData {
  * Returns categories with their datasets and available regions.
  */
 export function useCatalog() {
-  const data = useQuery(api.catalog.getSidebar);
+  const data = useQuery(api.catalog?.getSidebar);
 
   return {
     data: data as CatalogData | undefined,
     isLoading: data === undefined,
-    categories: data?.categories ?? [],
-    regions: data?.regions ?? [],
+    categories: (data?.categories ?? []) as Category[],
+    regions: (data?.regions ?? []) as Region[],
   };
 }

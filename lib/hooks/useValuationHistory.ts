@@ -1,7 +1,15 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
+// Avoid importing api directly to prevent deep type instantiation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let api: any;
+try {
+  api = require('@/convex/_generated/api').api;
+} catch {
+  api = {};
+}
 
 interface ValuationRun {
   _id: string;
@@ -34,7 +42,7 @@ interface ValuationRun {
  */
 export function useValuationHistory(symbol: string | undefined, limit: number = 10) {
   const data = useQuery(
-    api.valuations.listByTicker,
+    api.valuations?.listByTicker,
     symbol ? { symbol, limit } : 'skip'
   );
 
@@ -43,7 +51,7 @@ export function useValuationHistory(symbol: string | undefined, limit: number = 
   return {
     runs: (data as ValuationRun[] | undefined) ?? [],
     isLoading,
-    latestRun: data?.[0] as ValuationRun | undefined,
+    latestRun: (data as ValuationRun[] | undefined)?.[0],
   };
 }
 
@@ -56,7 +64,7 @@ export function useValuationHistoryByKey(
   limit: number = 10
 ) {
   const data = useQuery(
-    api.valuations.listBySymbol,
+    api.valuations?.listBySymbol,
     primaryKeyNorm ? { primaryKeyNorm, regionCode, limit } : 'skip'
   );
 
@@ -65,6 +73,6 @@ export function useValuationHistoryByKey(
   return {
     runs: (data as ValuationRun[] | undefined) ?? [],
     isLoading,
-    latestRun: data?.[0] as ValuationRun | undefined,
+    latestRun: (data as ValuationRun[] | undefined)?.[0],
   };
 }

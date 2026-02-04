@@ -1,8 +1,16 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+
+// Avoid importing api directly to prevent deep type instantiation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let api: any;
+try {
+  api = require('@/convex/_generated/api').api;
+} catch {
+  api = {};
+}
 
 interface Company {
   _id: string;
@@ -31,7 +39,7 @@ export function useCompanySearch(query: string, limit: number = 10) {
   }, [query]);
 
   const results = useQuery(
-    api.companies.search,
+    api.companies?.search,
     debouncedQuery.trim() ? { q: debouncedQuery, limit } : 'skip'
   );
 
@@ -49,7 +57,7 @@ export function useCompanySearch(query: string, limit: number = 10) {
  */
 export function useCompany(symbol: string | undefined) {
   const data = useQuery(
-    api.companies.get,
+    api.companies?.get,
     symbol ? { symbol } : 'skip'
   );
 
