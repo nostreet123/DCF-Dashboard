@@ -21,14 +21,53 @@ const extractErrorMessage = (data: unknown): string | null => {
   return null;
 };
 
+const truncateText = (text: string, maxLength: number = 800): string => {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}…`;
+};
+
+const parseJsonBody = (text: string, contentType: string | null): unknown | null => {
+  if (!text) {
+    return null;
+  }
+  const trimmed = text.trim();
+  const isJsonContent =
+    contentType?.includes("application/json") ||
+    contentType?.includes("+json") ||
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[");
+  if (!isJsonContent) {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+};
+
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const text = await response.text();
-  const data = text ? (JSON.parse(text) as T) : ({} as T);
+  const data = parseJsonBody(text, response.headers.get("content-type"));
   if (!response.ok) {
     const message = extractErrorMessage(data);
-    throw new Error(message || `DCF engine error (${response.status})`);
+    if (message) {
+      throw new Error(message);
+    }
+    const detail = text ? `: ${truncateText(text)}` : "";
+    throw new Error(`DCF engine error (${response.status})${detail}`);
   }
-  return data;
+  if (data === null) {
+    if (text) {
+      throw new Error(
+        `Unexpected DCF engine response (${response.status}): ${truncateText(text)}`,
+      );
+    }
+    return {} as T;
+  }
+  return data as T;
 };
 
 export const fetchDcfEngine = async <T>(

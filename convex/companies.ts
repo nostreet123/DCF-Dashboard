@@ -154,10 +154,10 @@ export const upsertCompany = mutation({
 
     const companyId = await ctx.db.insert("companies", {
       symbol,
-      name: args.name,
-      cik: args.cik,
-      country: args.country,
-      currency: args.currency,
+      ...(args.name !== undefined ? { name: args.name } : {}),
+      ...(args.cik !== undefined ? { cik: args.cik } : {}),
+      ...(args.country !== undefined ? { country: args.country } : {}),
+      ...(args.currency !== undefined ? { currency: args.currency } : {}),
       source: args.source,
       updatedAt,
     });
