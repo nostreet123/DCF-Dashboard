@@ -18,6 +18,6 @@ If enabled, responses include `monteCarlo` with summary percentiles and a small 
 
 ## Tests
 
-- Next/Node: `npm test`
+- Next/Node: `bun test`
 - Convex: `bunx convex typecheck`
 - Python: `cd python && pytest`

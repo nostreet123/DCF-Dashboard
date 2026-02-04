@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, test } from "bun:test";
 import { parseMonteCarloPreset, sanitizePayload } from "../app/api/_lib/monteCarloPreset.ts";
 
 describe("monteCarloPreset", () => {
-  it("returns off when mc param is missing", () => {
+  test("returns off when mc param is missing", () => {
     const request = new Request("http://localhost/api/dcf/preview");
     const payload = { requestId: "abc" };
     const result = parseMonteCarloPreset(request, payload);
@@ -11,7 +11,7 @@ describe("monteCarloPreset", () => {
     assert.equal(result.monteCarlo, undefined);
   });
 
-  it("supports mc=off explicitly", () => {
+  test("supports mc=off explicitly", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=off");
     const payload = { requestId: "abc" };
     const result = parseMonteCarloPreset(request, payload);
@@ -19,13 +19,13 @@ describe("monteCarloPreset", () => {
     assert.equal(result.monteCarlo, undefined);
   });
 
-  it("rejects invalid mc values", () => {
+  test("rejects invalid mc values", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=banana");
     const payload = { requestId: "abc" };
     assert.throws(() => parseMonteCarloPreset(request, payload), /Invalid mc parameter/);
   });
 
-  it("maps presets to runs/bins and derives seed from valuation inputs", () => {
+  test("maps presets to runs/bins and derives seed from valuation inputs", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=default");
     const payload = {
       requestId: "req-123",
@@ -71,7 +71,7 @@ describe("monteCarloPreset", () => {
     assert.equal(result.monteCarlo.seed, withoutRequestId.monteCarlo?.seed);
   });
 
-  it("produces stable seeds regardless of object key insertion order", () => {
+  test("produces stable seeds regardless of object key insertion order", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=fast");
     const payloadA = { symbol: "AAPL", baseYear: 2024, periods: 5 };
     const payloadB = { periods: 5, baseYear: 2024, symbol: "AAPL" };
@@ -80,7 +80,7 @@ describe("monteCarloPreset", () => {
     assert.equal(seedA, seedB);
   });
 
-  it("ignores requestId differences when deriving seed", () => {
+  test("ignores requestId differences when deriving seed", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=fast");
     const payloadA = {
       base: {
@@ -120,7 +120,7 @@ describe("monteCarloPreset", () => {
     assert.equal(seedA, seedB);
   });
 
-  it("ignores non-valuation fields when deriving seed", () => {
+  test("ignores non-valuation fields when deriving seed", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=fast");
     const basePayload = {
       periods: 10,
@@ -177,7 +177,7 @@ describe("monteCarloPreset", () => {
     assert.equal(seedA, seedB);
   });
 
-  it("changes seed when valuation inputs change", () => {
+  test("changes seed when valuation inputs change", () => {
     const request = new Request("http://localhost/api/dcf/preview?mc=fast");
     const basePayload = {
       periods: 10,
@@ -223,7 +223,7 @@ describe("monteCarloPreset", () => {
     assert.notEqual(seedA, seedB);
   });
 
-  it("sanitizePayload drops non-input fields", () => {
+  test("sanitizePayload drops non-input fields", () => {
     const payload = {
       includeTrace: true,
       monteCarlo: { runs: 123 },
@@ -233,7 +233,7 @@ describe("monteCarloPreset", () => {
     assert.deepEqual(sanitizePayload(payload), { symbol: "AAPL" });
   });
 
-  it("adds oneFactor dependence when env is enabled", () => {
+  test("adds oneFactor dependence when env is enabled", () => {
     const prevDependence = process.env.MONTE_CARLO_DEPENDENCE;
     const prevLoading = process.env.MONTE_CARLO_ONE_FACTOR_LOADING;
     process.env.MONTE_CARLO_DEPENDENCE = "oneFactor";
