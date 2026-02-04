@@ -1,0 +1,94 @@
+.container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+}
+
+.header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: var(--spacing-md);
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.metricHeader {
+  text-align: left !important;
+}
+
+.yearHeader {
+  font-family: var(--font-mono);
+}
+
+.trendHeader {
+  width: 80px;
+}
+
+.metricCell {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.valueCell {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.trendCell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pagination {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .table th:nth-child(4),
+  .table th:nth-child(5),
+  .table td:nth-child(4),
+  .table td:nth-child(5) {
+    display: none;
+  }
+}

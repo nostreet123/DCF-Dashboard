@@ -1,0 +1,38 @@
+.container {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 12px;
+}
+
+.label {
+  color: var(--text-tertiary);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.value.up {
+  color: var(--accent-teal);
+}
+
+.value.down {
+  color: var(--accent-coral);
+}
+
+.value.neutral {
+  color: var(--accent-gold);
+}

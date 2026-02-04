@@ -1,0 +1,82 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  backdrop-filter: blur(12px);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.label {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.scenarioLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accent-gold);
+  background: rgba(212, 168, 83, 0.1);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.valueContainer {
+  margin-bottom: var(--spacing-lg);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  font-weight: 500;
+  color: var(--accent-gold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.rangeValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.rangeSeparator {
+  color: var(--text-tertiary);
+}
+
+.chart {
+  margin: var(--spacing-lg) 0;
+  display: flex;
+  justify-content: center;
+}
+
+.chips {
+  margin-top: var(--spacing-lg);
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .value {
+    font-size: 2.5rem;
+  }
+
+  .chart {
+    overflow-x: auto;
+  }
+}
