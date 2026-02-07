@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
+import { getSyncToken, mutateConvex } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 
@@ -26,6 +26,30 @@ type EdgarFacts = {
   statements: EdgarStatement[];
 };
 
+type UpsertCompanyArgs = {
+  syncToken: string;
+  symbol: string;
+  name?: string;
+  cik: string;
+  country: string;
+  currency: string;
+  source: string;
+  updatedAt: number;
+};
+
+type UpsertStatementArgs = {
+  periodEnd: string;
+  periodType: string;
+  filingDate?: string;
+  currency?: string;
+  revenue?: number;
+  cash?: number;
+  debt?: number;
+  sharesOutstanding?: number;
+  source: string;
+  updatedAt: number;
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol")?.trim();
@@ -49,9 +73,7 @@ export async function GET(request: Request) {
 
   try {
     const syncToken = getSyncToken();
-    const upsertCompany = "companies:upsertCompany" as any;
-    const upsertBatch = "companyStatements:upsertBatch" as any;
-    await (convexClient as any).mutation(upsertCompany, {
+    const upsertCompanyArgs: UpsertCompanyArgs = {
       syncToken,
       symbol: facts.symbol,
       name: facts.name ?? undefined,
@@ -60,9 +82,10 @@ export async function GET(request: Request) {
       currency: facts.currency ?? "USD",
       source: facts.source ?? "edgar",
       updatedAt: facts.updated_at,
-    });
+    };
+    await mutateConvex<unknown>("companies:upsertCompany", upsertCompanyArgs);
 
-    const statements = (facts.statements ?? []).map((statement) => ({
+    const statements: UpsertStatementArgs[] = (facts.statements ?? []).map((statement) => ({
       periodEnd: statement.period_end,
       periodType: statement.period_type || "FY",
       filingDate: statement.filing_date ?? undefined,
@@ -75,7 +98,7 @@ export async function GET(request: Request) {
       updatedAt: facts.updated_at,
     }));
 
-    await (convexClient as any).mutation(upsertBatch, {
+    await mutateConvex<unknown>("companyStatements:upsertBatch", {
       syncToken,
       symbol: facts.symbol,
       statements,

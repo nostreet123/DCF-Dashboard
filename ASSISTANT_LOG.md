@@ -16,6 +16,7 @@ This file tracks two things so I can work better with you over time:
 | --- | --- | --- |
 | 2026-02-07 | You want a file that tracks my mistakes and what you like. | I will keep this file updated as we work. |
 | 2026-02-07 | You want this tracking workflow injected into `AGENTS.md`. | I will keep the policy in `AGENTS.md` and the entries in `ASSISTANT_LOG.md`. |
+| 2026-02-07 | You prefer a clear plan before executing larger cleanup/refactor work. | I will propose phased plans first, then execute only after your go-ahead. |
 
 ## Update Rule
 

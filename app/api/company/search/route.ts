@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { convexClient } from "@/app/api/_lib/convex";
+import { queryConvex } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { executeCompanySearch } from "@/app/api/company/search/logic";
@@ -30,11 +30,13 @@ export async function GET(request: Request) {
     limit,
     hasEdgar: Boolean(process.env.DCF_ENGINE_URL),
     searchConvex: async (query, queryLimit) => {
-      const searchCompanies = "companies:search" as any;
-      return (convexClient as any).query(searchCompanies, {
+      return queryConvex<Array<{ symbol: string; name: string; cik: string }>>(
+        "companies:search",
+        {
         q: query,
         limit: queryLimit,
-      });
+        },
+      );
     },
     searchEdgar: async (query, queryLimit) => {
       const response = await fetchDcfEngine<EdgarSearchResponse>(

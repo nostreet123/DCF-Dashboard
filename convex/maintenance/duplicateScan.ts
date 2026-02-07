@@ -1052,103 +1052,63 @@ export const runDuplicateScanChunk = internalAction({
   },
 });
 
-export const runDuplicateScanOnce = mutation({
-  args: { syncToken: v.optional(v.string()) },
-  returns: v.union(
-    v.object({
-      _id: v.id("duplicateScanState"),
-      _creationTime: v.number(),
-      key: v.string(),
-      status: v.string(),
-      phase: v.string(),
-      pageLimit: v.number(),
+const DuplicateScanStateOrNull = v.union(
+  v.object({
+    _id: v.id("duplicateScanState"),
+    _creationTime: v.number(),
+    key: v.string(),
+    status: v.string(),
+    phase: v.string(),
+    pageLimit: v.number(),
 
-      runId: v.optional(v.string()),
-      snapshotCursor: v.optional(v.string()),
-      snapshotCarry: v.optional(DuplicateSnapshotCarry),
-      assetCursor: v.optional(v.string()),
-      assetCarry: v.optional(DuplicateAssetCarry),
-      snapshotPagesScanned: v.number(),
-      assetPagesScanned: v.number(),
-      snapshotDuplicateGroups: v.number(),
-      assetDuplicateGroups: v.number(),
-      snapshotSample: v.optional(DuplicateScanSampleSnapshots),
-      assetSample: v.optional(DuplicateScanSampleAssets),
-      startedAt: v.number(),
-      updatedAt: v.number(),
-      finishedAt: v.optional(v.number()),
-      error: v.optional(v.string()),
-      inFlightUntil: v.optional(v.number()),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
-    const state = await ctx.db
-      .query("duplicateScanState")
-      .withIndex("by_key", (q) => q.eq("key", DuplicateScanKey))
-      .unique();
-    if (!state) {
-      return null;
-    }
-    if (state.status !== "running") {
-      return state;
-    }
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
-      stateId: state._id,
-      runId: state.runId,
-    });
-    return await ctx.db.get(state._id);
-  },
-});
+    runId: v.optional(v.string()),
+    snapshotCursor: v.optional(v.string()),
+    snapshotCarry: v.optional(DuplicateSnapshotCarry),
+    assetCursor: v.optional(v.string()),
+    assetCarry: v.optional(DuplicateAssetCarry),
+    snapshotPagesScanned: v.number(),
+    assetPagesScanned: v.number(),
+    snapshotDuplicateGroups: v.number(),
+    assetDuplicateGroups: v.number(),
+    snapshotSample: v.optional(DuplicateScanSampleSnapshots),
+    assetSample: v.optional(DuplicateScanSampleAssets),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    inFlightUntil: v.optional(v.number()),
+  }),
+  v.null(),
+);
+
+const scheduleDuplicateScanTick = async (ctx: any, args: { syncToken?: string }) => {
+  requireSyncToken(args.syncToken);
+  const state = await ctx.db
+    .query("duplicateScanState")
+    .withIndex("by_key", (q: any) => q.eq("key", DuplicateScanKey))
+    .unique();
+  if (!state) {
+    return null;
+  }
+  if (state.status !== "running") {
+    return state;
+  }
+  await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
+    stateId: state._id,
+    runId: state.runId,
+  });
+  return await ctx.db.get(state._id);
+};
 
 export const runDuplicateScanTick = mutation({
   args: { syncToken: v.optional(v.string()) },
-  returns: v.union(
-    v.object({
-      _id: v.id("duplicateScanState"),
-      _creationTime: v.number(),
-      key: v.string(),
-      status: v.string(),
-      phase: v.string(),
-      pageLimit: v.number(),
-
-      runId: v.optional(v.string()),
-      snapshotCursor: v.optional(v.string()),
-      snapshotCarry: v.optional(DuplicateSnapshotCarry),
-      assetCursor: v.optional(v.string()),
-      assetCarry: v.optional(DuplicateAssetCarry),
-      snapshotPagesScanned: v.number(),
-      assetPagesScanned: v.number(),
-      snapshotDuplicateGroups: v.number(),
-      assetDuplicateGroups: v.number(),
-      snapshotSample: v.optional(DuplicateScanSampleSnapshots),
-      assetSample: v.optional(DuplicateScanSampleAssets),
-      startedAt: v.number(),
-      updatedAt: v.number(),
-      finishedAt: v.optional(v.number()),
-      error: v.optional(v.string()),
-      inFlightUntil: v.optional(v.number()),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    requireSyncToken(args.syncToken);
-    const state = await ctx.db
-      .query("duplicateScanState")
-      .withIndex("by_key", (q) => q.eq("key", DuplicateScanKey))
-      .unique();
-    if (!state) {
-      return null;
-    }
-    if (state.status !== "running") {
-      return state;
-    }
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
-      stateId: state._id,
-      runId: state.runId,
-    });
-    return await ctx.db.get(state._id);
-  },
+  returns: DuplicateScanStateOrNull,
+  handler: scheduleDuplicateScanTick,
 });
 
+// Deprecated alias for backward compatibility with callers that still use the old name.
+export const runDuplicateScanOnce = mutation({
+  args: { syncToken: v.optional(v.string()) },
+  returns: DuplicateScanStateOrNull,
+  handler: scheduleDuplicateScanTick,
+});

@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 
-import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
+import { getSyncToken, mutateConvex } from "@/app/api/_lib/convex";
 import { DcfRequestError, prepareDcfRequest } from "@/app/api/_lib/dcfRequest";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
+
+type DcfComputeResult = Record<string, unknown> & {
+  base?: { valuation?: unknown };
+  bull?: { valuation?: unknown };
+  bear?: { valuation?: unknown };
+  kpis?: unknown;
+  monteCarlo?: unknown;
+};
 
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
@@ -18,9 +26,9 @@ export async function POST(request: Request) {
     return errorResponse("BAD_REQUEST", "Invalid JSON payload", 400);
   }
 
-  let result: Record<string, any>;
+  let result: DcfComputeResult;
   try {
-    result = await fetchDcfEngine<Record<string, any>>("/dcf/compute", {
+    result = await fetchDcfEngine<DcfComputeResult>("/dcf/compute", {
       method: "POST",
       body: JSON.stringify(computePayload),
     });
@@ -54,8 +62,7 @@ export async function POST(request: Request) {
       monteCarlo: result.monteCarlo,
     };
 
-    const createValuation = "valuations:create" as any;
-    await (convexClient as any).mutation(createValuation, {
+    await mutateConvex<unknown>("valuations:create", {
       syncToken,
       engineVersion: "workbench-v1",
       status: "success",

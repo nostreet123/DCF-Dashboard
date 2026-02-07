@@ -20,8 +20,9 @@ export {
   releaseDuplicateScanLockInternal,
   resetDuplicateScanAndStartInternal,
   runDuplicateScanChunk,
-  runDuplicateScanOnce,
   runDuplicateScanTick,
+  // Deprecated alias kept for backward compatibility.
+  runDuplicateScanOnce,
   startDuplicateScan,
   stopDuplicateScan,
   tryAcquireDuplicateScanLockInternal,
