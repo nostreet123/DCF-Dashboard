@@ -32,6 +32,22 @@ const normalizeLimit = (requested: number | undefined) => {
   return Math.min(limit, MAX_LIMIT);
 };
 
+const normalizePageLimit = (requested: number | undefined) => {
+  const DEFAULT_LIMIT = 200;
+  const MAX_LIMIT = 500;
+  if (requested === undefined) {
+    return DEFAULT_LIMIT;
+  }
+  const limit = Number(requested);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Limit must be a positive integer",
+    });
+  }
+  return Math.min(limit, MAX_LIMIT);
+};
+
 export const get = query({
   args: {
     symbol: v.string(),
@@ -43,6 +59,32 @@ export const get = query({
       .query("companies")
       .withIndex("by_symbol", (q: any) => q.eq("symbol", symbol))
       .unique();
+  },
+});
+
+export const listSymbolsPage = query({
+  args: {
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    symbols: v.array(v.string()),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const limit = normalizePageLimit(args.limit);
+    const result = await ctx.db
+      .query("companies")
+      .withIndex("by_symbol", (q: any) => q)
+      .order("asc")
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
+    return {
+      symbols: result.page.map((company: any) => company.symbol),
+      nextCursor: result.continueCursor ?? null,
+    };
   },
 });
 

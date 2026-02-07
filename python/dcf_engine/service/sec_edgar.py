@@ -180,8 +180,9 @@ def _extract_annual_values(
     facts: dict[str, Any],
     tag: str,
     preferred_units: list[str],
+    taxonomy: str = "us-gaap",
 ) -> dict[int, AnnualValue]:
-    tag_data = facts.get("facts", {}).get("us-gaap", {}).get(tag)
+    tag_data = facts.get("facts", {}).get(taxonomy, {}).get(tag)
     if not tag_data:
         return {}
     units = tag_data.get("units", {})
@@ -275,6 +276,7 @@ def _build_statements(
             facts,
             "EntityCommonStockSharesOutstanding",
             ["shares"],
+            taxonomy="dei",
         )
 
     debt_current = _extract_annual_values(

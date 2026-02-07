@@ -8,6 +8,15 @@
 - **Testing**: pytest (Python only)
 - Sub-modules have their own AGENTS.md files for detailed guidance.
 
+## Assistant Collaboration Log
+
+- **Log file**: `ASSISTANT_LOG.md` at repo root
+- **Purpose**: Track assistant mistakes and user preferences
+- **Update cadence**: After each meaningful task
+- **Mistakes format**: Date, task/context, mistake, correction, next-time guardrail
+- **Preferences format**: Date, preference, how it will be applied
+- **Retention**: Append entries; do not remove history unless explicitly asked
+
 ## Quick Setup
 
 ```bash
