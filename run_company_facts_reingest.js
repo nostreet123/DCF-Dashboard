@@ -1,46 +1,10 @@
-const fs = require("fs");
-const path = require("path");
 const { ConvexHttpClient } = require("convex/browser");
-
-function loadEnvFile(filePath) {
-  if (!fs.existsSync(filePath)) return {};
-  const out = {};
-  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith("#")) continue;
-    const idx = line.indexOf("=");
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    let val = line.slice(idx + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    out[key] = val;
-  }
-  return out;
-}
-
-function parseArgs(argv) {
-  const options = {};
-  for (const arg of argv) {
-    if (!arg.startsWith("--")) continue;
-    const [key, value] = arg.slice(2).split("=", 2);
-    options[key] = value === undefined ? "true" : value;
-  }
-  return options;
-}
-
-function toPositiveInt(value, fallback) {
-  if (value === undefined) return fallback;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Expected positive integer, got: ${value}`);
-  }
-  return parsed;
-}
+const {
+  loadProjectEnv,
+  parseArgs,
+  resolveConvexUrl,
+  toPositiveInt,
+} = require("./script_utils");
 
 function uniqueSymbols(symbols) {
   const seen = new Set();
@@ -145,17 +109,7 @@ async function reingestSymbols({
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const envLocal = loadEnvFile(path.join(process.cwd(), ".env.local"));
-  const envDot = loadEnvFile(path.join(process.cwd(), ".env"));
-
-  const convexUrl =
-    process.env.CONVEX_URL ||
-    envLocal.CONVEX_URL ||
-    envLocal.VITE_CONVEX_URL ||
-    envLocal.NEXT_PUBLIC_CONVEX_URL ||
-    envDot.CONVEX_URL ||
-    envDot.VITE_CONVEX_URL ||
-    envDot.NEXT_PUBLIC_CONVEX_URL;
+  const convexUrl = resolveConvexUrl(loadProjectEnv());
   if (!convexUrl) {
     throw new Error("Missing CONVEX_URL.");
   }

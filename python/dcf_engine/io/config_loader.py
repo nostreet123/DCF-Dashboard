@@ -34,6 +34,8 @@ def load_config(path: str) -> tuple[InputAssumptions, ReferenceSelector | None]:
     inputs = InputAssumptions.model_validate(raw)
     selector = None
     if reference is not None:
+        if not isinstance(reference, dict):
+            raise ValueError("reference must be a mapping")
         as_of_date = reference.get("as_of_date")
         if hasattr(as_of_date, "isoformat"):
             as_of_date = as_of_date.isoformat()
