@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test --test-concurrency=1 --experimental-transform-types test/*.test.ts"
+    "test": "node --test --test-concurrency=1 --experimental-transform-types test/*.test.ts",
+    "test:convex": "bun test convex_tests/*.test.ts",
+    "test:ci": "bun run test && bun run test:convex",
+    "typecheck:convex": "bunx convex typecheck"
   },
   "dependencies": {
     "convex": "^1.31.2",
