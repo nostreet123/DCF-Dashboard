@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test --experimental-transform-types test/monteCarloPreset.test.ts"
+    "test": "node --test --test-concurrency=1 --experimental-transform-types test/*.test.ts"
   },
   "dependencies": {
     "convex": "^1.31.2",

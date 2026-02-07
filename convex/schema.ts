@@ -211,6 +211,11 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_symbol_and_periodEnd", ["symbol", "periodEnd"])
+    .index("by_symbol_and_periodEnd_and_periodType", [
+      "symbol",
+      "periodEnd",
+      "periodType",
+    ])
     .index("by_symbol_and_filingDate", ["symbol", "filingDate"]),
 
   // -----------------------------

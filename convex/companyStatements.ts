@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
+import { dedupeStatements } from "./companyStatementsBatch";
 
 const statementValidator = v.object({
   _id: v.id("companyStatements"),
@@ -98,14 +99,18 @@ export const upsertBatch = mutation({
       });
     }
     const symbol = normalizeSymbol(args.symbol);
+    const statements = dedupeStatements(args.statements);
 
     let created = 0;
     let updated = 0;
-    for (const statement of args.statements) {
+    for (const statement of statements) {
       const existing = await ctx.db
         .query("companyStatements")
-        .withIndex("by_symbol_and_periodEnd", (q: any) =>
-          q.eq("symbol", symbol).eq("periodEnd", statement.periodEnd),
+        .withIndex("by_symbol_and_periodEnd_and_periodType", (q: any) =>
+          q
+            .eq("symbol", symbol)
+            .eq("periodEnd", statement.periodEnd)
+            .eq("periodType", statement.periodType),
         )
         .unique();
       const updatedAt = statement.updatedAt ?? Date.now();

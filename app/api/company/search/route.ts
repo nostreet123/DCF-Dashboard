@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { convexClient } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { executeCompanySearch } from "@/app/api/company/search/logic";
 
 type EdgarSearchResponse = {
   results: Array<{ symbol: string; name: string; cik: string }>;
@@ -24,38 +25,29 @@ export async function GET(request: Request) {
     limit = Math.min(parsed, 50);
   }
 
-  try {
-    const searchCompanies = "companies:search" as any;
-    const results = await (convexClient as any).query(searchCompanies, {
-      q,
-      limit,
-    });
-    if (results.length > 0) {
-      return NextResponse.json({ results, source: "convex" });
-    }
-  } catch (error) {
-    return errorResponse(
-      "CONVEX_ERROR",
-      error instanceof Error ? error.message : "Convex query failed",
-      500,
-    );
+  const outcome = await executeCompanySearch({
+    q,
+    limit,
+    hasEdgar: Boolean(process.env.DCF_ENGINE_URL),
+    searchConvex: async (query, queryLimit) => {
+      const searchCompanies = "companies:search" as any;
+      return (convexClient as any).query(searchCompanies, {
+        q: query,
+        limit: queryLimit,
+      });
+    },
+    searchEdgar: async (query, queryLimit) => {
+      const response = await fetchDcfEngine<EdgarSearchResponse>(
+        `/sec/search?q=${encodeURIComponent(query)}&limit=${queryLimit}`,
+        { method: "GET" },
+      );
+      return response.results;
+    },
+  });
+
+  if (outcome.ok) {
+    return NextResponse.json(outcome.data);
   }
 
-  if (!process.env.DCF_ENGINE_URL) {
-    return NextResponse.json({ results: [], source: "convex" });
-  }
-
-  try {
-    const response = await fetchDcfEngine<EdgarSearchResponse>(
-      `/sec/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      { method: "GET" },
-    );
-    return NextResponse.json({ results: response.results, source: "edgar" });
-  } catch (error) {
-    return errorResponse(
-      "EDGAR_ERROR",
-      error instanceof Error ? error.message : "EDGAR search failed",
-      502,
-    );
-  }
+  return errorResponse(outcome.error.code, outcome.error.message, outcome.error.status);
 }
