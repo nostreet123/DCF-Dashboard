@@ -6,6 +6,9 @@ export const RetentionDays = v.object({
   syncErrors: v.optional(v.number()),
   syncLogIncrements: v.optional(v.number()),
   valuationRunTraces: v.optional(v.number()),
+  valuationRunInlineTraces: v.optional(v.number()),
+  debugEventsError: v.optional(v.number()),
+  debugEventsStandard: v.optional(v.number()),
 });
 
 export const PageType = v.union(v.literal("current"), v.literal("archive"));
@@ -170,4 +173,3 @@ export const pickAssetKeepId = (
   }
   return best._id;
 };
-

@@ -26,6 +26,7 @@ _SYNC_CACHE: dict[str, str] = {}
 _SYNC_CACHE_LOCK = threading.Lock()
 _MAX_SNAPSHOT_IDENTITY_BATCH = 100
 _MAX_ASSET_BATCH = 500
+_DEBUG_LEVELS = {"error", "standard", "verbose"}
 
 
 @dataclass
@@ -271,6 +272,8 @@ def _process_asset(
     bulk_failed: bool,
     trust_archive_immutable: bool,
     timing: _TimingSummary | None,
+    correlation_id: str | None,
+    debug_level: str | None,
 ) -> _AssetOutcome:
     asset = item.asset
     dataset_key = item.dataset_key
@@ -508,6 +511,8 @@ def _process_asset(
             asset.file_name,
             current_stage,
             f"{type(e).__name__}: {str(e)}",
+            correlation_id=correlation_id,
+            debug_level=debug_level,
         )
         logger.error(
             "Error processing %s (dataset=%s, region=%s, url=%s) at stage=%s",
@@ -573,6 +578,12 @@ def process_page(
     timing = _TimingSummary() if profile_enabled else None
     limit_raw = os.getenv("DAMODARAN_SYNC_LIMIT", "").strip()
     limit_assets = int(limit_raw) if limit_raw.isdigit() and int(limit_raw) > 0 else None
+    configured_debug_level = os.getenv("DAMODARAN_DEBUG_LEVEL", "standard").strip().lower()
+    debug_level = (
+        configured_debug_level if configured_debug_level in _DEBUG_LEVELS else "standard"
+    )
+    correlation_id_env = os.getenv("DAMODARAN_CORRELATION_ID", "").strip()
+    correlation_id = correlation_id_env or uuid.uuid4().hex
     
     # Context for error handling if discovery fails before log creation
     sync_log_id = None
@@ -609,12 +620,19 @@ def process_page(
         except Exception as e:
             # If discovery fails, we must create a log to record the error
             # We don't have page_last_updated since discovery failed
-            sync_log_id = client.create_sync_log(f"full_{page_type}", None)
+            sync_log_id = client.create_sync_log(
+                f"full_{page_type}",
+                None,
+                correlation_id=correlation_id,
+                debug_level=debug_level,
+            )
             client.append_sync_error(
                 sync_log_id,
                 "discovery_phase",
                 "discover",
                 f"{type(e).__name__}: {str(e)}",
+                correlation_id=correlation_id,
+                debug_level=debug_level,
             )
             client.finish_sync_log(sync_log_id, "failed")
             raise
@@ -633,7 +651,12 @@ def process_page(
         if manifest_hash and fast_exit:
             latest_manifest = client.get_latest_manifest(page_type)
             if latest_manifest and latest_manifest.get("manifestHash") == manifest_hash:
-                sync_log_id = client.create_sync_log(sync_type, page_last_updated)
+                sync_log_id = client.create_sync_log(
+                    sync_type,
+                    page_last_updated,
+                    correlation_id=correlation_id,
+                    debug_level=debug_level,
+                )
                 client.increment_sync_log(
                     sync_log_id,
                     {
@@ -656,7 +679,12 @@ def process_page(
                 return
 
         # 3. Start Sync Log (After discovery, so we have pageLastUpdated)
-        sync_log_id = client.create_sync_log(sync_type, page_last_updated)
+        sync_log_id = client.create_sync_log(
+            sync_type,
+            page_last_updated,
+            correlation_id=correlation_id,
+            debug_level=debug_level,
+        )
 
         client.increment_sync_log(
             sync_log_id, {"assetsDiscovered": len(assets)}
@@ -829,6 +857,8 @@ def process_page(
                     bulk_failed,
                     trust_archive_immutable,
                     timing,
+                    correlation_id,
+                    debug_level,
                 )
                 success_count += outcome.success
                 skip_count += outcome.skipped
@@ -854,6 +884,8 @@ def process_page(
                     bulk_failed,
                     trust_archive_immutable,
                     timing,
+                    correlation_id,
+                    debug_level,
                 )
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:

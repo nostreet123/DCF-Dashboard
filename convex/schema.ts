@@ -39,6 +39,19 @@ const SyncStage = v.union(
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
 
+const DebugLevel = v.union(
+  v.literal("error"),
+  v.literal("standard"),
+  v.literal("verbose"),
+);
+
+const DebugSource = v.union(
+  v.literal("next_api"),
+  v.literal("python_service"),
+  v.literal("damodaran_sync"),
+  v.literal("convex"),
+);
+
 const TraceStorage = v.union(
   v.literal("none"),
   v.literal("inline"),
@@ -227,6 +240,8 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     status: SyncStatus,
     requestId: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
 
     assetsDiscovered: v.number(),
     assetsDownloaded: v.number(),
@@ -238,7 +253,8 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_startedAt", ["startedAt"])
-    .index("by_requestId", ["requestId"]),
+    .index("by_requestId", ["requestId"])
+    .index("by_correlationId_startedAt", ["correlationId", "startedAt"]),
 
   syncLogIncrements: defineTable({
     syncLogId: v.id("syncLogs"),
@@ -272,11 +288,30 @@ export default defineSchema({
     error: v.string(),
     timestamp: v.number(),
     stage: SyncStage,
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
     eventId: v.optional(v.string()),
   })
     .index("by_syncLogId_timestamp", ["syncLogId", "timestamp"])
     .index("by_eventId", ["eventId"])
-    .index("by_timestamp", ["timestamp"]),
+    .index("by_timestamp", ["timestamp"])
+    .index("by_correlationId_timestamp", ["correlationId", "timestamp"]),
+
+  debugEvents: defineTable({
+    correlationId: v.string(),
+    createdAt: v.number(),
+    source: DebugSource,
+    route: v.optional(v.string()),
+    level: DebugLevel,
+    debugLevel: DebugLevel,
+    eventType: v.string(),
+    message: v.optional(v.string()),
+    data: v.optional(v.any()),
+  })
+    .index("by_correlationId_createdAt", ["correlationId", "createdAt"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_level_createdAt", ["level", "createdAt"])
+    .index("by_level_source_createdAt", ["level", "source", "createdAt"]),
 
   auditLogs: defineTable({
     action: v.string(),
@@ -430,11 +465,14 @@ export default defineSchema({
     status: RunStatus,
     error: v.optional(v.string()),
     requestId: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
     symbol: v.optional(v.string()),
     inputs: v.any(),
     normalizedInputs: v.optional(v.any()),
     provenance: v.optional(v.any()),
     resultSummary: v.optional(v.any()),
+    debugSummary: v.optional(v.any()),
     primaryKeyNorm: v.optional(v.string()),
     regionCode: v.optional(v.string()),
     asOfDate: v.optional(v.string()),
@@ -451,7 +489,8 @@ export default defineSchema({
       "createdAt",
     ])
     .index("by_symbol_createdAt", ["symbol", "createdAt"])
-    .index("by_requestId", ["requestId"]),
+    .index("by_requestId", ["requestId"])
+    .index("by_correlationId_createdAt", ["correlationId", "createdAt"]),
 
   valuationRunTraces: defineTable({
     runId: v.id("valuationRuns"),

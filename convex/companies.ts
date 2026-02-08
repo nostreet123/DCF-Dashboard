@@ -32,6 +32,8 @@ const normalizeLimit = (requested: number | undefined) => {
   return Math.min(limit, MAX_LIMIT);
 };
 
+const prefixUpperBound = (prefix: string) => `${prefix}\uffff`;
+
 const normalizePageLimit = (requested: number | undefined) => {
   const DEFAULT_LIMIT = 200;
   const MAX_LIMIT = 500;
@@ -102,46 +104,48 @@ export const search = query({
     const limit = normalizeLimit(args.limit);
     const symbolQuery = raw.toUpperCase();
     const nameQuery = raw.toLowerCase();
-    const PAGE_SIZE = 200;
+    const NAME_SCAN_LIMIT = 1000;
 
-    const matches: any[] = [];
-    let cursor: string | null = null;
+    // Stage 1: index-backed symbol prefix matches.
+    const symbolPrefixMatches = await ctx.db
+      .query("companies")
+      .withIndex("by_symbol", (q: any) =>
+        q.gte("symbol", symbolQuery).lt("symbol", prefixUpperBound(symbolQuery)),
+      )
+      .take(limit);
 
-    while (matches.length < limit) {
-      const result = await ctx.db
-        .query("companies")
-        .withIndex("by_symbol", (q: any) => q)
-        .order("asc")
-        .paginate({
-          cursor,
-          numItems: PAGE_SIZE,
-        });
+    if (symbolPrefixMatches.length >= limit) {
+      return symbolPrefixMatches;
+    }
 
-      const page = result.page as any[];
-      if (page.length === 0) {
-        break;
+    // Stage 2: bounded name/symbol substring scan for broader matches.
+    const candidates = await ctx.db
+      .query("companies")
+      .withIndex("by_symbol", (q: any) => q)
+      .order("asc")
+      .take(NAME_SCAN_LIMIT);
+
+    const matches: any[] = [...symbolPrefixMatches];
+    const seenIds = new Set(matches.map((company) => String(company._id)));
+    for (const company of candidates as any[]) {
+      if (seenIds.has(String(company._id))) {
+        continue;
       }
-
-      for (const company of page) {
-        if (company.symbol.includes(symbolQuery)) {
-          matches.push(company);
-          if (matches.length >= limit) {
-            break;
-          }
-          continue;
+      if (company.symbol.includes(symbolQuery)) {
+        matches.push(company);
+        seenIds.add(String(company._id));
+        if (matches.length >= limit) {
+          break;
         }
-        if (company.name && company.name.toLowerCase().includes(nameQuery)) {
-          matches.push(company);
-          if (matches.length >= limit) {
-            break;
-          }
+        continue;
+      }
+      if (company.name && company.name.toLowerCase().includes(nameQuery)) {
+        matches.push(company);
+        seenIds.add(String(company._id));
+        if (matches.length >= limit) {
+          break;
         }
       }
-
-      if (!result.continueCursor) {
-        break;
-      }
-      cursor = result.continueCursor;
     }
 
     return matches;

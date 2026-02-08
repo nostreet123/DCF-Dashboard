@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 
-import { queryConvex } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
-import { errorResponse } from "@/app/api/_lib/errors";
-import { executeCompanySearch } from "@/app/api/company/search/logic";
+import { queryConvex } from "../../_lib/convex";
+import { fetchDcfEngine } from "../../_lib/dcfEngine";
+import { errorResponse } from "../../_lib/errors";
+import { executeCompanySearch } from "./logic";
 
 type EdgarSearchResponse = {
   results: Array<{ symbol: string; name: string; cik: string }>;
@@ -33,8 +33,8 @@ export async function GET(request: Request) {
       return queryConvex<Array<{ symbol: string; name: string; cik: string }>>(
         "companies:search",
         {
-        q: query,
-        limit: queryLimit,
+          q: query,
+          limit: queryLimit,
         },
       );
     },

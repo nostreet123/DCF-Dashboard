@@ -13,6 +13,7 @@ from dcf_engine.normalization import Provenance
 
 
 MAX_TRACE_BYTES = 180_000
+DEBUG_LEVELS = {"error", "standard", "verbose"}
 
 
 class ConvexRunPersister:
@@ -35,6 +36,9 @@ class ConvexRunPersister:
         as_of_date: str | None,
         error: str | None = None,
         include_trace: bool = True,
+        correlation_id: str | None = None,
+        debug_level: str | None = None,
+        debug_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not self._sync_token:
             raise ValueError("DAMODARAN_SYNC_TOKEN is required to save runs")
@@ -73,6 +77,12 @@ class ConvexRunPersister:
             payload["regionCode"] = region_code
         if as_of_date is not None:
             payload["asOfDate"] = as_of_date
+        if correlation_id:
+            payload["correlationId"] = correlation_id
+        if debug_level in DEBUG_LEVELS:
+            payload["debugLevel"] = debug_level
+        if debug_summary is not None:
+            payload["debugSummary"] = debug_summary
         if trace_storage != "none" and trace_payload is not None:
             payload["trace"] = trace_payload
         if trace_storage != "none" and trace_bytes:

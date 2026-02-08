@@ -10,6 +10,12 @@ const SyncStatus = v.union(
   v.literal("failed"),
 );
 
+const DebugLevel = v.union(
+  v.literal("error"),
+  v.literal("standard"),
+  v.literal("verbose"),
+);
+
 const SyncLog = v.object({
   _id: v.id("syncLogs"),
   _creationTime: v.number(),
@@ -18,6 +24,8 @@ const SyncLog = v.object({
   completedAt: v.optional(v.number()),
   status: SyncStatus,
   requestId: v.optional(v.string()),
+  correlationId: v.optional(v.string()),
+  debugLevel: v.optional(DebugLevel),
   assetsDiscovered: v.number(),
   assetsDownloaded: v.number(),
   assetsSkipped: v.number(),
@@ -68,6 +76,8 @@ export const create = mutation({
     syncType: v.string(),
     pageLastUpdated: v.optional(v.string()),
     requestId: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
   },
   returns: v.id("syncLogs"),
   handler: async (ctx, args) => {
@@ -97,6 +107,8 @@ export const create = mutation({
       completedAt: undefined,
       status: "running",
       requestId: args.requestId,
+      correlationId: args.correlationId,
+      debugLevel: args.debugLevel,
       assetsDiscovered: 0,
       assetsDownloaded: 0,
       assetsSkipped: 0,

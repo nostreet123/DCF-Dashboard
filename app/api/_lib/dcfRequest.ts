@@ -1,8 +1,8 @@
-import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
+import { BodyLimitError, parseJsonWithLimit } from "./body";
 import {
   parseMonteCarloPreset,
   sanitizePayload,
-} from "@/app/api/_lib/monteCarloPreset";
+} from "./monteCarloPreset";
 
 export class DcfRequestError extends Error {
   code: "BAD_REQUEST" | "PAYLOAD_TOO_LARGE";

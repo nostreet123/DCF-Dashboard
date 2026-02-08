@@ -10,6 +10,12 @@ const SyncStage = v.union(
   v.literal("upload"),
 );
 
+const DebugLevel = v.union(
+  v.literal("error"),
+  v.literal("standard"),
+  v.literal("verbose"),
+);
+
 export const append = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -17,6 +23,8 @@ export const append = mutation({
     file: v.string(),
     stage: SyncStage,
     error: v.string(),
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
     eventId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -37,6 +45,8 @@ export const append = mutation({
       stage: args.stage,
       error: args.error,
       timestamp: Date.now(),
+      correlationId: args.correlationId,
+      debugLevel: args.debugLevel,
       eventId: args.eventId,
     });
     return null;
@@ -58,6 +68,8 @@ export const listBySyncLogId = query({
       error: v.string(),
       timestamp: v.number(),
       stage: SyncStage,
+      correlationId: v.optional(v.string()),
+      debugLevel: v.optional(DebugLevel),
       eventId: v.optional(v.string()),
     }),
   ),

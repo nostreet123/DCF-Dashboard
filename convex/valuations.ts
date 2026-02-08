@@ -11,6 +11,12 @@ const TraceStorage = v.union(
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
 
+const DebugLevel = v.union(
+  v.literal("error"),
+  v.literal("standard"),
+  v.literal("verbose"),
+);
+
 const valuationRunValidator = v.object({
   _id: v.id("valuationRuns"),
   _creationTime: v.number(),
@@ -19,11 +25,14 @@ const valuationRunValidator = v.object({
   status: RunStatus,
   error: v.optional(v.string()),
   requestId: v.optional(v.string()),
+  correlationId: v.optional(v.string()),
+  debugLevel: v.optional(DebugLevel),
   symbol: v.optional(v.string()),
   inputs: v.any(),
   normalizedInputs: v.optional(v.any()),
   provenance: v.optional(v.any()),
   resultSummary: v.optional(v.any()),
+  debugSummary: v.optional(v.any()),
   primaryKeyNorm: v.optional(v.string()),
   regionCode: v.optional(v.string()),
   asOfDate: v.optional(v.string()),
@@ -131,6 +140,9 @@ export const create = mutation({
     trace: v.optional(v.any()),
     traceByteSize: v.optional(v.number()),
     requestId: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    debugLevel: v.optional(DebugLevel),
+    debugSummary: v.optional(v.any()),
     symbol: v.optional(v.string()),
   },
   returns: v.object({
@@ -171,8 +183,21 @@ export const create = mutation({
           });
           await ctx.db.patch(existing._id, { traceId });
         }
+        const patch: Record<string, any> = {};
         if (symbol && existing.symbol !== symbol) {
-          await ctx.db.patch(existing._id, { symbol });
+          patch.symbol = symbol;
+        }
+        if (args.correlationId && existing.correlationId !== args.correlationId) {
+          patch.correlationId = args.correlationId;
+        }
+        if (args.debugLevel && existing.debugLevel !== args.debugLevel) {
+          patch.debugLevel = args.debugLevel;
+        }
+        if (args.debugSummary !== undefined) {
+          patch.debugSummary = args.debugSummary;
+        }
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(existing._id, patch);
         }
         return { runId: existing._id, traceId };
       }
@@ -185,11 +210,14 @@ export const create = mutation({
       status: args.status,
       error: args.error,
       requestId: args.requestId,
+      correlationId: args.correlationId,
+      debugLevel: args.debugLevel,
       symbol,
       inputs: args.inputs,
       normalizedInputs: args.normalizedInputs,
       provenance: args.provenance,
       resultSummary: args.resultSummary,
+      debugSummary: args.debugSummary,
       primaryKeyNorm: args.primaryKeyNorm,
       regionCode: args.regionCode,
       asOfDate: args.asOfDate,

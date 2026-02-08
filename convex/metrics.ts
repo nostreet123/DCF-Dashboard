@@ -12,53 +12,20 @@ export const getCounts = query({
     isTableDataCapped: v.boolean(),
   }),
   handler: async (ctx) => {
-    const countQuery = async (
-      getPage: (cursor: string | null, numItems: number) => Promise<{
-        page: Array<unknown>;
-        isDone: boolean;
-        continueCursor: string | null;
-      }>,
-    ) => {
-      const PAGE_SIZE = 1000;
-      let cursor: string | null = null;
-      let total = 0;
-      while (true) {
-        const result = await getPage(cursor, PAGE_SIZE);
-        total += result.page.length;
-        if (result.isDone) {
-          break;
-        }
-        cursor = result.continueCursor;
-      }
-      return total;
-    };
+    // Convex allows only one paginated query per function invocation.
+    // Use indexed collects here to avoid runtime "multiple paginated queries" errors.
+    const [categoriesRows, regionsRows, datasetsRows, snapshotsRows] =
+      await Promise.all([
+        ctx.db.query("categories").withIndex("by_slug", (q) => q).collect(),
+        ctx.db.query("regions").withIndex("by_code", (q) => q).collect(),
+        ctx.db.query("datasets").withIndex("by_key", (q) => q).collect(),
+        ctx.db.query("snapshots").withIndex("by_asOfDate", (q) => q).collect(),
+      ]);
 
-    const [categories, regions, datasets, snapshots] = await Promise.all([
-      countQuery((cursor, numItems) =>
-        ctx.db
-          .query("categories")
-          .withIndex("by_slug", (q) => q)
-          .paginate({ cursor, numItems }),
-      ),
-      countQuery((cursor, numItems) =>
-        ctx.db
-          .query("regions")
-          .withIndex("by_code", (q) => q)
-          .paginate({ cursor, numItems }),
-      ),
-      countQuery((cursor, numItems) =>
-        ctx.db
-          .query("datasets")
-          .withIndex("by_key", (q) => q)
-          .paginate({ cursor, numItems }),
-      ),
-      countQuery((cursor, numItems) =>
-        ctx.db
-          .query("snapshots")
-          .withIndex("by_asOfDate", (q) => q)
-          .paginate({ cursor, numItems }),
-      ),
-    ]);
+    const categories = categoriesRows.length;
+    const regions = regionsRows.length;
+    const datasets = datasetsRows.length;
+    const snapshots = snapshotsRows.length;
 
     // Bounded count for tableData
     const LIMIT = 1000;

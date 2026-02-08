@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 
-import { getSyncToken, mutateConvex } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
-import { errorResponse } from "@/app/api/_lib/errors";
+import { getSyncToken, mutateConvex } from "../../_lib/convex";
+import { fetchDcfEngine } from "../../_lib/dcfEngine";
+import { errorResponse } from "../../_lib/errors";
 
 type EdgarStatement = {
   period_end: string;

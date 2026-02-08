@@ -12,6 +12,8 @@ import type * as assets from "../assets.js";
 import type * as catalog from "../catalog.js";
 import type * as companies from "../companies.js";
 import type * as companyStatements from "../companyStatements.js";
+import type * as companyStatementsBatch from "../companyStatementsBatch.js";
+import type * as debugEvents from "../debugEvents.js";
 import type * as http from "../http.js";
 import type * as industries from "../industries.js";
 import type * as maintenance from "../maintenance.js";
@@ -42,6 +44,8 @@ declare const fullApi: ApiFromModules<{
   catalog: typeof catalog;
   companies: typeof companies;
   companyStatements: typeof companyStatements;
+  companyStatementsBatch: typeof companyStatementsBatch;
+  debugEvents: typeof debugEvents;
   http: typeof http;
   industries: typeof industries;
   maintenance: typeof maintenance;

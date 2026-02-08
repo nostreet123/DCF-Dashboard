@@ -198,3 +198,30 @@ def test_convex_run_persister_without_trace(monkeypatch):
     assert "trace" not in args
     assert "normalizedInputs" not in args
     assert "resultSummary" not in args
+
+
+def test_convex_run_persister_debug_metadata(monkeypatch):
+    monkeypatch.setattr(convex_runs, "ConvexClient", DummyConvexClient)
+    monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
+
+    persister = convex_runs.ConvexRunPersister(convex_url="http://example")
+    persister.save(
+        inputs=_build_inputs(),
+        normalized=None,
+        provenance=None,
+        result=None,
+        trace=None,
+        primary_key_norm=None,
+        region_code=None,
+        as_of_date=None,
+        include_trace=False,
+        correlation_id="corr-xyz",
+        debug_level="standard",
+        debug_summary={"totalDurationMs": 100},
+    )
+
+    name, args = DummyConvexClient.last_instance.mutations[-1]
+    assert name == "valuations:create"
+    assert args["correlationId"] == "corr-xyz"
+    assert args["debugLevel"] == "standard"
+    assert args["debugSummary"] == {"totalDurationMs": 100}

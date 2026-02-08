@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS=--max-old-space-size=768 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test --test-concurrency=1 --experimental-transform-types test/*.test.ts",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 --experimental-transform-types test/*.test.ts",
+    "test:routes": "bun test ./convex_tests/routeImports.bun.test.ts",
     "test:convex": "bun test convex_tests/*.test.ts",
-    "test:ci": "bun run test && bun run test:convex",
-    "typecheck:convex": "bunx convex typecheck"
+    "test:ci": "bun run test && bun run test:convex && bun run test:routes",
+    "typecheck:convex": "bunx convex typecheck",
+    "debug:timeline": "node run_debug_timeline.js",
+    "debug:failures": "node run_debug_failures.js"
   },
   "dependencies": {
     "convex": "^1.31.2",

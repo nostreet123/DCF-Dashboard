@@ -22,12 +22,17 @@ export const pruneOperationalData = mutation({
       syncErrors: v.number(),
       syncLogIncrements: v.number(),
       valuationRunTraces: v.number(),
+      valuationRunInlineTraces: v.number(),
+      debugEvents: v.number(),
     }),
     cutoff: v.object({
       syncLogs: v.number(),
       syncErrors: v.number(),
       syncLogIncrements: v.number(),
       valuationRunTraces: v.number(),
+      valuationRunInlineTraces: v.number(),
+      debugEventsError: v.number(),
+      debugEventsStandard: v.number(),
     }),
   }),
   handler: async (ctx, args) => {
@@ -47,6 +52,15 @@ export const pruneOperationalData = mutation({
     );
     const valuationRunTracesCutoff = cutoffMs(
       normalizeRetentionDays(retention.valuationRunTraces, 30),
+    );
+    const valuationRunInlineTracesCutoff = cutoffMs(
+      normalizeRetentionDays(retention.valuationRunInlineTraces, 30),
+    );
+    const debugEventsErrorCutoff = cutoffMs(
+      normalizeRetentionDays(retention.debugEventsError, 90),
+    );
+    const debugEventsStandardCutoff = cutoffMs(
+      normalizeRetentionDays(retention.debugEventsStandard, 30),
     );
 
     let deletedSyncLogs = 0;
@@ -117,6 +131,50 @@ export const pruneOperationalData = mutation({
       deletedTraces += 1;
     }
 
+    let deletedInlineTraces = 0;
+    const runs = await ctx.db
+      .query("valuationRuns")
+      .withIndex("by_createdAt", (q) => q)
+      .order("asc")
+      .take(maxDeletes);
+    for (const run of runs) {
+      if (run.createdAt >= valuationRunInlineTracesCutoff) {
+        break;
+      }
+      if (run.traceStorage !== "inline" || run.trace === undefined) {
+        continue;
+      }
+      if (!dryRun) {
+        await ctx.db.patch(run._id, {
+          trace: undefined,
+          traceStorage: "none",
+          traceByteSize: undefined,
+        });
+      }
+      deletedInlineTraces += 1;
+    }
+
+    let deletedDebugEvents = 0;
+    const debugEvents = await ctx.db
+      .query("debugEvents")
+      .withIndex("by_createdAt", (q) => q)
+      .order("asc")
+      .take(maxDeletes);
+    for (const event of debugEvents) {
+      if (event.createdAt >= debugEventsStandardCutoff) {
+        break;
+      }
+      const cutoff =
+        event.level === "error" ? debugEventsErrorCutoff : debugEventsStandardCutoff;
+      if (event.createdAt >= cutoff) {
+        continue;
+      }
+      if (!dryRun) {
+        await ctx.db.delete(event._id);
+      }
+      deletedDebugEvents += 1;
+    }
+
     return {
       dryRun,
       deleted: {
@@ -124,14 +182,18 @@ export const pruneOperationalData = mutation({
         syncErrors: deletedSyncErrors,
         syncLogIncrements: deletedSyncLogIncrements,
         valuationRunTraces: deletedTraces,
+        valuationRunInlineTraces: deletedInlineTraces,
+        debugEvents: deletedDebugEvents,
       },
       cutoff: {
         syncLogs: syncLogsCutoff,
         syncErrors: syncErrorsCutoff,
         syncLogIncrements: syncLogIncrementsCutoff,
         valuationRunTraces: valuationRunTracesCutoff,
+        valuationRunInlineTraces: valuationRunInlineTracesCutoff,
+        debugEventsError: debugEventsErrorCutoff,
+        debugEventsStandard: debugEventsStandardCutoff,
       },
     };
   },
 });
-

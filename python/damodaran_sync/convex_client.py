@@ -237,12 +237,19 @@ class ConvexSyncClient:
         self,
         sync_type: str,
         page_last_updated: str | None = None,
+        *,
+        correlation_id: str | None = None,
+        debug_level: str | None = None,
     ) -> str:
         payload: dict[str, Any] = {
             "syncType": sync_type,
         }
         if page_last_updated is not None:
             payload["pageLastUpdated"] = page_last_updated
+        if correlation_id:
+            payload["correlationId"] = correlation_id
+        if debug_level in {"error", "standard", "verbose"}:
+            payload["debugLevel"] = debug_level
         result = self._mutation("syncLogs:create", payload)
         if not isinstance(result, str):
             self._log_invalid_response("syncLogs:create", result)
@@ -277,16 +284,21 @@ class ConvexSyncClient:
         file: str,
         stage: str,
         error: str,
+        *,
+        correlation_id: str | None = None,
+        debug_level: str | None = None,
     ) -> None:
-        self._mutation(
-            "syncErrors:append",
-            {
-                "syncLogId": sync_log_id,
-                "file": file,
-                "stage": stage,
-                "error": error,
-            },
-        )
+        payload: dict[str, Any] = {
+            "syncLogId": sync_log_id,
+            "file": file,
+            "stage": stage,
+            "error": error,
+        }
+        if correlation_id:
+            payload["correlationId"] = correlation_id
+        if debug_level in {"error", "standard", "verbose"}:
+            payload["debugLevel"] = debug_level
+        self._mutation("syncErrors:append", payload)
 
     def record_asset(self, asset: dict[str, Any]) -> None:
         self._mutation(
