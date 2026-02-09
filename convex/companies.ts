@@ -104,7 +104,7 @@ export const search = query({
     const limit = normalizeLimit(args.limit);
     const symbolQuery = raw.toUpperCase();
     const nameQuery = raw.toLowerCase();
-    const NAME_SCAN_LIMIT = 1000;
+    const NAME_SCAN_PAGE_SIZE = 500;
 
     // Stage 1: index-backed symbol prefix matches.
     const symbolPrefixMatches = await ctx.db
@@ -118,34 +118,46 @@ export const search = query({
       return symbolPrefixMatches;
     }
 
-    // Stage 2: bounded name/symbol substring scan for broader matches.
-    const candidates = await ctx.db
-      .query("companies")
-      .withIndex("by_symbol", (q: any) => q)
-      .order("asc")
-      .take(NAME_SCAN_LIMIT);
-
     const matches: any[] = [...symbolPrefixMatches];
     const seenIds = new Set(matches.map((company) => String(company._id)));
-    for (const company of candidates as any[]) {
-      if (seenIds.has(String(company._id))) {
-        continue;
-      }
-      if (company.symbol.includes(symbolQuery)) {
-        matches.push(company);
-        seenIds.add(String(company._id));
-        if (matches.length >= limit) {
-          break;
+
+    // Stage 2: paginated name/symbol substring scan for broader matches.
+    let cursor: string | null = null;
+    while (matches.length < limit) {
+      const page = await ctx.db
+        .query("companies")
+        .withIndex("by_symbol", (q: any) => q)
+        .order("asc")
+        .paginate({
+          cursor,
+          numItems: NAME_SCAN_PAGE_SIZE,
+        });
+
+      for (const company of page.page as any[]) {
+        if (seenIds.has(String(company._id))) {
+          continue;
         }
-        continue;
-      }
-      if (company.name && company.name.toLowerCase().includes(nameQuery)) {
-        matches.push(company);
-        seenIds.add(String(company._id));
-        if (matches.length >= limit) {
-          break;
+        if (company.symbol.includes(symbolQuery)) {
+          matches.push(company);
+          seenIds.add(String(company._id));
+          if (matches.length >= limit) {
+            break;
+          }
+          continue;
+        }
+        if (company.name && company.name.toLowerCase().includes(nameQuery)) {
+          matches.push(company);
+          seenIds.add(String(company._id));
+          if (matches.length >= limit) {
+            break;
+          }
         }
       }
+
+      if (matches.length >= limit || page.isDone) {
+        break;
+      }
+      cursor = page.continueCursor;
     }
 
     return matches;

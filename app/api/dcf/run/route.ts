@@ -87,6 +87,7 @@ export async function POST(request: Request) {
   }
   const engineDurationMs = Date.now() - engineStartedAt;
 
+  let persistDurationMs = 0;
   try {
     const persistStartedAt = Date.now();
     const syncToken = getSyncToken();
@@ -133,18 +134,19 @@ export async function POST(request: Request) {
         route: "/api/dcf/run",
         totalDurationMs: Date.now() - requestStartedAt,
         engineDurationMs,
-        persistDurationMs: Date.now() - persistStartedAt,
         traceByteSize,
         traceStorage: "inline",
         resultSections: Object.keys(resultSummary),
       },
     });
+    persistDurationMs = Date.now() - persistStartedAt;
     await appendDebugEvent({
       context: debug,
       eventType: "convex.persist.success",
       level: "standard",
       data: {
         runId: run.runId,
+        persistDurationMs,
         traceByteSize,
         traceStorage: "inline",
         totalDurationMs: Date.now() - requestStartedAt,
@@ -178,6 +180,7 @@ export async function POST(request: Request) {
       status: "success",
       totalDurationMs: Date.now() - requestStartedAt,
       engineDurationMs,
+      persistDurationMs,
     },
   });
   return withDebugHeaders(NextResponse.json(result), debug);
