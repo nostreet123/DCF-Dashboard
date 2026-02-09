@@ -28,6 +28,11 @@ This file tracks two things so I can work better with you over time:
 | 2026-02-08 | You prefer full execution once a plan is approved. | After presenting a patch plan, I will execute all planned steps end-to-end (code, tests, and smoke verification) unless you scope it down. |
 | 2026-02-08 | You prefer in-progress repo changes to be included and refined during execution instead of worked around. | I will integrate with and improve existing in-flight edits when requested, and treat them as part of the active implementation surface. |
 | 2026-02-08 | You want a follow-on bug hunt for lower-priority (P2/P3) issues after blocker closure. | I will maintain a separate low-priority bug-hunt board and process in parallel with blocker work. |
+| 2026-02-09 | When you invoke a skill directly, you want its default workflow executed immediately. | I will run the skill’s default action first (for `skill-installer`, list available curated skills) and then ask which one(s) to install. |
+| 2026-02-09 | You prefer explicit verification before bulk install actions. | For installer workflows, I will verify current installed state, perform installs, and verify again before reporting completion. |
+| 2026-02-09 | You prefer skill storage unified across CLIs under `~/.agent/skills`. | I will default to shared skill locations and keep CLI-specific paths compatible via symlinks when migrating. |
+| 2026-02-09 | You prefer plural naming for shared multi-CLI paths (`~/.agents/skills`). | I will use `~/.agents/skills` as canonical and keep `~/.agent/skills` and `~/.codex/skills` as compatibility symlinks. |
+| 2026-02-09 | You prefer skills physically stored in this repo for unified multi-CLI use. | I will treat `<repo>/.agents/skills` as canonical and point `~/.agents/skills`, `~/.agent/skills`, and `~/.codex/skills` to it via symlinks. |
 
 ## Update Rule
 
