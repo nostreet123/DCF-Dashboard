@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import os
 import time
@@ -9,14 +8,18 @@ from typing import Any, Callable
 import requests
 from convex import ConvexClient
 
+from damodaran_sync.convex_client_models import SnapshotUpsertResult
+from damodaran_sync.convex_client_validation import (
+    expect_dict,
+    expect_int_field,
+    expect_list,
+    expect_optional_dict,
+    expect_optional_str_field,
+    expect_str,
+    parse_seen_snapshots,
+)
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class SnapshotUpsertResult:
-    snapshot_id: str
-    action: str
-    previous_build_id: str | None
 
 
 class ConvexSyncClient:
@@ -130,10 +133,11 @@ class ConvexSyncClient:
         self._mutation("seed:upsertAll", {})
 
     def get_reference(self) -> dict[str, Any]:
-        result = self._query("seed:getReference", {}, include_token=False)
-        if not isinstance(result, dict):
-            self._log_invalid_response("seed:getReference", result)
-            raise ValueError(f"Unexpected seed:getReference response: {result!r}")
+        result = expect_dict(
+            "seed:getReference",
+            self._query("seed:getReference", {}, include_token=False),
+            self._log_invalid_response,
+        )
         for key in ("regions", "datasets", "datasetMappings"):
             value = result.get(key)
             if not isinstance(value, list):
@@ -146,91 +150,80 @@ class ConvexSyncClient:
     def get_snapshot_by_identity(
         self, dataset_key: str, region_code: str, as_of_date: str
     ) -> dict[str, Any] | None:
-        result = self._query(
+        return expect_optional_dict(
             "snapshots:getByIdentity",
-            {
-                "datasetKey": dataset_key,
-                "regionCode": region_code,
-                "asOfDate": as_of_date,
-            },
-            include_token=False,
+            self._query(
+                "snapshots:getByIdentity",
+                {
+                    "datasetKey": dataset_key,
+                    "regionCode": region_code,
+                    "asOfDate": as_of_date,
+                },
+                include_token=False,
+            ),
+            self._log_invalid_response,
         )
-        if result is None:
-            return None
-        if not isinstance(result, dict):
-            self._log_invalid_response("snapshots:getByIdentity", result)
-            raise ValueError(
-                f"Unexpected snapshots:getByIdentity response: {result!r}"
-            )
-        return result
 
     def get_snapshot_by_id(self, snapshot_id: str) -> dict[str, Any] | None:
-        result = self._query(
+        return expect_optional_dict(
             "snapshots:getById",
-            {
-                "snapshotId": snapshot_id,
-            },
-            include_token=False,
+            self._query(
+                "snapshots:getById",
+                {
+                    "snapshotId": snapshot_id,
+                },
+                include_token=False,
+            ),
+            self._log_invalid_response,
         )
-        if result is None:
-            return None
-        if not isinstance(result, dict):
-            self._log_invalid_response("snapshots:getById", result)
-            raise ValueError(f"Unexpected snapshots:getById response: {result!r}")
-        return result
 
     def get_snapshots_by_identity_batch(
         self, identities: list[dict[str, str]]
     ) -> list[dict[str, Any]]:
         if not identities:
             return []
-        result = self._query(
+        result = expect_list(
             "snapshots:getByIdentityBatch",
-            {
-                "identities": identities,
-            },
-            include_token=False,
+            self._query(
+                "snapshots:getByIdentityBatch",
+                {
+                    "identities": identities,
+                },
+                include_token=False,
+            ),
+            self._log_invalid_response,
         )
-        if not isinstance(result, list):
-            self._log_invalid_response("snapshots:getByIdentityBatch", result)
-            raise ValueError(
-                f"Unexpected snapshots:getByIdentityBatch response: {result!r}"
-            )
         return result
 
     def get_latest_manifest(self, page_type: str) -> dict[str, Any] | None:
-        result = self._query(
+        return expect_optional_dict(
             "syncManifests:getLatest",
-            {
-                "pageType": page_type,
-            },
-            include_token=True,
+            self._query(
+                "syncManifests:getLatest",
+                {
+                    "pageType": page_type,
+                },
+                include_token=True,
+            ),
+            self._log_invalid_response,
         )
-        if result is None:
-            return None
-        if not isinstance(result, dict):
-            self._log_invalid_response("syncManifests:getLatest", result)
-            raise ValueError(
-                f"Unexpected syncManifests:getLatest response: {result!r}"
-            )
-        return result
 
     def upsert_manifest(
         self, page_type: str, manifest_hash: str, source: str, item_count: int
     ) -> str:
-        result = self._mutation(
+        return expect_str(
             "syncManifests:upsert",
-            {
-                "pageType": page_type,
-                "manifestHash": manifest_hash,
-                "source": source,
-                "itemCount": item_count,
-            },
+            self._mutation(
+                "syncManifests:upsert",
+                {
+                    "pageType": page_type,
+                    "manifestHash": manifest_hash,
+                    "source": source,
+                    "itemCount": item_count,
+                },
+            ),
+            self._log_invalid_response,
         )
-        if not isinstance(result, str):
-            self._log_invalid_response("syncManifests:upsert", result)
-            raise ValueError(f"Unexpected syncManifests:upsert response: {result!r}")
-        return result
 
 
     def create_sync_log(
@@ -243,11 +236,11 @@ class ConvexSyncClient:
         }
         if page_last_updated is not None:
             payload["pageLastUpdated"] = page_last_updated
-        result = self._mutation("syncLogs:create", payload)
-        if not isinstance(result, str):
-            self._log_invalid_response("syncLogs:create", result)
-            raise ValueError(f"Unexpected syncLogs:create response: {result!r}")
-        return result
+        return expect_str(
+            "syncLogs:create",
+            self._mutation("syncLogs:create", payload),
+            self._log_invalid_response,
+        )
 
     def increment_sync_log(
         self,
@@ -331,22 +324,22 @@ class ConvexSyncClient:
             },
         )
 
-        if not isinstance(result, dict):
-            self._log_invalid_response("snapshots:upsertByIdentity", result)
-            raise ValueError(
-                f"Unexpected snapshots:upsertByIdentity response: {result!r}"
-            )
-        snapshot_id = result.get("snapshotId")
-        action = result.get("action")
+        parsed = expect_dict(
+            "snapshots:upsertByIdentity",
+            result,
+            self._log_invalid_response,
+        )
+        snapshot_id = parsed.get("snapshotId")
+        action = parsed.get("action")
         if not isinstance(snapshot_id, str) or not isinstance(action, str):
-            self._log_invalid_response("snapshots:upsertByIdentity", result)
+            self._log_invalid_response("snapshots:upsertByIdentity", parsed)
             raise ValueError(
-                f"Unexpected snapshots:upsertByIdentity response: {result!r}"
+                f"Unexpected snapshots:upsertByIdentity response: {parsed!r}"
             )
         return SnapshotUpsertResult(
             snapshot_id=snapshot_id,
             action=action,
-            previous_build_id=result.get("previousBuildId"),
+            previous_build_id=parsed.get("previousBuildId"),
         )
 
     def finalize_snapshot(self, snapshot_id: str, build_id: str, metadata: dict[str, Any]) -> None:
@@ -377,19 +370,13 @@ class ConvexSyncClient:
                 "rows": rows,
             },
         )
-        if not isinstance(result, dict):
-            self._log_invalid_response("tableData:insertBatch", result)
-            raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
-        inserted = result.get("inserted", 0)
-        if isinstance(inserted, float):
-            if not inserted.is_integer():
-                self._log_invalid_response("tableData:insertBatch", result)
-                raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
-            inserted = int(inserted)
-        if not isinstance(inserted, int):
-            self._log_invalid_response("tableData:insertBatch", result)
-            raise ValueError(f"Unexpected tableData:insertBatch response: {result!r}")
-        return inserted
+        parsed = expect_dict("tableData:insertBatch", result, self._log_invalid_response)
+        return expect_int_field(
+            "tableData:insertBatch",
+            parsed,
+            "inserted",
+            self._log_invalid_response,
+        )
 
     def delete_rows(self, snapshot_id: str, build_id: str, limit: int) -> int:
         result = self._mutation(
@@ -400,25 +387,15 @@ class ConvexSyncClient:
                 "limit": limit,
             },
         )
-        if not isinstance(result, dict):
-            self._log_invalid_response("tableData:deleteBySnapshotBuild", result)
-            raise ValueError(
-                f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
-            )
-        deleted = result.get("deleted", 0)
-        if isinstance(deleted, float):
-            if not deleted.is_integer():
-                self._log_invalid_response("tableData:deleteBySnapshotBuild", result)
-                raise ValueError(
-                    f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
-                )
-            deleted = int(deleted)
-        if not isinstance(deleted, int):
-            self._log_invalid_response("tableData:deleteBySnapshotBuild", result)
-            raise ValueError(
-                f"Unexpected tableData:deleteBySnapshotBuild response: {result!r}"
-            )
-        return deleted
+        parsed = expect_dict(
+            "tableData:deleteBySnapshotBuild", result, self._log_invalid_response
+        )
+        return expect_int_field(
+            "tableData:deleteBySnapshotBuild",
+            parsed,
+            "deleted",
+            self._log_invalid_response,
+        )
 
     def delete_non_active_rows_page(
         self,
@@ -436,30 +413,21 @@ class ConvexSyncClient:
                 "limit": limit,
             },
         )
-        if not isinstance(result, dict):
-            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
-            raise ValueError(
-                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
-            )
-        deleted = result.get("deleted", 0)
-        if isinstance(deleted, float):
-            if not deleted.is_integer():
-                self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
-                raise ValueError(
-                    f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
-                )
-            deleted = int(deleted)
-        if not isinstance(deleted, int):
-            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
-            raise ValueError(
-                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
-            )
-        next_cursor = result.get("nextCursor")
-        if next_cursor is not None and not isinstance(next_cursor, str):
-            self._log_invalid_response("tableData:deleteNonActiveRowsPage", result)
-            raise ValueError(
-                f"Unexpected tableData:deleteNonActiveRowsPage response: {result!r}"
-            )
+        parsed = expect_dict(
+            "tableData:deleteNonActiveRowsPage", result, self._log_invalid_response
+        )
+        deleted = expect_int_field(
+            "tableData:deleteNonActiveRowsPage",
+            parsed,
+            "deleted",
+            self._log_invalid_response,
+        )
+        next_cursor = expect_optional_str_field(
+            "tableData:deleteNonActiveRowsPage",
+            parsed,
+            "nextCursor",
+            self._log_invalid_response,
+        )
         return deleted, next_cursor
 
     def backfill_primary_key_norm_page(
@@ -478,36 +446,21 @@ class ConvexSyncClient:
                 "limit": limit,
             },
         )
-        if not isinstance(result, dict):
-            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
-            raise ValueError(
-                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        updated = result.get("updated", 0)
-        if isinstance(updated, float):
-            if not updated.is_integer():
-                self._log_invalid_response(
-                    "tableData:backfillPrimaryKeyNormPage", result
-                )
-                raise ValueError(
-                    "Unexpected tableData:backfillPrimaryKeyNormPage response: "
-                    f"{result!r}"
-                )
-            updated = int(updated)
-        if not isinstance(updated, int):
-            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
-            raise ValueError(
-                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        next_cursor = result.get("nextCursor")
-        if next_cursor is not None and not isinstance(next_cursor, str):
-            self._log_invalid_response("tableData:backfillPrimaryKeyNormPage", result)
-            raise ValueError(
-                "Unexpected tableData:backfillPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
+        parsed = expect_dict(
+            "tableData:backfillPrimaryKeyNormPage", result, self._log_invalid_response
+        )
+        updated = expect_int_field(
+            "tableData:backfillPrimaryKeyNormPage",
+            parsed,
+            "updated",
+            self._log_invalid_response,
+        )
+        next_cursor = expect_optional_str_field(
+            "tableData:backfillPrimaryKeyNormPage",
+            parsed,
+            "nextCursor",
+            self._log_invalid_response,
+        )
         return updated, next_cursor
 
     def backfill_missing_primary_key_norm_page(
@@ -522,70 +475,26 @@ class ConvexSyncClient:
                 "limit": limit,
             },
         )
-        if not isinstance(result, dict):
-            self._log_invalid_response(
-                "tableData:backfillMissingPrimaryKeyNormPage", result
-            )
-            raise ValueError(
-                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        updated = result.get("updated", 0)
-        if isinstance(updated, float):
-            if not updated.is_integer():
-                self._log_invalid_response(
-                    "tableData:backfillMissingPrimaryKeyNormPage", result
-                )
-                raise ValueError(
-                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                    f"{result!r}"
-                )
-            updated = int(updated)
-        if not isinstance(updated, int):
-            self._log_invalid_response(
-                "tableData:backfillMissingPrimaryKeyNormPage", result
-            )
-            raise ValueError(
-                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        next_cursor = result.get("nextCursor")
-        if next_cursor is not None and not isinstance(next_cursor, str):
-            self._log_invalid_response(
-                "tableData:backfillMissingPrimaryKeyNormPage", result
-            )
-            raise ValueError(
-                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        seen_snapshots = result.get("seenSnapshots", [])
-        if not isinstance(seen_snapshots, list):
-            self._log_invalid_response(
-                "tableData:backfillMissingPrimaryKeyNormPage", result
-            )
-            raise ValueError(
-                "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                f"{result!r}"
-            )
-        parsed_seen: list[tuple[str, str]] = []
-        for entry in seen_snapshots:
-            if not isinstance(entry, dict):
-                self._log_invalid_response(
-                    "tableData:backfillMissingPrimaryKeyNormPage", result
-                )
-                raise ValueError(
-                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                    f"{result!r}"
-                )
-            snapshot_id = entry.get("snapshotId")
-            build_id = entry.get("buildId")
-            if not isinstance(snapshot_id, str) or not isinstance(build_id, str):
-                self._log_invalid_response(
-                    "tableData:backfillMissingPrimaryKeyNormPage", result
-                )
-                raise ValueError(
-                    "Unexpected tableData:backfillMissingPrimaryKeyNormPage response: "
-                    f"{result!r}"
-                )
-            parsed_seen.append((snapshot_id, build_id))
+        parsed = expect_dict(
+            "tableData:backfillMissingPrimaryKeyNormPage",
+            result,
+            self._log_invalid_response,
+        )
+        updated = expect_int_field(
+            "tableData:backfillMissingPrimaryKeyNormPage",
+            parsed,
+            "updated",
+            self._log_invalid_response,
+        )
+        next_cursor = expect_optional_str_field(
+            "tableData:backfillMissingPrimaryKeyNormPage",
+            parsed,
+            "nextCursor",
+            self._log_invalid_response,
+        )
+        parsed_seen = parse_seen_snapshots(
+            "tableData:backfillMissingPrimaryKeyNormPage",
+            parsed,
+            self._log_invalid_response,
+        )
         return updated, next_cursor, parsed_seen

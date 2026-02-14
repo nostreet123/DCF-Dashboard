@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from damodaran_sync import convex_client
 
 
@@ -18,6 +20,21 @@ class DummyConvexClient:
 
     def mutation(self, name: str, args: dict) -> str:
         self.mutations.append((name, args))
+        return "ok"
+
+
+class DummyConvexClientInvalid:
+    def __init__(self, url: str) -> None:
+        self.url = url
+
+    def query(self, name: str, args: dict) -> object:
+        if name == "syncManifests:getLatest":
+            return 123
+        return {"regions": [], "datasets": [], "datasetMappings": []}
+
+    def mutation(self, name: str, args: dict) -> object:
+        if name == "tableData:deleteNonActiveRowsPage":
+            return {"deleted": 1, "nextCursor": 123}
         return "ok"
 
 
@@ -61,3 +78,25 @@ def test_sync_log_idempotency_args(monkeypatch) -> None:
     assert "eventId" not in mutations[1][1]
     assert mutations[2][0] == "syncErrors:append"
     assert "eventId" not in mutations[2][1]
+
+
+def test_get_latest_manifest_validates_response_type(monkeypatch) -> None:
+    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClientInvalid)
+    client = convex_client.ConvexSyncClient(
+        convex_url="http://example",
+        sync_token="secret-token",
+    )
+
+    with pytest.raises(ValueError):
+        client.get_latest_manifest("current")
+
+
+def test_delete_non_active_rows_page_validates_cursor_type(monkeypatch) -> None:
+    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClientInvalid)
+    client = convex_client.ConvexSyncClient(
+        convex_url="http://example",
+        sync_token="secret-token",
+    )
+
+    with pytest.raises(ValueError):
+        client.delete_non_active_rows_page("snap-1", "build-1")
