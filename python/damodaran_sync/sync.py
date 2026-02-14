@@ -4,26 +4,36 @@ import hashlib
 import json
 import logging
 import os
-import re
-import tempfile
 import threading
 import traceback
 import time
-import requests
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Iterable
-from urllib.parse import urlparse
+from typing import Any
+
+import requests
 
 from damodaran_sync import discover, download, excel_parse, transform, mapping_resolver, mirror
 from damodaran_sync.convex_client import ConvexSyncClient
+from damodaran_sync.sync_batching import (
+    _insert_rows_resilient,
+    _is_batch_too_large_error,
+    _iter_tabledata_batches,
+)
+from damodaran_sync.sync_legacy import (
+    _resolve_dataset_key,
+    _resolve_region_code,
+    sync_dataset_at_url,
+)
+from damodaran_sync.sync_resolution import (
+    ResolvedAsset as _ResolvedAsset,
+    _build_asset_record,
+    build_resolved_asset,
+)
 
 logger = logging.getLogger(__name__)
-_SYNC_CACHE: dict[str, str] = {}
-_SYNC_CACHE_LOCK = threading.Lock()
 _MAX_SNAPSHOT_IDENTITY_BATCH = 100
 _MAX_ASSET_BATCH = 500
 
@@ -69,16 +79,6 @@ def _maybe_time(timing: _TimingSummary | None, stage: str):
         yield
     finally:
         timing.add_ms(stage, (time.perf_counter() - start) * 1000.0)
-
-
-@dataclass
-class _ResolvedAsset:
-    asset: discover.DiscoveredAsset
-    dataset_key: str
-    region_code: str
-    resolution_error: str | None
-    resolved_ds: bool
-    snapshot: dict[str, Any] | None = None
 
 
 @dataclass
@@ -174,90 +174,6 @@ def _stable_manifest_hash(assets: list[discover.DiscoveredAsset]) -> str:
         ensure_ascii=True,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
-
-
-def _estimate_payload_bytes(payload: dict[str, Any]) -> int:
-    return len(
-        json.dumps(payload, default=str, separators=(",", ":"), ensure_ascii=True).encode(
-            "utf-8"
-        )
-    )
-
-
-def _iter_tabledata_batches(
-    rows: list[transform.NormalizedRow],
-    max_rows: int,
-    max_bytes: int,
-) -> Iterable[list[dict[str, Any]]]:
-    batch: list[dict[str, Any]] = []
-    batch_bytes = 2  # JSON "[]"
-
-    for row in rows:
-        payload: dict[str, Any] = {
-            "rowIndex": row.row_index,
-            "primaryKey": row.primary_key,
-            "primaryKeyNorm": row.primary_key_norm,
-            "metrics": row.metrics,
-        }
-        if row.secondary_key is not None:
-            payload["secondaryKey"] = row.secondary_key
-
-        payload_bytes = _estimate_payload_bytes(payload)
-        projected = (2 + payload_bytes) if not batch else (batch_bytes + 1 + payload_bytes)
-
-        if batch and (len(batch) >= max_rows or projected > max_bytes):
-            yield batch
-            batch = []
-            batch_bytes = 2
-            projected = 2 + payload_bytes
-
-        batch.append(payload)
-        batch_bytes = projected
-
-    if batch:
-        yield batch
-
-
-def _contains_any(haystack: str, needles: list[str]) -> bool:
-    return any(needle in haystack for needle in needles)
-
-
-def _is_batch_too_large_error(exc: BaseException) -> bool:
-    cursor: BaseException | None = exc
-    needles = [
-        "Batch too large",
-        "Function argument size",
-        "Data written",
-        "payload",
-        "too large",
-    ]
-    while cursor is not None:
-        message = str(cursor)
-        if _contains_any(message, needles):
-            return True
-        cursor = cursor.__cause__ or cursor.__context__
-    return False
-
-
-def _insert_rows_resilient(
-    client: ConvexSyncClient,
-    snapshot_id: str,
-    build_id: str,
-    rows: list[dict[str, Any]],
-) -> tuple[int, int]:
-    try:
-        return client.insert_rows(snapshot_id, build_id, rows), 1
-    except Exception as exc:
-        if len(rows) <= 1 or not _is_batch_too_large_error(exc):
-            raise
-        mid = len(rows) // 2
-        left_inserted, left_calls = _insert_rows_resilient(
-            client, snapshot_id, build_id, rows[:mid]
-        )
-        right_inserted, right_calls = _insert_rows_resilient(
-            client, snapshot_id, build_id, rows[mid:]
-        )
-        return left_inserted + right_inserted, left_calls + right_calls
 
 
 def _process_asset(
@@ -521,37 +437,299 @@ def _process_asset(
         outcome.error += 1
         return outcome
 
-def _build_asset_record(
-    asset: discover.DiscoveredAsset,
-    dataset_key: str,
-    region_code: str,
-    resolution_error: str | None,
-) -> dict[str, Any]:
-    # Per requirements:
-    # - resolved is True IFF as_of_date exists.
-    # - resolvedDatasetKey/resolvedRegionCode are always recorded.
-    # - discoveredAt is NOT included in the payload.
-    
-    asset_record = {
-        "sourcePageUrl": asset.source_page_url,
-        "pageType": asset.page_type,
-        "sourceUrl": asset.source_url,
-        "fileName": asset.file_name,
-        "linkLabel": asset.link_label,
-        "resolved": asset.as_of_date is not None,
-        "resolvedDatasetKey": dataset_key,
-        "resolvedRegionCode": region_code,
-    }
-    if asset.page_last_updated is not None:
-        asset_record["pageLastUpdated"] = asset.page_last_updated
-    if asset.as_of_date is not None:
-        asset_record["resolvedAsOfDate"] = asset.as_of_date
-    if asset.as_of_date_source is not None:
-        asset_record["resolvedAsOfDateSource"] = asset.as_of_date_source
-    error_value = resolution_error or asset.resolution_error
-    if error_value is not None:
-        asset_record["resolutionError"] = error_value
-    return asset_record
+@dataclass
+class _DiscoveryResult:
+    assets: list[discover.DiscoveredAsset]
+    page_last_updated: str | None
+    manifest_hash: str
+    manifest_source: str
+
+
+@dataclass
+class _RunCounts:
+    success: int = 0
+    skipped: int = 0
+    error: int = 0
+    downloaded: int = 0
+    rows_inserted: int = 0
+
+
+def _discover_assets_for_page(
+    page_url: str,
+    page_type: str,
+    limit_assets: int | None,
+    timing: _TimingSummary | None,
+) -> _DiscoveryResult:
+    assets: list[discover.DiscoveredAsset] = []
+    page_last_updated: str | None = None
+    manifest_hash: str | None = None
+    manifest_source = "live"
+    mirror_manifest_url = os.getenv("DAMODARAN_MIRROR_MANIFEST_URL")
+    if mirror_manifest_url:
+        with _maybe_time(timing, "fetch_manifest"):
+            manifest = mirror.fetch_manifest(mirror_manifest_url, page_type)
+        assets = manifest.assets
+        manifest_hash = manifest.manifest_hash
+        manifest_source = manifest.source
+        page_last_updated = assets[0].page_last_updated if assets else None
+    else:
+        with _maybe_time(timing, "discover"):
+            discovery = discover.discover_page_assets(page_url, page_type)
+        assets = discovery.assets
+        page_last_updated = discovery.page_last_updated
+
+    if limit_assets is not None:
+        assets = assets[:limit_assets]
+
+    if manifest_hash is None:
+        manifest_hash = _stable_manifest_hash(assets)
+
+    return _DiscoveryResult(
+        assets=assets,
+        page_last_updated=page_last_updated,
+        manifest_hash=manifest_hash,
+        manifest_source=manifest_source,
+    )
+
+
+def _resolve_assets_for_page(
+    assets: list[discover.DiscoveredAsset],
+    mappings_list: list[dict[str, Any]],
+    datasets_map: dict[str, Any],
+    regions_list: list[dict[str, Any]],
+    client: ConvexSyncClient,
+    timing: _TimingSummary | None,
+) -> list[_ResolvedAsset]:
+    resolved_assets: list[_ResolvedAsset] = []
+    for asset in assets:
+        with _maybe_time(timing, "resolve_dataset"):
+            stem = mapping_resolver.normalize_stem(asset.file_name)
+            dataset_key, resolved_ds = mapping_resolver.resolve_dataset_key(
+                stem, mappings_list
+            )
+        with _maybe_time(timing, "resolve_region"):
+            region_code, region_error = mapping_resolver.resolve_region_code(
+                stem,
+                asset.link_label,
+                dataset_key,
+                datasets_map,
+                regions_list,
+            )
+        resolved_assets.append(
+            build_resolved_asset(
+                asset,
+                dataset_key,
+                region_code,
+                resolved_ds,
+                region_error,
+            )
+        )
+
+    asset_records = [
+        _build_asset_record(
+            item.asset,
+            item.dataset_key,
+            item.region_code,
+            item.resolution_error,
+        )
+        for item in resolved_assets
+    ]
+    if asset_records:
+        unique_records: list[dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        for record in asset_records:
+            asset_key = _asset_key(record)
+            if asset_key in seen_keys:
+                continue
+            seen_keys.add(asset_key)
+            unique_records.append(record)
+
+        requested_asset_batch = _env_int("DAMODARAN_ASSET_BATCH_SIZE", _MAX_ASSET_BATCH)
+        asset_batch_size = max(1, min(_MAX_ASSET_BATCH, requested_asset_batch))
+        if asset_batch_size != requested_asset_batch:
+            logger.warning(
+                "Clamping DAMODARAN_ASSET_BATCH_SIZE=%s to %s",
+                requested_asset_batch,
+                asset_batch_size,
+            )
+        client.record_assets_batch(unique_records, chunk_size=asset_batch_size)
+    return resolved_assets
+
+
+def _prefetch_snapshots(
+    resolved_assets: list[_ResolvedAsset],
+    client: ConvexSyncClient,
+    force_rebuild: bool,
+    timing: _TimingSummary | None,
+) -> bool:
+    snapshot_map: dict[tuple[str, str, str], dict[str, Any]] = {}
+    bulk_failed = False
+    if not force_rebuild:
+        seen_identities: set[tuple[str, str, str]] = set()
+        identities: list[dict[str, str]] = []
+        for item in resolved_assets:
+            as_of_date = item.asset.as_of_date
+            if not as_of_date:
+                continue
+            key = (item.dataset_key, item.region_code, as_of_date)
+            if key in seen_identities:
+                continue
+            seen_identities.add(key)
+            identities.append(
+                {
+                    "datasetKey": item.dataset_key,
+                    "regionCode": item.region_code,
+                    "asOfDate": as_of_date,
+                }
+            )
+
+        requested_batch_size = _env_int(
+            "DAMODARAN_SNAPSHOT_BATCH_SIZE",
+            _MAX_SNAPSHOT_IDENTITY_BATCH,
+        )
+        batch_size = max(1, min(_MAX_SNAPSHOT_IDENTITY_BATCH, requested_batch_size))
+        if batch_size != requested_batch_size:
+            logger.warning(
+                "Clamping DAMODARAN_SNAPSHOT_BATCH_SIZE=%s to %s",
+                requested_batch_size,
+                batch_size,
+            )
+        try:
+            for chunk in _chunked(identities, batch_size):
+                if not chunk:
+                    continue
+                with _maybe_time(timing, "get_snapshot_by_identity_batch"):
+                    results = client.get_snapshots_by_identity_batch(chunk)
+                for result in results:
+                    key = (
+                        result.get("datasetKey"),
+                        result.get("regionCode"),
+                        result.get("asOfDate"),
+                    )
+                    if all(key):
+                        snapshot_map[key] = result
+        except Exception as exc:
+            logger.warning("Batch snapshot lookup failed, falling back to per-asset: %s", exc)
+            bulk_failed = True
+
+    for item in resolved_assets:
+        if not item.asset.as_of_date:
+            continue
+        key = (item.dataset_key, item.region_code, item.asset.as_of_date)
+        item.snapshot = snapshot_map.get(key)
+    return bulk_failed
+
+
+def _process_assets_serial_or_parallel(
+    resolved_assets: list[_ResolvedAsset],
+    client: ConvexSyncClient,
+    sync_log_id: str,
+    datasets_map: dict[str, Any],
+    force_rebuild: bool,
+    conditional_get_enabled: bool,
+    head_precheck_enabled: bool,
+    bulk_failed: bool,
+    trust_archive_immutable: bool,
+    timing: _TimingSummary | None,
+) -> _RunCounts:
+    counts = _RunCounts()
+    requested_workers = _env_int("DAMODARAN_SYNC_WORKERS", 1)
+    max_workers = max(1, requested_workers)
+    if max_workers != requested_workers:
+        logger.warning(
+            "Clamping DAMODARAN_SYNC_WORKERS=%s to %s",
+            requested_workers,
+            max_workers,
+        )
+    if max_workers > 1:
+        # Avoid shared timing state across threads.
+        timing = None
+
+    def _add(outcome: _AssetOutcome) -> None:
+        counts.success += outcome.success
+        counts.skipped += outcome.skipped
+        counts.error += outcome.error
+        counts.downloaded += outcome.downloaded
+        counts.rows_inserted += outcome.rows_inserted
+
+    if max_workers <= 1:
+        for item in resolved_assets:
+            outcome = _process_asset(
+                item,
+                client,
+                sync_log_id,
+                datasets_map,
+                force_rebuild,
+                conditional_get_enabled,
+                head_precheck_enabled,
+                bulk_failed,
+                trust_archive_immutable,
+                timing,
+            )
+            _add(outcome)
+        return counts
+
+    thread_local = threading.local()
+
+    def _process_asset_worker(item: _ResolvedAsset) -> _AssetOutcome:
+        worker_client = getattr(thread_local, "client", None)
+        if worker_client is None:
+            worker_client = client.clone() if hasattr(client, "clone") else client
+            thread_local.client = worker_client
+        return _process_asset(
+            item,
+            worker_client,
+            sync_log_id,
+            datasets_map,
+            force_rebuild,
+            conditional_get_enabled,
+            head_precheck_enabled,
+            bulk_failed,
+            trust_archive_immutable,
+            timing,
+        )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(_process_asset_worker, item): item for item in resolved_assets
+        }
+        for future in as_completed(future_map):
+            _add(future.result())
+    return counts
+
+
+def _finalize_sync_log(
+    client: ConvexSyncClient,
+    sync_log_id: str,
+    counts: _RunCounts,
+    manifest_hash: str,
+    manifest_source: str,
+    page_type: str,
+    assets_count: int,
+) -> str:
+    final_status = "success"
+    if counts.error > 0:
+        final_status = "partial" if counts.success > 0 else "failed"
+    elif counts.success == 0 and counts.skipped == 0:
+        pass
+
+    client.increment_sync_log(
+        sync_log_id,
+        {
+            "assetsDownloaded": counts.downloaded,
+            "assetsSkipped": counts.skipped,
+            "rowsInserted": counts.rows_inserted,
+            "errorCount": counts.error,
+        },
+    )
+    client.finish_sync_log(sync_log_id, final_status)
+    client.upsert_manifest(
+        page_type,
+        manifest_hash,
+        manifest_source,
+        assets_count,
+    )
+    return final_status
 
 
 def process_page(
@@ -574,227 +752,80 @@ def process_page(
     limit_raw = os.getenv("DAMODARAN_SYNC_LIMIT", "").strip()
     limit_assets = int(limit_raw) if limit_raw.isdigit() and int(limit_raw) > 0 else None
     
-    # Context for error handling if discovery fails before log creation
     sync_log_id = None
-
     try:
-        # 1. Fetch Reference Data
         refs = client.get_reference()
         regions_list = refs["regions"]
         datasets_list = refs["datasets"]
         mappings_list = refs["datasetMappings"]
-        
-        # Convert datasets list to dict for lookup, using lowercase keys
         datasets_map = {d["key"].lower(): d for d in datasets_list}
 
-        # 2. Discover (or use mirror manifest)
-        assets: list[discover.DiscoveredAsset] = []
-        page_last_updated: str | None = None
-        manifest_hash: str | None = None
-        manifest_source = "live"
-        mirror_manifest_url = os.getenv("DAMODARAN_MIRROR_MANIFEST_URL")
         try:
-            if mirror_manifest_url:
-                with _maybe_time(timing, "fetch_manifest"):
-                    manifest = mirror.fetch_manifest(mirror_manifest_url, page_type)
-                assets = manifest.assets
-                manifest_hash = manifest.manifest_hash
-                manifest_source = manifest.source
-                page_last_updated = assets[0].page_last_updated if assets else None
-            else:
-                with _maybe_time(timing, "discover"):
-                    discovery = discover.discover_page_assets(page_url, page_type)
-                assets = discovery.assets
-                page_last_updated = discovery.page_last_updated
-        except Exception as e:
-            # If discovery fails, we must create a log to record the error
-            # We don't have page_last_updated since discovery failed
+            discovery_result = _discover_assets_for_page(
+                page_url, page_type, limit_assets, timing
+            )
+        except Exception as exc:
             sync_log_id = client.create_sync_log(f"full_{page_type}", None)
             client.append_sync_error(
                 sync_log_id,
                 "discovery_phase",
                 "discover",
-                f"{type(e).__name__}: {str(e)}",
+                f"{type(exc).__name__}: {str(exc)}",
             )
             client.finish_sync_log(sync_log_id, "failed")
             raise
-
-        if limit_assets is not None:
-            assets = assets[:limit_assets]
-
-        if manifest_hash is None:
-            manifest_hash = _stable_manifest_hash(assets)
 
         sync_type = f"full_{page_type}"
         if profile_enabled:
             sync_type = f"profile_{sync_type}"
 
-        fast_exit = _env_bool("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", False)
-        if manifest_hash and fast_exit:
+        if _env_bool("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", False):
             latest_manifest = client.get_latest_manifest(page_type)
-            if latest_manifest and latest_manifest.get("manifestHash") == manifest_hash:
-                sync_log_id = client.create_sync_log(sync_type, page_last_updated)
+            if (
+                latest_manifest
+                and latest_manifest.get("manifestHash") == discovery_result.manifest_hash
+            ):
+                sync_log_id = client.create_sync_log(
+                    sync_type, discovery_result.page_last_updated
+                )
                 client.increment_sync_log(
                     sync_log_id,
                     {
-                        "assetsDiscovered": len(assets),
-                        "assetsSkipped": len(assets),
+                        "assetsDiscovered": len(discovery_result.assets),
+                        "assetsSkipped": len(discovery_result.assets),
                     },
                 )
                 client.finish_sync_log(sync_log_id, "success")
                 client.upsert_manifest(
                     page_type,
-                    manifest_hash,
-                    manifest_source,
-                    len(assets),
+                    discovery_result.manifest_hash,
+                    discovery_result.manifest_source,
+                    len(discovery_result.assets),
                 )
                 logger.info(
                     "Manifest unchanged for %s; fast exit with %s assets.",
                     page_type,
-                    len(assets),
+                    len(discovery_result.assets),
                 )
                 return
 
-        # 3. Start Sync Log (After discovery, so we have pageLastUpdated)
-        sync_log_id = client.create_sync_log(sync_type, page_last_updated)
-
-        client.increment_sync_log(
-            sync_log_id, {"assetsDiscovered": len(assets)}
-        )
+        sync_log_id = client.create_sync_log(sync_type, discovery_result.page_last_updated)
+        client.increment_sync_log(sync_log_id, {"assetsDiscovered": len(discovery_result.assets)})
         if timing is not None:
-            timing.inc("assets_discovered", len(assets))
+            timing.inc("assets_discovered", len(discovery_result.assets))
             timing.inc("force_rebuild", 1 if force_rebuild else 0)
             if limit_assets is not None:
                 timing.inc("limit_assets", limit_assets)
 
-        success_count = 0
-        skip_count = 0
-        error_count = 0
-        downloaded_count = 0
-        rows_inserted_total = 0
-
-        resolved_assets: list[_ResolvedAsset] = []
-        for asset in assets:
-            # 4. Resolve Identity (pre-pass)
-            with _maybe_time(timing, "resolve_dataset"):
-                stem = mapping_resolver.normalize_stem(asset.file_name)
-                dataset_key, resolved_ds = mapping_resolver.resolve_dataset_key(
-                    stem, mappings_list
-                )
-
-            region_code = "unknown"
-            resolution_error = asset.resolution_error
-
-            with _maybe_time(timing, "resolve_region"):
-                r_code, region_error = mapping_resolver.resolve_region_code(
-                    stem,
-                    asset.link_label,
-                    dataset_key,
-                    datasets_map,
-                    regions_list,
-                )
-            region_code = r_code
-            if region_error:
-                resolution_error = region_error
-
-            if not resolved_ds and not resolution_error:
-                resolution_error = "unmapped_dataset"
-
-            resolved_assets.append(
-                _ResolvedAsset(
-                    asset=asset,
-                    dataset_key=dataset_key,
-                    region_code=region_code,
-                    resolution_error=resolution_error,
-                    resolved_ds=resolved_ds,
-                )
-            )
-
-        asset_records = [
-            _build_asset_record(
-                item.asset,
-                item.dataset_key,
-                item.region_code,
-                item.resolution_error,
-            )
-            for item in resolved_assets
-        ]
-        if asset_records:
-            unique_records: list[dict[str, Any]] = []
-            seen_keys: set[str] = set()
-            for record in asset_records:
-                asset_key = _asset_key(record)
-                if asset_key in seen_keys:
-                    continue
-                seen_keys.add(asset_key)
-                unique_records.append(record)
-
-            requested_asset_batch = _env_int("DAMODARAN_ASSET_BATCH_SIZE", _MAX_ASSET_BATCH)
-            asset_batch_size = max(1, min(_MAX_ASSET_BATCH, requested_asset_batch))
-            if asset_batch_size != requested_asset_batch:
-                logger.warning(
-                    "Clamping DAMODARAN_ASSET_BATCH_SIZE=%s to %s",
-                    requested_asset_batch,
-                    asset_batch_size,
-                )
-            client.record_assets_batch(unique_records, chunk_size=asset_batch_size)
-
-        # Bulk snapshot lookup to reduce per-asset roundtrips.
-        snapshot_map: dict[tuple[str, str, str], dict[str, Any]] = {}
-        bulk_failed = False
-        if not force_rebuild:
-            seen_identities: set[tuple[str, str, str]] = set()
-            identities: list[dict[str, str]] = []
-            for item in resolved_assets:
-                as_of_date = item.asset.as_of_date
-                if not as_of_date:
-                    continue
-                key = (item.dataset_key, item.region_code, as_of_date)
-                if key in seen_identities:
-                    continue
-                seen_identities.add(key)
-                identities.append(
-                    {
-                        "datasetKey": item.dataset_key,
-                        "regionCode": item.region_code,
-                        "asOfDate": as_of_date,
-                    }
-                )
-
-            requested_batch_size = _env_int(
-                "DAMODARAN_SNAPSHOT_BATCH_SIZE",
-                _MAX_SNAPSHOT_IDENTITY_BATCH,
-            )
-            batch_size = max(1, min(_MAX_SNAPSHOT_IDENTITY_BATCH, requested_batch_size))
-            if batch_size != requested_batch_size:
-                logger.warning(
-                    "Clamping DAMODARAN_SNAPSHOT_BATCH_SIZE=%s to %s",
-                    requested_batch_size,
-                    batch_size,
-                )
-            try:
-                for chunk in _chunked(identities, batch_size):
-                    if not chunk:
-                        continue
-                    with _maybe_time(timing, "get_snapshot_by_identity_batch"):
-                        results = client.get_snapshots_by_identity_batch(chunk)
-                    for result in results:
-                        key = (
-                            result.get("datasetKey"),
-                            result.get("regionCode"),
-                            result.get("asOfDate"),
-                        )
-                        if all(key):
-                            snapshot_map[key] = result
-            except Exception as exc:
-                logger.warning("Batch snapshot lookup failed, falling back to per-asset: %s", exc)
-                bulk_failed = True
-
-        for item in resolved_assets:
-            if not item.asset.as_of_date:
-                continue
-            key = (item.dataset_key, item.region_code, item.asset.as_of_date)
-            item.snapshot = snapshot_map.get(key)
+        resolved_assets = _resolve_assets_for_page(
+            discovery_result.assets,
+            mappings_list,
+            datasets_map,
+            regions_list,
+            client,
+            timing,
+        )
+        bulk_failed = _prefetch_snapshots(resolved_assets, client, force_rebuild, timing)
 
         trust_archive_immutable = _env_bool("DAMODARAN_TRUST_ARCHIVE_IMMUTABLE", False)
         conditional_get_enabled = _env_bool("DAMODARAN_CONDITIONAL_GET", True)
@@ -803,250 +834,40 @@ def process_page(
             if head_precheck is None
             else head_precheck
         )
-        requested_workers = _env_int("DAMODARAN_SYNC_WORKERS", 1)
-        max_workers = max(1, requested_workers)
-        if max_workers != requested_workers:
-            logger.warning(
-                "Clamping DAMODARAN_SYNC_WORKERS=%s to %s",
-                requested_workers,
-                max_workers,
-            )
-        if max_workers > 1:
-            # Avoid shared timing across threads.
-            timing = None
-        shared_client: ConvexSyncClient | None = client if max_workers <= 1 else None
 
-        if max_workers <= 1:
-            for item in resolved_assets:
-                outcome = _process_asset(
-                    item,
-                    shared_client,
-                    sync_log_id,
-                    datasets_map,
-                    force_rebuild,
-                    conditional_get_enabled,
-                    head_precheck_enabled,
-                    bulk_failed,
-                    trust_archive_immutable,
-                    timing,
-                )
-                success_count += outcome.success
-                skip_count += outcome.skipped
-                error_count += outcome.error
-                downloaded_count += outcome.downloaded
-                rows_inserted_total += outcome.rows_inserted
-        else:
-            thread_local = threading.local()
-
-            def _process_asset_worker(item: _ResolvedAsset) -> _AssetOutcome:
-                worker_client = getattr(thread_local, "client", None)
-                if worker_client is None:
-                    worker_client = client.clone() if hasattr(client, "clone") else client
-                    thread_local.client = worker_client
-                return _process_asset(
-                    item,
-                    worker_client,
-                    sync_log_id,
-                    datasets_map,
-                    force_rebuild,
-                    conditional_get_enabled,
-                    head_precheck_enabled,
-                    bulk_failed,
-                    trust_archive_immutable,
-                    timing,
-                )
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_map = {
-                    executor.submit(
-                        _process_asset_worker,
-                        item,
-                    ): item
-                    for item in resolved_assets
-                }
-                for future in as_completed(future_map):
-                    outcome = future.result()
-                    success_count += outcome.success
-                    skip_count += outcome.skipped
-                    error_count += outcome.error
-                    downloaded_count += outcome.downloaded
-                    rows_inserted_total += outcome.rows_inserted
-
-        # Finish Log
-        final_status = "success"
-        if error_count > 0:
-            final_status = "partial" if success_count > 0 else "failed"
-        elif success_count == 0 and skip_count == 0:
-             # Nothing found?
-             pass
-
-        client.increment_sync_log(
+        counts = _process_assets_serial_or_parallel(
+            resolved_assets,
+            client,
             sync_log_id,
-            {
-                "assetsDownloaded": downloaded_count,
-                "assetsSkipped": skip_count,
-                "rowsInserted": rows_inserted_total,
-                "errorCount": error_count,
-            },
+            datasets_map,
+            force_rebuild,
+            conditional_get_enabled,
+            head_precheck_enabled,
+            bulk_failed,
+            trust_archive_immutable,
+            timing,
         )
-        client.finish_sync_log(sync_log_id, final_status)
-        if manifest_hash:
-            client.upsert_manifest(
-                page_type,
-                manifest_hash,
-                manifest_source,
-                len(assets),
-            )
-        logger.info(f"Sync finished: {final_status}. Success: {success_count}, Skipped: {skip_count}, Errors: {error_count}")
+        final_status = _finalize_sync_log(
+            client,
+            sync_log_id,
+            counts,
+            discovery_result.manifest_hash,
+            discovery_result.manifest_source,
+            page_type,
+            len(discovery_result.assets),
+        )
+        logger.info(
+            "Sync finished: %s. Success: %s, Skipped: %s, Errors: %s",
+            final_status,
+            counts.success,
+            counts.skipped,
+            counts.error,
+        )
         if timing is not None:
-            print(timing.report())
-
-    except Exception as e:
-        logger.error(f"Fatal error in sync: {e}")
+            logger.info("%s", timing.report())
+    except Exception as exc:
+        logger.error("Fatal error in sync: %s", exc)
         traceback.print_exc()
         if sync_log_id:
             client.finish_sync_log(sync_log_id, "failed")
         raise
-
-
-def _resolve_dataset_key(file_name: str, sync_info: dict[str, Any] | None) -> str:
-    if not sync_info:
-        return "unknown"
-    mappings = sync_info.get("datasetMappings") or []
-    for mapping in mappings:
-        pattern = mapping.get("pattern")
-        dataset_key = mapping.get("datasetKey")
-        if not pattern or not dataset_key:
-            continue
-        if mapping.get("isRegex"):
-            try:
-                if re.search(pattern, file_name, re.IGNORECASE):
-                    return str(dataset_key)
-            except re.error:
-                continue
-        else:
-            if str(pattern).lower() in file_name:
-                return str(dataset_key)
-    datasets = sync_info.get("datasets") or []
-    for dataset in datasets:
-        key = dataset.get("key")
-        if key:
-            return str(key)
-    return "unknown"
-
-
-def _resolve_region_code(file_name: str, sync_info: dict[str, Any] | None) -> str:
-    if not sync_info:
-        return "unknown"
-    regions = sync_info.get("regions") or []
-    for region in regions:
-        tokens = region.get("fileTokens") or []
-        for token in tokens:
-            if token and str(token).lower() in file_name:
-                code = region.get("code")
-                if code:
-                    return str(code)
-    for region in regions:
-        code = region.get("code")
-        if code == "us":
-            return "us"
-    return "unknown"
-
-
-def sync_dataset_at_url(
-    asset_url: str,
-    sync_client: Any | None = None,
-    *,
-    force: bool = False,
-    cleanup: bool = True,
-    batch_size: int = 100,
-) -> bool:
-    if sync_client is None:
-        raise ValueError("sync_client is required for sync_dataset_at_url")
-
-    total_start = time.time()
-    sync_log_id: str | None = None
-    sync_info: dict[str, Any] | None = None
-
-    def _finish(status: str) -> None:
-        if sync_log_id and hasattr(sync_client, "finish_sync"):
-            duration_ms = (time.time() - total_start) * 1000
-            sync_client.finish_sync(sync_log_id, status, duration_ms)
-
-    try:
-        if hasattr(sync_client, "start_sync"):
-            info = sync_client.start_sync(asset_url)
-            if isinstance(info, dict):
-                sync_info = info
-                sync_log_id = info.get("syncLogId")
-
-        with _SYNC_CACHE_LOCK:
-            cached_hash = _SYNC_CACHE.get(asset_url)
-        if not force and cached_hash is not None:
-            _finish("cached")
-            return True
-
-        file_name = Path(urlparse(asset_url).path).name or "dataset.xls"
-        dataset_key = _resolve_dataset_key(file_name.lower(), sync_info)
-        region_code = _resolve_region_code(file_name.lower(), sync_info)
-
-        with tempfile.TemporaryDirectory(prefix="damodaran_sync_") as temp_dir:
-            download_path = Path(temp_dir) / file_name
-            downloader = download.Downloader()
-            download_result = downloader.download(asset_url, download_path)
-            file_path = download_path
-
-            asset_hash = None
-            if download_result is not None and hasattr(download_result, "sha256"):
-                asset_hash = getattr(download_result, "sha256")
-            if asset_hash is None:
-                asset_hash = hashlib.md5(asset_url.encode("utf-8")).hexdigest()
-
-            parser = excel_parse.ExcelParser()
-            try:
-                parsed = parser.parse(str(file_path))
-            except Exception as exc:
-                if sync_log_id and hasattr(sync_client, "add_sync_error"):
-                    sync_client.add_sync_error(
-                        sync_log_id,
-                        "excel_parse",
-                        str(exc),
-                        {"asset_url": asset_url},
-                    )
-                _finish("failed")
-                return False
-
-            transformed = transform.transform_table(parsed)
-
-            snapshot_id = None
-            if hasattr(sync_client, "create_snapshot"):
-                snapshot_id = sync_client.create_snapshot(
-                    sync_log_id,
-                    asset_url,
-                    dataset_key,
-                    region_code,
-                    "unknown",
-                    asset_hash,
-                    transformed,
-                )
-
-            if snapshot_id is not None and hasattr(sync_client, "insert_rows"):
-                sync_client.insert_rows(snapshot_id, transformed.rows, batch_size=batch_size)
-
-            if cleanup and hasattr(sync_client, "cleanup_nonactive_tabledata"):
-                sync_client.cleanup_nonactive_tabledata()
-
-        with _SYNC_CACHE_LOCK:
-            _SYNC_CACHE[asset_url] = asset_hash
-        _finish("success")
-        return True
-    except Exception as exc:
-        if sync_log_id and hasattr(sync_client, "add_sync_error"):
-            sync_client.add_sync_error(
-                sync_log_id,
-                "sync",
-                str(exc),
-                {"asset_url": asset_url},
-            )
-        _finish("failed")
-        return False
