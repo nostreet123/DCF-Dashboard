@@ -25,6 +25,8 @@ interface RightPanelProps {
   drivers?: SensitivityDriver[];
   /** Whether calculation is in progress */
   isCalculating?: boolean;
+  /** Layout variant */
+  variant?: 'docked' | 'drawer';
 }
 
 /**
@@ -41,9 +43,15 @@ export function RightPanel({
   onAssumptionChange,
   drivers,
   isCalculating,
+  variant = 'docked',
 }: RightPanelProps) {
+  const panelClass =
+    variant === 'drawer'
+      ? `${styles.panel} ${styles.drawer}`
+      : `${styles.panel} ${styles.docked}`;
+
   return (
-    <aside className={styles.panel}>
+    <aside className={panelClass}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Assumptions</h3>
         <div className={styles.sliders}>

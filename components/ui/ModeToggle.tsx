@@ -11,12 +11,22 @@ interface ModeToggleProps {
   onChange: (mode: Mode) => void;
   /** Additional CSS classes */
   className?: string;
+  /** Custom labels */
+  labels?: {
+    workbench: string;
+    investor: string;
+  };
 }
 
 /**
  * Segmented control for switching between Workbench and Investor View modes.
  */
-export function ModeToggle({ value, onChange, className }: ModeToggleProps) {
+export function ModeToggle({
+  value,
+  onChange,
+  className,
+  labels = { workbench: 'Workbench', investor: 'Investor View' },
+}: ModeToggleProps) {
   return (
     <div className={`${styles.container} ${className || ''}`}>
       <button
@@ -24,14 +34,14 @@ export function ModeToggle({ value, onChange, className }: ModeToggleProps) {
         onClick={() => onChange('workbench')}
         aria-pressed={value === 'workbench'}
       >
-        Workbench
+        {labels.workbench}
       </button>
       <button
         className={`${styles.segment} ${value === 'investor' ? styles.active : ''}`}
         onClick={() => onChange('investor')}
         aria-pressed={value === 'investor'}
       >
-        Investor View
+        {labels.investor}
       </button>
     </div>
   );

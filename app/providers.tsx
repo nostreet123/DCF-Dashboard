@@ -5,18 +5,20 @@ import { ThemeProvider } from "@/lib/contexts/ThemeContext";
 import { WorkbenchProvider } from "@/lib/contexts/WorkbenchContext";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-if (!convexUrl) {
-  throw new Error("NEXT_PUBLIC_CONVEX_URL is required (see .env.example)");
-}
-
-const convex = new ConvexReactClient(convexUrl);
+const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const app = (
+    <ThemeProvider>
+      <WorkbenchProvider>{children}</WorkbenchProvider>
+    </ThemeProvider>
+  );
+
+  if (!convex) {
+    return app;
+  }
+
   return (
-    <ConvexProvider client={convex}>
-      <ThemeProvider>
-        <WorkbenchProvider>{children}</WorkbenchProvider>
-      </ThemeProvider>
-    </ConvexProvider>
+    <ConvexProvider client={convex}>{app}</ConvexProvider>
   );
 }

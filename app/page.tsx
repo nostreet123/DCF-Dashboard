@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TopBar } from '@/components/layout/TopBar';
 import { LeftRail } from '@/components/layout/LeftRail';
 import { RightPanel } from '@/components/layout/RightPanel';
+import { Drawer } from '@/components/ui/Drawer';
 import { ScenarioTabs } from '@/components/workspace/ScenarioTabs';
 import { ValueCard } from '@/components/workspace/ValueCard';
+import { ValueCardSkeleton } from '@/components/workspace/ValueCardSkeleton';
 import { SensitivitySection } from '@/components/workspace/SensitivitySection';
+import { SensitivitySectionSkeleton } from '@/components/workspace/SensitivitySectionSkeleton';
 import { MetricsTable } from '@/components/workspace/MetricsTable';
+import { MetricsTableSkeleton } from '@/components/workspace/MetricsTableSkeleton';
 import styles from './page.module.css';
 
 type Scenario = 'base' | 'bull' | 'bear';
@@ -53,7 +57,10 @@ const scenarioValues = {
 export default function DashboardPage() {
   const [scenario, setScenario] = useState<Scenario>('base');
   const [viewMode, setViewMode] = useState<ViewMode>('workbench');
+  const [activeDrawer, setActiveDrawer] = useState<'library' | 'assumptions' | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('1');
+  const [isComputing, setIsComputing] = useState(false);
+  const computeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [assumptions, setAssumptions] = useState({
     revenueGrowth: 12,
     operatingMargin: 25,
@@ -65,10 +72,44 @@ export default function DashboardPage() {
     key: keyof typeof assumptions,
     value: number
   ) => {
+    setIsComputing(true);
+    if (computeTimeoutRef.current) {
+      clearTimeout(computeTimeoutRef.current);
+    }
+    computeTimeoutRef.current = setTimeout(() => {
+      setIsComputing(false);
+      computeTimeoutRef.current = null;
+    }, 520);
+
     setAssumptions((prev) => ({ ...prev, [key]: value }));
   };
 
+  useEffect(() => {
+    return () => {
+      if (computeTimeoutRef.current) {
+        clearTimeout(computeTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const currentValue = scenarioValues[scenario];
+
+  const openLibraryDrawer = () => {
+    setActiveDrawer('library');
+  };
+
+  const openAssumptionsDrawer = () => {
+    setActiveDrawer('assumptions');
+  };
+
+  const closeDrawers = () => {
+    setActiveDrawer(null);
+  };
+
+  const handleSelectCompany = (id: string) => {
+    setSelectedCompanyId(id);
+    closeDrawers();
+  };
 
   return (
     <div className={styles.layout}>
@@ -79,6 +120,8 @@ export default function DashboardPage() {
         mode={viewMode}
         onModeChange={setViewMode}
         onSearch={(q) => console.log('Search:', q)}
+        onOpenLibrary={openLibraryDrawer}
+        onOpenAssumptions={openAssumptionsDrawer}
       />
 
       <LeftRail
@@ -87,32 +130,81 @@ export default function DashboardPage() {
         selectedCompanyId={selectedCompanyId}
         onSelectCompany={setSelectedCompanyId}
         onSelectRun={(id) => console.log('Select run:', id)}
+        variant="docked"
       />
 
       <main className={styles.workspace}>
         <div className={styles.workspaceContent}>
-          <div className={styles.scenarioHeader}>
+          <div className={`${styles.scenarioHeader} ${styles.reveal} ${styles.revealDelay1}`}>
             <ScenarioTabs value={scenario} onChange={setScenario} />
           </div>
 
-          <ValueCard
-            value={currentValue}
-            scenario={scenario}
-            ticker="AAPL"
-            histogram={mockHistogram}
-            range={[112.30, 185.50]}
-          />
+          {isComputing ? (
+            <ValueCardSkeleton />
+          ) : (
+            <ValueCard
+              className={`${styles.reveal} ${styles.revealDelay2}`}
+              value={currentValue}
+              scenario={scenario}
+              ticker="AAPL"
+              histogram={mockHistogram}
+              range={[112.30, 185.50]}
+            />
+          )}
 
-          <SensitivitySection />
+          {isComputing ? (
+            <SensitivitySectionSkeleton />
+          ) : (
+            <SensitivitySection className={`${styles.reveal} ${styles.revealDelay3}`} />
+          )}
 
-          <MetricsTable />
+          {isComputing ? (
+            <MetricsTableSkeleton />
+          ) : (
+            <MetricsTable className={`${styles.reveal} ${styles.revealDelay4}`} />
+          )}
         </div>
       </main>
 
       <RightPanel
         assumptions={assumptions}
         onAssumptionChange={handleAssumptionChange}
+        isCalculating={isComputing}
+        variant="docked"
       />
+
+      <Drawer
+        open={activeDrawer === 'library'}
+        onClose={closeDrawers}
+        title="Dataset Library"
+        side="left"
+      >
+        <LeftRail
+          datasets={mockDatasets}
+          runHistory={mockRunHistory}
+          selectedCompanyId={selectedCompanyId}
+          onSelectCompany={handleSelectCompany}
+          onSelectRun={(id) => {
+            console.log('Select run:', id);
+            closeDrawers();
+          }}
+          variant="drawer"
+        />
+      </Drawer>
+
+      <Drawer
+        open={activeDrawer === 'assumptions'}
+        onClose={closeDrawers}
+        title="Assumptions"
+        side="right"
+      >
+        <RightPanel
+          assumptions={assumptions}
+          onAssumptionChange={handleAssumptionChange}
+          isCalculating={isComputing}
+          variant="drawer"
+        />
+      </Drawer>
     </div>
   );
 }

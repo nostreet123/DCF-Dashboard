@@ -27,6 +27,8 @@ interface LeftRailProps {
   onSelectCompany?: (id: string) => void;
   /** Run history selection callback */
   onSelectRun?: (id: string) => void;
+  /** Layout variant */
+  variant?: 'docked' | 'drawer';
 }
 
 /**
@@ -39,9 +41,15 @@ export function LeftRail({
   selectedCompanyId,
   onSelectCompany,
   onSelectRun,
+  variant = 'docked',
 }: LeftRailProps) {
+  const railClass =
+    variant === 'drawer'
+      ? `${styles.rail} ${styles.drawer}`
+      : `${styles.rail} ${styles.docked}`;
+
   return (
-    <aside className={styles.rail}>
+    <aside className={railClass}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Dataset Library</h3>
         <Accordion>

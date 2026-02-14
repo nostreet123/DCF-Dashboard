@@ -49,9 +49,11 @@ export function ValueCard({
       </div>
 
       <div className={styles.valueContainer}>
-        <span className={styles.value}>{formatCurrency(value)}</span>
+        <span key={`${scenario}-${value}`} className={`${styles.value} ${styles.valueAnimated}`}>
+          {formatCurrency(value)}
+        </span>
         {range && (
-          <div className={styles.range}>
+          <div key={`${scenario}-${range[0]}-${range[1]}`} className={`${styles.range} ${styles.rangeAnimated}`}>
             <span className={styles.rangeValue}>{formatCurrency(range[0])}</span>
             <span className={styles.rangeSeparator}>—</span>
             <span className={styles.rangeValue}>{formatCurrency(range[1])}</span>

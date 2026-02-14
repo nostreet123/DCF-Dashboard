@@ -11,13 +11,13 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: 0.95rem;
   color: var(--text-secondary);
 }
 
 .value {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 0.95rem;
   color: var(--text-primary);
   font-weight: 500;
 }
@@ -87,7 +87,7 @@
 .range {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 0.78rem;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
 }

@@ -13,15 +13,19 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark');
-  const [mounted, setMounted] = useState(false);
 
   // Load theme from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem('dcf-theme') as Theme | null;
     if (stored && (stored === 'dark' || stored === 'light')) {
       setTheme(stored);
+      return;
     }
-    setMounted(true);
+
+    const htmlTheme = document.documentElement.getAttribute('data-theme');
+    if (htmlTheme === 'light' || htmlTheme === 'dark') {
+      setTheme(htmlTheme);
+    }
   }, []);
 
   // Update document attribute when theme changes
@@ -34,11 +38,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(next);
     localStorage.setItem('dcf-theme', next);
   };
-
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return null;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

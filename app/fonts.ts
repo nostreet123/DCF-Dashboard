@@ -1,5 +1,4 @@
-import { JetBrains_Mono, Instrument_Serif } from 'next/font/google';
-import localFont from 'next/font/local';
+import { DM_Sans, JetBrains_Mono, Instrument_Serif } from 'next/font/google';
 
 export const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -14,8 +13,9 @@ export const instrumentSerif = Instrument_Serif({
   display: 'swap',
 });
 
-export const geistSans = localFont({
-  src: './fonts/GeistVF.woff2',
+export const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-sans',
   display: 'swap',
 });
