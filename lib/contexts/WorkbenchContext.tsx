@@ -2,23 +2,23 @@
 
 import {
   createContext,
-  useContext,
-  useState,
   useCallback,
-  ReactNode,
+  useContext,
   useMemo,
+  useReducer,
+  type ReactNode,
 } from 'react';
 
-type Scenario = 'base' | 'bull' | 'bear';
+export type Scenario = 'base' | 'bull' | 'bear';
 
-interface Assumptions {
+export interface Assumptions {
   revenueGrowth: number;
   operatingMargin: number;
   discountRate: number;
   terminalGrowth: number;
 }
 
-interface ValuationResult {
+export interface ValuationResult {
   fairValue: number;
   range: [number, number];
   histogram: {
@@ -28,39 +28,18 @@ interface ValuationResult {
   sensitivityMatrix: number[][];
 }
 
-interface WorkbenchState {
-  // Selection
+export interface WorkbenchState {
   selectedSymbol: string | null;
   selectedCompanyId: string | null;
   selectedRunId: string | null;
-
-  // Scenario
   scenario: Scenario;
-
-  // Assumptions (per scenario)
   assumptions: Record<Scenario, Assumptions>;
-
-  // Results
   result: ValuationResult | null;
   isComputing: boolean;
   error: Error | null;
 }
 
-interface WorkbenchActions {
-  setSelectedSymbol: (symbol: string | null) => void;
-  setSelectedCompanyId: (id: string | null) => void;
-  setSelectedRunId: (id: string | null) => void;
-  setScenario: (scenario: Scenario) => void;
-  updateAssumption: (key: keyof Assumptions, value: number) => void;
-  setResult: (result: ValuationResult | null) => void;
-  setIsComputing: (isComputing: boolean) => void;
-  setError: (error: Error | null) => void;
-  resetWorkbench: () => void;
-}
-
-type WorkbenchContextValue = WorkbenchState & WorkbenchActions;
-
-const defaultAssumptions: Record<Scenario, Assumptions> = {
+const baseAssumptions: Record<Scenario, Assumptions> = {
   base: {
     revenueGrowth: 12,
     operatingMargin: 25,
@@ -81,70 +60,141 @@ const defaultAssumptions: Record<Scenario, Assumptions> = {
   },
 };
 
-const initialState: WorkbenchState = {
-  selectedSymbol: null,
-  selectedCompanyId: null,
-  selectedRunId: null,
-  scenario: 'base',
-  assumptions: defaultAssumptions,
-  result: null,
-  isComputing: false,
-  error: null,
-};
+function cloneAssumptions() {
+  return {
+    base: { ...baseAssumptions.base },
+    bull: { ...baseAssumptions.bull },
+    bear: { ...baseAssumptions.bear },
+  };
+}
 
-const WorkbenchContext = createContext<WorkbenchContextValue | undefined>(
-  undefined
-);
+export function createInitialWorkbenchState(): WorkbenchState {
+  return {
+    selectedSymbol: null,
+    selectedCompanyId: null,
+    selectedRunId: null,
+    scenario: 'base',
+    assumptions: cloneAssumptions(),
+    result: null,
+    isComputing: false,
+    error: null,
+  };
+}
+
+export type WorkbenchAction =
+  | { type: 'set_selected_symbol'; symbol: string | null }
+  | { type: 'set_selected_company_id'; id: string | null }
+  | { type: 'set_selected_run_id'; id: string | null }
+  | { type: 'select_company'; id: string | null; symbol: string | null }
+  | { type: 'set_scenario'; scenario: Scenario }
+  | { type: 'update_assumption'; key: keyof Assumptions; value: number }
+  | { type: 'set_result'; result: ValuationResult | null }
+  | { type: 'set_is_computing'; isComputing: boolean }
+  | { type: 'set_error'; error: Error | null }
+  | { type: 'reset' };
+
+export function workbenchReducer(
+  state: WorkbenchState,
+  action: WorkbenchAction,
+): WorkbenchState {
+  switch (action.type) {
+    case 'set_selected_symbol':
+      return { ...state, selectedSymbol: action.symbol };
+    case 'set_selected_company_id':
+      return { ...state, selectedCompanyId: action.id };
+    case 'set_selected_run_id':
+      return { ...state, selectedRunId: action.id };
+    case 'select_company':
+      return {
+        ...state,
+        selectedCompanyId: action.id,
+        selectedSymbol: action.symbol,
+        selectedRunId: null,
+      };
+    case 'set_scenario':
+      return { ...state, scenario: action.scenario };
+    case 'update_assumption':
+      return {
+        ...state,
+        assumptions: {
+          ...state.assumptions,
+          [state.scenario]: {
+            ...state.assumptions[state.scenario],
+            [action.key]: action.value,
+          },
+        },
+      };
+    case 'set_result':
+      return { ...state, result: action.result };
+    case 'set_is_computing':
+      return { ...state, isComputing: action.isComputing };
+    case 'set_error':
+      return { ...state, error: action.error };
+    case 'reset':
+      return createInitialWorkbenchState();
+    default:
+      return state;
+  }
+}
+
+interface WorkbenchActions {
+  setSelectedSymbol: (symbol: string | null) => void;
+  setSelectedCompanyId: (id: string | null) => void;
+  setSelectedRunId: (id: string | null) => void;
+  selectCompany: (id: string | null, symbol: string | null) => void;
+  setScenario: (scenario: Scenario) => void;
+  updateAssumption: (key: keyof Assumptions, value: number) => void;
+  setResult: (result: ValuationResult | null) => void;
+  setIsComputing: (isComputing: boolean) => void;
+  setError: (error: Error | null) => void;
+  resetWorkbench: () => void;
+}
+
+type WorkbenchContextValue = WorkbenchState & WorkbenchActions;
+
+const WorkbenchContext = createContext<WorkbenchContextValue | undefined>(undefined);
 
 export function WorkbenchProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<WorkbenchState>(initialState);
+  const [state, dispatch] = useReducer(workbenchReducer, undefined, createInitialWorkbenchState);
 
   const setSelectedSymbol = useCallback((symbol: string | null) => {
-    setState((prev) => ({ ...prev, selectedSymbol: symbol }));
+    dispatch({ type: 'set_selected_symbol', symbol });
   }, []);
 
   const setSelectedCompanyId = useCallback((id: string | null) => {
-    setState((prev) => ({ ...prev, selectedCompanyId: id }));
+    dispatch({ type: 'set_selected_company_id', id });
   }, []);
 
   const setSelectedRunId = useCallback((id: string | null) => {
-    setState((prev) => ({ ...prev, selectedRunId: id }));
+    dispatch({ type: 'set_selected_run_id', id });
+  }, []);
+
+  const selectCompany = useCallback((id: string | null, symbol: string | null) => {
+    dispatch({ type: 'select_company', id, symbol });
   }, []);
 
   const setScenario = useCallback((scenario: Scenario) => {
-    setState((prev) => ({ ...prev, scenario }));
+    dispatch({ type: 'set_scenario', scenario });
   }, []);
 
-  const updateAssumption = useCallback(
-    (key: keyof Assumptions, value: number) => {
-      setState((prev) => ({
-        ...prev,
-        assumptions: {
-          ...prev.assumptions,
-          [prev.scenario]: {
-            ...prev.assumptions[prev.scenario],
-            [key]: value,
-          },
-        },
-      }));
-    },
-    []
-  );
+  const updateAssumption = useCallback((key: keyof Assumptions, value: number) => {
+    dispatch({ type: 'update_assumption', key, value });
+  }, []);
 
   const setResult = useCallback((result: ValuationResult | null) => {
-    setState((prev) => ({ ...prev, result }));
+    dispatch({ type: 'set_result', result });
   }, []);
 
   const setIsComputing = useCallback((isComputing: boolean) => {
-    setState((prev) => ({ ...prev, isComputing }));
+    dispatch({ type: 'set_is_computing', isComputing });
   }, []);
 
   const setError = useCallback((error: Error | null) => {
-    setState((prev) => ({ ...prev, error }));
+    dispatch({ type: 'set_error', error });
   }, []);
 
   const resetWorkbench = useCallback(() => {
-    setState(initialState);
+    dispatch({ type: 'reset' });
   }, []);
 
   const value = useMemo<WorkbenchContextValue>(
@@ -153,6 +203,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setSelectedSymbol,
       setSelectedCompanyId,
       setSelectedRunId,
+      selectCompany,
       setScenario,
       updateAssumption,
       setResult,
@@ -161,24 +212,21 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       resetWorkbench,
     }),
     [
-      state,
-      setSelectedSymbol,
+      resetWorkbench,
+      selectCompany,
+      setError,
+      setIsComputing,
+      setResult,
+      setScenario,
       setSelectedCompanyId,
       setSelectedRunId,
-      setScenario,
+      setSelectedSymbol,
+      state,
       updateAssumption,
-      setResult,
-      setIsComputing,
-      setError,
-      resetWorkbench,
-    ]
+    ],
   );
 
-  return (
-    <WorkbenchContext.Provider value={value}>
-      {children}
-    </WorkbenchContext.Provider>
-  );
+  return <WorkbenchContext.Provider value={value}>{children}</WorkbenchContext.Provider>;
 }
 
 export function useWorkbench() {
@@ -189,9 +237,6 @@ export function useWorkbench() {
   return context;
 }
 
-/**
- * Get the current scenario's assumptions.
- */
 export function useCurrentAssumptions() {
   const { scenario, assumptions } = useWorkbench();
   return assumptions[scenario];
