@@ -1,6 +1,12 @@
 .skeleton {
-  background: var(--surface-hover);
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--surface-hover) 88%, transparent) 8%,
+    color-mix(in srgb, var(--surface-elevated) 78%, transparent) 18%,
+    color-mix(in srgb, var(--surface-hover) 88%, transparent) 33%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
 
 .rectangular {
@@ -21,11 +27,18 @@
   gap: var(--spacing-sm);
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@keyframes shimmer {
+  from {
+    background-position-x: 180%;
   }
-  50% {
-    opacity: 0.5;
+
+  to {
+    background-position-x: -40%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
   }
 }

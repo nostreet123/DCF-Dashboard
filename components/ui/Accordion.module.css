@@ -30,7 +30,7 @@
 }
 
 .title {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
 }
 
@@ -41,7 +41,7 @@
 }
 
 .badge {
-  font-size: 11px;
+  font-size: 0.74rem;
   font-family: var(--font-mono);
   color: var(--text-tertiary);
   background: var(--surface-hover);

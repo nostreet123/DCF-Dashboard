@@ -11,12 +11,12 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-lg);
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
   border-radius: var(--radius-md);
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .tab:hover:not(.active) {
@@ -26,6 +26,7 @@
 
 .tab.active {
   color: var(--bg-base);
+  transform: translateY(-1px);
 }
 
 .tab.active.bear {
@@ -50,4 +51,12 @@
 
 .bull:not(.active) {
   color: var(--accent-teal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .tab.active {
+    transition: none;
+    transform: none;
+  }
 }

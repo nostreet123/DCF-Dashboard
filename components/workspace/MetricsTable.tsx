@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { Pagination } from '@/components/ui/Pagination';
-import { formatCurrency, formatCompactCurrency, formatPercent } from '@/lib/utils/formatters';
+import { formatCompactCurrency, formatPercent } from '@/lib/utils/formatters';
 import styles from './MetricsTable.module.css';
 
 interface MetricRow {
@@ -111,6 +111,13 @@ export function MetricsTable({
   };
 
   const currentYear = new Date().getFullYear();
+  const projectionYears = [
+    currentYear + 1,
+    currentYear + 2,
+    currentYear + 3,
+    currentYear + 4,
+    currentYear + 5,
+  ];
 
   return (
     <div className={`${styles.container} ${className || ''}`}>
@@ -118,28 +125,26 @@ export function MetricsTable({
         <h2 className={styles.title}>Financial Projections</h2>
       </div>
 
-      <div className={styles.tableWrapper}>
+      <div className={styles.tableWrapper} aria-label="Financial projection table with horizontal scroll">
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.metricHeader}>Metric</th>
-              <th className={styles.yearHeader}>{currentYear + 1}</th>
-              <th className={styles.yearHeader}>{currentYear + 2}</th>
-              <th className={styles.yearHeader}>{currentYear + 3}</th>
-              <th className={styles.yearHeader}>{currentYear + 4}</th>
-              <th className={styles.yearHeader}>{currentYear + 5}</th>
-              <th className={styles.trendHeader}>Trend</th>
+              <th scope="col" className={`${styles.metricHeader} ${styles.stickyMetric}`}>Metric</th>
+              {projectionYears.map((year) => (
+                <th key={year} scope="col" className={styles.yearHeader}>{year}</th>
+              ))}
+              <th scope="col" className={styles.trendHeader}>Trend</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((row) => (
               <tr key={row.id}>
-                <td className={styles.metricCell}>{row.label}</td>
-                <td className={styles.valueCell}>{formatValue(row.year1, row.format)}</td>
-                <td className={styles.valueCell}>{formatValue(row.year2, row.format)}</td>
-                <td className={styles.valueCell}>{formatValue(row.year3, row.format)}</td>
-                <td className={styles.valueCell}>{formatValue(row.year4, row.format)}</td>
-                <td className={styles.valueCell}>{formatValue(row.year5, row.format)}</td>
+                <th scope="row" className={`${styles.metricCell} ${styles.stickyMetric}`}>{row.label}</th>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year1, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year2, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year3, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year4, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year5, row.format)}</td>
                 <td className={styles.trendCell}>
                   <Sparkline
                     data={row.trend}

@@ -56,9 +56,9 @@ export const heatmapColors = {
     high: '#7a9b76',  // sage
   },
   light: {
-    low: '#c78a92',   // lighter burgundy
-    mid: '#e6c589',   // lighter amber
-    high: '#9bb897',  // lighter sage
+    low: '#be6d79',   // rose clay
+    mid: '#d3a95e',   // amber ochre
+    high: '#7ea076',  // muted sage
   },
 };
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import "./globals.css";
 import { Providers } from "./providers";
-import { jetbrainsMono, instrumentSerif, geistSans } from "./fonts";
+import { jetbrainsMono, instrumentSerif, dmSans } from "./fonts";
 
 export const metadata: Metadata = {
   title: "DCF Dashboard",
@@ -38,7 +38,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
+        className={`${dmSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
       >
         <Providers>{children}</Providers>
       </body>
