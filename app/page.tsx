@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { TopBar } from '@/components/layout/TopBar';
 import { LeftRail } from '@/components/layout/LeftRail';
 import { RightPanel } from '@/components/layout/RightPanel';
@@ -12,13 +12,15 @@ import { SensitivitySection } from '@/components/workspace/SensitivitySection';
 import { SensitivitySectionSkeleton } from '@/components/workspace/SensitivitySectionSkeleton';
 import { MetricsTable } from '@/components/workspace/MetricsTable';
 import { MetricsTableSkeleton } from '@/components/workspace/MetricsTableSkeleton';
+import { useCurrentAssumptions, useWorkbench } from '@/lib/contexts/WorkbenchContext';
+import {
+  type DatasetGroups,
+  resolveActiveCompany,
+  useWorkbenchViewState,
+} from '@/lib/hooks/useWorkbenchViewState';
 import styles from './page.module.css';
 
-type Scenario = 'base' | 'bull' | 'bear';
-type ViewMode = 'workbench' | 'investor';
-
-// Mock data for demonstration
-const mockDatasets = {
+const mockDatasets: DatasetGroups = {
   Technology: [
     { id: '1', name: 'Apple Inc.', ticker: 'AAPL' },
     { id: '2', name: 'Microsoft Corp.', ticker: 'MSFT' },
@@ -36,9 +38,9 @@ const mockDatasets = {
 };
 
 const mockRunHistory = [
-  { id: 'r1', timestamp: new Date(Date.now() - 3600000), ticker: 'AAPL', value: 145.20 },
-  { id: 'r2', timestamp: new Date(Date.now() - 7200000), ticker: 'MSFT', value: 378.50 },
-  { id: 'r3', timestamp: new Date(Date.now() - 86400000), ticker: 'GOOGL', value: 142.80 },
+  { id: 'r1', timestamp: new Date(Date.now() - 3600000), ticker: 'AAPL', value: 145.2 },
+  { id: 'r2', timestamp: new Date(Date.now() - 7200000), ticker: 'MSFT', value: 378.5 },
+  { id: 'r3', timestamp: new Date(Date.now() - 86400000), ticker: 'GOOGL', value: 142.8 },
 ];
 
 const mockPriceHistory = [140, 142, 138, 145, 143, 148, 146, 150, 152];
@@ -49,40 +51,52 @@ const mockHistogram = {
 };
 
 const scenarioValues = {
-  base: 145.20,
-  bull: 185.50,
-  bear: 112.30,
+  base: 145.2,
+  bull: 185.5,
+  bear: 112.3,
 };
 
+const fallbackRange: [number, number] = [112.3, 185.5];
+
+function findCompanyBySearch(query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  const allCompanies = Object.values(mockDatasets).flat();
+  return (
+    allCompanies.find(
+      (item) =>
+        item.ticker.toLowerCase() === normalized || item.name.toLowerCase().includes(normalized),
+    ) ?? null
+  );
+}
+
 export default function DashboardPage() {
-  const [scenario, setScenario] = useState<Scenario>('base');
-  const [viewMode, setViewMode] = useState<ViewMode>('workbench');
-  const [activeDrawer, setActiveDrawer] = useState<'library' | 'assumptions' | null>(null);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('1');
-  const [isComputing, setIsComputing] = useState(false);
+  const {
+    scenario,
+    selectedCompanyId,
+    selectCompany,
+    setScenario,
+    setSelectedRunId,
+    updateAssumption,
+    isComputing,
+    setIsComputing,
+    result,
+  } = useWorkbench();
+  const assumptions = useCurrentAssumptions();
+  const {
+    viewMode,
+    setViewMode,
+    activeDrawer,
+    openLibraryDrawer,
+    openAssumptionsDrawer,
+    closeDrawers,
+    onCompanySelected,
+    onRunSelected,
+  } = useWorkbenchViewState();
+
   const computeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [assumptions, setAssumptions] = useState({
-    revenueGrowth: 12,
-    operatingMargin: 25,
-    discountRate: 10,
-    terminalGrowth: 2.5,
-  });
-
-  const handleAssumptionChange = (
-    key: keyof typeof assumptions,
-    value: number
-  ) => {
-    setIsComputing(true);
-    if (computeTimeoutRef.current) {
-      clearTimeout(computeTimeoutRef.current);
-    }
-    computeTimeoutRef.current = setTimeout(() => {
-      setIsComputing(false);
-      computeTimeoutRef.current = null;
-    }, 520);
-
-    setAssumptions((prev) => ({ ...prev, [key]: value }));
-  };
 
   useEffect(() => {
     return () => {
@@ -92,34 +106,54 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const currentValue = scenarioValues[scenario];
+  const activeCompany = resolveActiveCompany(mockDatasets, selectedCompanyId);
+  const activeCompanyId = activeCompany?.id ?? null;
+  const activeTicker = activeCompany?.ticker ?? 'AAPL';
 
-  const openLibraryDrawer = () => {
-    setActiveDrawer('library');
+  const handleAssumptionChange = (key: keyof typeof assumptions, value: number) => {
+    setIsComputing(true);
+    if (computeTimeoutRef.current) {
+      clearTimeout(computeTimeoutRef.current);
+    }
+    computeTimeoutRef.current = setTimeout(() => {
+      setIsComputing(false);
+      computeTimeoutRef.current = null;
+    }, 520);
+
+    updateAssumption(key, value);
   };
 
-  const openAssumptionsDrawer = () => {
-    setActiveDrawer('assumptions');
+  const handleSelectCompany = (id: string, source: 'docked' | 'drawer') => {
+    const company = resolveActiveCompany(mockDatasets, id);
+    selectCompany(company?.id ?? id, company?.ticker ?? null);
+    onCompanySelected(source);
   };
 
-  const closeDrawers = () => {
-    setActiveDrawer(null);
+  const handleSelectRun = (id: string, source: 'docked' | 'drawer') => {
+    setSelectedRunId(id);
+    onRunSelected(source);
   };
 
-  const handleSelectCompany = (id: string) => {
-    setSelectedCompanyId(id);
-    closeDrawers();
+  const handleSearch = (query: string) => {
+    const company = findCompanyBySearch(query);
+    if (company) {
+      selectCompany(company.id, company.ticker);
+    }
   };
+
+  const currentValue = result?.fairValue ?? scenarioValues[scenario];
+  const histogram = result?.histogram ?? mockHistogram;
+  const valuationRange = result?.range ?? fallbackRange;
 
   return (
     <div className={styles.layout}>
       <TopBar
-        ticker="AAPL"
+        ticker={activeTicker}
         priceHistory={mockPriceHistory}
         currentPrice={152.35}
         mode={viewMode}
         onModeChange={setViewMode}
-        onSearch={(q) => console.log('Search:', q)}
+        onSearch={handleSearch}
         onOpenLibrary={openLibraryDrawer}
         onOpenAssumptions={openAssumptionsDrawer}
       />
@@ -127,9 +161,9 @@ export default function DashboardPage() {
       <LeftRail
         datasets={mockDatasets}
         runHistory={mockRunHistory}
-        selectedCompanyId={selectedCompanyId}
-        onSelectCompany={setSelectedCompanyId}
-        onSelectRun={(id) => console.log('Select run:', id)}
+        selectedCompanyId={activeCompanyId ?? undefined}
+        onSelectCompany={(id) => handleSelectCompany(id, 'docked')}
+        onSelectRun={(id) => handleSelectRun(id, 'docked')}
         variant="docked"
       />
 
@@ -146,9 +180,9 @@ export default function DashboardPage() {
               className={`${styles.reveal} ${styles.revealDelay2}`}
               value={currentValue}
               scenario={scenario}
-              ticker="AAPL"
-              histogram={mockHistogram}
-              range={[112.30, 185.50]}
+              ticker={activeTicker}
+              histogram={histogram}
+              range={valuationRange}
             />
           )}
 
@@ -182,12 +216,9 @@ export default function DashboardPage() {
         <LeftRail
           datasets={mockDatasets}
           runHistory={mockRunHistory}
-          selectedCompanyId={selectedCompanyId}
-          onSelectCompany={handleSelectCompany}
-          onSelectRun={(id) => {
-            console.log('Select run:', id);
-            closeDrawers();
-          }}
+          selectedCompanyId={activeCompanyId ?? undefined}
+          onSelectCompany={(id) => handleSelectCompany(id, 'drawer')}
+          onSelectRun={(id) => handleSelectRun(id, 'drawer')}
           variant="drawer"
         />
       </Drawer>
