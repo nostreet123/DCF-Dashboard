@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
-import { convexClient, getSyncToken } from "@/app/api/_lib/convex";
+import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
@@ -51,8 +51,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const convexClient = getConvexClient();
+  const syncToken = getSyncTokenOptional();
+  if (!convexClient || !syncToken) {
+    if (!convexClient) {
+      console.warn("Skipping valuation persistence: CONVEX_URL is not configured");
+    } else {
+      console.warn("Skipping valuation persistence: DAMODARAN_SYNC_TOKEN is not configured");
+    }
+    return NextResponse.json(result);
+  }
+
   try {
-    const syncToken = getSyncToken();
     const requestId =
       typeof payload.requestId === "string" ? payload.requestId : undefined;
     const symbol = typeof payload.symbol === "string" ? payload.symbol : undefined;
@@ -93,11 +103,7 @@ export async function POST(request: Request) {
       symbol,
     });
   } catch (error) {
-    return errorResponse(
-      "CONVEX_ERROR",
-      error instanceof Error ? error.message : "Convex mutation failed",
-      500,
-    );
+    console.warn("Valuation persistence failed", error);
   }
 
   return NextResponse.json(result);

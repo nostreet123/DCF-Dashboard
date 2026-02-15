@@ -1,11 +1,22 @@
 import { ConvexHttpClient } from "convex/browser";
 
-const convexUrl = process.env.CONVEX_URL;
-if (!convexUrl) {
-  throw new Error("CONVEX_URL is required");
-}
+let cachedClient: ConvexHttpClient | null = null;
+let cachedConvexUrl: string | null = null;
 
-export const convexClient = new ConvexHttpClient(convexUrl);
+export const getConvexClient = (): ConvexHttpClient | null => {
+  const convexUrl = process.env.CONVEX_URL ?? null;
+  if (!convexUrl) {
+    cachedClient = null;
+    cachedConvexUrl = null;
+    return null;
+  }
+  if (cachedClient && cachedConvexUrl === convexUrl) {
+    return cachedClient;
+  }
+  cachedClient = new ConvexHttpClient(convexUrl);
+  cachedConvexUrl = convexUrl;
+  return cachedClient;
+};
 
 export const getSyncToken = () => {
   const token = process.env.DAMODARAN_SYNC_TOKEN;
@@ -14,3 +25,5 @@ export const getSyncToken = () => {
   }
   return token;
 };
+
+export const getSyncTokenOptional = () => process.env.DAMODARAN_SYNC_TOKEN ?? null;
