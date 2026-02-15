@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { convexClient } from "@/app/api/_lib/convex";
+import { getConvexClient } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 
@@ -24,25 +24,28 @@ export async function GET(request: Request) {
     limit = Math.min(parsed, 50);
   }
 
-  try {
-    const searchCompanies = "companies:search" as any;
-    const results = await (convexClient as any).query(searchCompanies, {
-      q,
-      limit,
-    });
-    if (results.length > 0) {
-      return NextResponse.json({ results, source: "convex" });
+  const convexClient = getConvexClient();
+  if (convexClient) {
+    try {
+      const searchCompanies = "companies:search" as any;
+      const results = await (convexClient as any).query(searchCompanies, {
+        q,
+        limit,
+      });
+      if (results.length > 0) {
+        return NextResponse.json({ results, source: "convex" });
+      }
+    } catch (error) {
+      console.warn("Convex search failed, falling back to EDGAR", error);
     }
-  } catch (error) {
-    return errorResponse(
-      "CONVEX_ERROR",
-      error instanceof Error ? error.message : "Convex query failed",
-      500,
-    );
   }
 
   if (!process.env.DCF_ENGINE_URL) {
-    return NextResponse.json({ results: [], source: "convex" });
+    return errorResponse(
+      "SERVICE_UNAVAILABLE",
+      "Search backend is not configured",
+      503,
+    );
   }
 
   try {

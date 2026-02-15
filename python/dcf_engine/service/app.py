@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI, HTTPException, Query
+import requests
 
 from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
 from dcf_engine.workbench.run import run_workbench
@@ -20,7 +21,7 @@ def sec_search(
 ) -> dict[str, object]:
     try:
         results = search_companies(q, limit=limit)
-    except RuntimeError as exc:
+    except (RuntimeError, requests.RequestException) as exc:
         logger.exception("SEC search failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"results": results}
@@ -33,7 +34,7 @@ def sec_facts(symbol: str = Query(..., min_length=1)) -> object:
     except ValueError as exc:
         logger.warning("Unknown ticker requested: %s", symbol)
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
+    except (RuntimeError, requests.RequestException) as exc:
         logger.exception("SEC facts fetch failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
