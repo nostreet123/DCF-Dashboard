@@ -35,5 +35,5 @@ Run from this skill directory (`.agents/skills/skills-migrate-and-verify/`):
 
 ## Notes
 
-- Prefer to print suggested `ln -sfn ...` commands rather than executing changes automatically.
+- Prefer to print suggested backup + symlink commands rather than executing changes automatically.
 - Back up a non-symlink directory before replacing it with a symlink (especially if it contains custom skills).

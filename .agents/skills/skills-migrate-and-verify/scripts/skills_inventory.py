@@ -176,7 +176,9 @@ def main() -> int:
             (home / ".agent" / "skills", canonical),
         ]
         for dst, src in suggestions:
-            print(f"- ln -sfn {src} {dst}")
+            print(f"- if [ -d \"{dst}\" ] && [ ! -L \"{dst}\" ]; then mv \"{dst}\" \"{dst}.bak.$(date +%s)\"; fi")
+            print(f"  mkdir -p \"{dst.parent}\"")
+            print(f"  ln -sfn \"{src}\" \"{dst}\"")
 
     return 0
 
