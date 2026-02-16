@@ -62,7 +62,10 @@ def redact_text(text: str) -> str:
     patterns: list[tuple[re.Pattern[str], str]] = [
         # Common env var assignments.
         (
-            re.compile(r"(\b[A-Z0-9_]*(?:TOKEN|API_KEY|KEY)\b\s*[:=]\s*)([^\s\"}]+)"),
+            re.compile(
+                r"(\b[A-Z0-9_]*(?:TOKEN|API_KEY|KEY)\b\s*[:=]\s*)"
+                r"(?:\"[^\"]*\"|'[^']*'|[^\s\"'}]+)"
+            ),
             r"\1<REDACTED>",
         ),
         # JSON-ish syncToken.
