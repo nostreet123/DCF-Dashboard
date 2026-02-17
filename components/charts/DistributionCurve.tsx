@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { formatCurrency } from '@/lib/utils/formatters';
 
 interface DistributionCurveProps {
@@ -41,6 +41,7 @@ export function DistributionCurve({
     const minVal = Math.min(...binCenters);
     const maxVal = Math.max(...binCenters);
     const maxDensity = Math.max(...density);
+    const safeMaxDensity = maxDensity > 0 ? maxDensity : 1;
     const valueRange = maxVal - minVal || 1;
 
     // Padding for the chart area
@@ -53,7 +54,7 @@ export function DistributionCurve({
     // Convert data points to SVG coordinates
     const points = binCenters.map((value, i) => {
       const x = paddingX + ((value - minVal) / valueRange) * chartWidth;
-      const y = paddingTop + chartHeight - (density[i] / maxDensity) * chartHeight;
+      const y = paddingTop + chartHeight - (density[i] / safeMaxDensity) * chartHeight;
       return { x, y };
     });
 
@@ -84,10 +85,7 @@ export function DistributionCurve({
     return { areaPath: path, currentX: currX, minValue: minVal, maxValue: maxVal };
   }, [binCenters, density, width, height, currentValue]);
 
-  const gradientId = useMemo(
-    () => `dist-gradient-${Math.random().toString(36).slice(2, 9)}`,
-    []
-  );
+  const gradientId = `dist-gradient-${useId().replace(/:/g, '')}`;
 
   if (!binCenters?.length || !density?.length) {
     return null;

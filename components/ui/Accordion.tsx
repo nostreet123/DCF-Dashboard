@@ -28,6 +28,7 @@ export function AccordionItem({
   return (
     <div className={styles.item}>
       <button
+        type="button"
         className={styles.trigger}
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}

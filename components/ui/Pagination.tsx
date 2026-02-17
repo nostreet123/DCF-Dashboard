@@ -29,6 +29,7 @@ export function Pagination({
   return (
     <nav className={`${styles.container} ${className || ''}`} aria-label="Pagination">
       <button
+        type="button"
         className={styles.button}
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
@@ -54,6 +55,7 @@ export function Pagination({
             </span>
           ) : (
             <button
+              type="button"
               key={page}
               className={`${styles.page} ${page === currentPage ? styles.active : ''}`}
               onClick={() => onPageChange(page as number)}
@@ -66,6 +68,7 @@ export function Pagination({
       </div>
 
       <button
+        type="button"
         className={styles.button}
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
