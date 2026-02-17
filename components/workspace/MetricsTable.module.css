@@ -1,0 +1,153 @@
+.container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.tableWrapper {
+  position: relative;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-tertiary) transparent;
+}
+
+.tableWrapper::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--surface) 88%, transparent)
+  );
+}
+
+.table {
+  min-width: 760px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: var(--spacing-md);
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.metricHeader {
+  text-align: left !important;
+  width: 180px;
+}
+
+.yearHeader {
+  font-family: var(--font-mono);
+}
+
+.trendHeader {
+  width: 80px;
+}
+
+.metricCell {
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.valueCell {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.numericCell {
+  font-variant-numeric: tabular-nums;
+}
+
+.trendCell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.stickyMetric {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  box-shadow: 12px 0 16px -18px rgba(0, 0, 0, 0.5);
+  isolation: isolate;
+}
+
+.table thead .stickyMetric {
+  z-index: 5;
+  background: var(--surface);
+}
+
+.table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.table tbody tr:hover .stickyMetric {
+  background: var(--surface-hover);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:last-child .metricCell {
+  border-bottom: none;
+}
+
+.pagination {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-lg);
+  }
+
+  .table {
+    min-width: 700px;
+  }
+
+  .tableWrapper::after {
+    width: 22px;
+  }
+
+  .metricHeader,
+  .metricCell {
+    width: 160px;
+  }
+}

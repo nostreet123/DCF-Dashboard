@@ -5,8 +5,26 @@
 - **Type**: Simple hybrid project (Python 3.12+ backend, Convex TypeScript database)
 - **Package managers**: Bun (JavaScript), pip (Python)
 - **Database**: Convex serverless
-- **Testing**: pytest (Python only)
+- **Testing**: pytest (Python), Bun tests in `convex_tests/`
 - Sub-modules have their own AGENTS.md files for detailed guidance.
+
+## Assistant Collaboration Log
+
+- **Log file**: `ASSISTANT_LOG.md` at repo root
+- **Purpose**: Track assistant mistakes and your preferences
+- **Update cadence**: After each meaningful task
+- **Retention**: Append entries; do not remove history unless explicitly asked
+
+## ExecPlans / Specs
+
+- Living execution plans and design specs live under `./.agent/` (see `./.agent/PLANS.md`).
+- When creating an ExecPlan, follow `./.agent/PLANS.md` conventions so it is runnable by a novice with only the repo checkout and the plan.
+
+## Skills (Codex)
+
+- Canonical skills live in-repo under `./.agents/skills`.
+- If skills are not showing in a CLI/TUI, run:
+  - `python3 .agents/skills/skills-migrate-and-verify/scripts/skills_inventory.py --list-skills --max-list 30`
 
 ## Quick Setup
 
@@ -16,11 +34,12 @@ bun install                           # Convex TypeScript
 pip install -e ./python[dev]          # Python packages
 
 # Development
- bunx convex dev                       # Local Convex
- cd python && python -m damodaran_sync.cli sync-current  # Run sync
+bunx convex dev                       # Local Convex
+cd python && python -m damodaran_sync.cli sync-current  # Run sync
 
 # Build & Test
 bunx convex deploy                    # Deploy Convex
+bun test convex_tests                 # Run Bun unit tests
 cd python && pytest                   # Run all tests
 ```
 
@@ -89,6 +108,7 @@ rg "def test_" python/tests/test_<module>.py
 ## Security & Secrets
 
 - **Never commit**: `.env`, tokens, credentials
+- **Never paste secrets into chat logs**: CLI history may be stored on disk (e.g. `/root/.codex/history.jsonl` in this environment)
 - **Environment variables**:
   - `CONVEX_URL` - Convex deployment URL
   - `DAMODARAN_SYNC_TOKEN` - Authentication for mutations
@@ -99,6 +119,7 @@ rg "def test_" python/tests/test_<module>.py
 
 ```bash
 # Run from repo root
+bun test convex_tests                 # Bun unit tests pass
 cd python && pytest && cd ..      # All tests pass
 bunx convex typecheck             # Convex types valid
 ```
@@ -107,3 +128,11 @@ bunx convex typecheck             # Convex types valid
 - No `print()` statements in library code
 - Type hints on all new functions
 - Commit message follows conventional format
+
+## Assistant Workflow Preferences
+
+- Prefer a concrete fix plan before implementing non-trivial changes, then execute fully once approved.
+- Use subagents for substantial tasks and run a brief plan-review subagent pass before starting implementation.
+- If a session is interrupted, continue from the next unfinished step rather than restarting exploration.
+- Prefer parsimonious solutions (simple, effective) and avoid correctness-reducing "skip" optimizations unless explicitly approved.
+- Prefer headful browser flows for UI validation when practical (e.g. Playwright in non-headless mode).

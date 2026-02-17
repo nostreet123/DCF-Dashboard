@@ -1,0 +1,34 @@
+.container {
+  display: inline-flex;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2px;
+}
+
+.segment {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.segment:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+.segment.active {
+  background: var(--accent-gold);
+  color: #0a0a0b;
+}
+
+@media (max-width: 620px) {
+  .segment {
+    padding: 7px 9px;
+    font-size: 0.82rem;
+  }
+}

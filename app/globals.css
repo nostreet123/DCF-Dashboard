@@ -1,0 +1,349 @@
+/* ==========================================================================
+   DCF Dashboard - Global Styles
+   Theme-aware CSS custom properties for dark/light modes
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties - Dark Theme (Default)
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Base colors */
+  --bg-base: #0a0a0b;
+  --bg-canvas: #070708;
+  --surface: rgba(24, 22, 20, 0.9);
+  --surface-raised: rgba(22, 20, 18, 0.94);
+  --surface-elevated: rgba(12, 11, 11, 0.9);
+  --surface-hover: rgba(42, 39, 36, 0.92);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Text colors */
+  --text-primary: #ebe7e0;
+  --text-secondary: #b5aca3;
+  --text-tertiary: #80776f;
+
+  /* Accent colors */
+  --accent-gold: #d4a853;
+  --accent-teal: #4ecdc4;
+  --accent-coral: #c75d5d;
+
+  /* Heatmap gradient */
+  --heatmap-low: #8b4a52;
+  --heatmap-mid: #d4a853;
+  --heatmap-high: #7a9b76;
+
+  /* Chart colors */
+  --chart-line: #4ecdc4;
+  --chart-area: rgba(78, 205, 196, 0.2);
+  --chart-grid: rgba(255, 255, 255, 0.05);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 26px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 62px rgba(0, 0, 0, 0.6);
+
+  /* Layout */
+  --topbar-height: 56px;
+  --left-rail-width: 240px;
+  --right-panel-width: 300px;
+
+  /* Typography */
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Courier New', monospace;
+}
+
+/* --------------------------------------------------------------------------
+   Light Theme Overrides
+   -------------------------------------------------------------------------- */
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Base colors */
+  --bg-base: #ece9e2;
+  --bg-canvas: #e6e1d8;
+  --surface: #faf8f3;
+  --surface-raised: #ffffff;
+  --surface-elevated: #f2eee5;
+  --surface-hover: #f4f0e8;
+  --border: rgba(36, 29, 20, 0.14);
+  --border-strong: rgba(36, 29, 20, 0.24);
+
+  /* Text colors */
+  --text-primary: #201a13;
+  --text-secondary: #4f4538;
+  --text-tertiary: #75695b;
+
+  /* Accent colors */
+  --accent-gold: #8b7355;
+  --accent-teal: #2a9d8f;
+  --accent-coral: #b5636a;
+
+  /* Heatmap gradient */
+  --heatmap-low: #be6d79;
+  --heatmap-mid: #d3a95e;
+  --heatmap-high: #7ea076;
+
+  /* Chart colors */
+  --chart-line: #1f8f83;
+  --chart-area: rgba(31, 143, 131, 0.17);
+  --chart-grid: rgba(0, 0, 0, 0.09);
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(35, 28, 20, 0.08);
+  --shadow-md: 0 10px 24px rgba(35, 28, 20, 0.12);
+  --shadow-lg: 0 22px 52px rgba(35, 28, 20, 0.18);
+}
+
+/* --------------------------------------------------------------------------
+   Base Styles
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-sans);
+  background: radial-gradient(circle at 20% -10%, rgba(78, 205, 196, 0.07), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(212, 168, 83, 0.09), transparent 38%),
+    var(--bg-canvas);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.26;
+  background-image: linear-gradient(transparent 95%, rgba(255, 255, 255, 0.03) 100%);
+  background-size: 100% 4px;
+  z-index: -1;
+}
+
+/* --------------------------------------------------------------------------
+   Typography
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* Monospace for numbers */
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Hero value styling */
+.hero-value {
+  font-family: var(--font-mono);
+  font-size: 3.5rem;
+  font-weight: 500;
+  color: var(--accent-gold);
+  letter-spacing: -0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Layout Utilities
+   -------------------------------------------------------------------------- */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: var(--left-rail-width) 1fr var(--right-panel-width);
+  grid-template-rows: var(--topbar-height) 1fr;
+  min-height: 100vh;
+  gap: 0;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.left-rail {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.workspace {
+  grid-column: 2;
+  grid-row: 2;
+  overflow-y: auto;
+}
+
+.right-panel {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* --------------------------------------------------------------------------
+   Surface Styles
+   -------------------------------------------------------------------------- */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.surface-glass {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* --------------------------------------------------------------------------
+   Interactive Elements
+   -------------------------------------------------------------------------- */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-teal);
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar Styling
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-height) 1fr;
+  }
+
+  .left-rail,
+  .right-panel {
+    display: none;
+  }
+
+  .workspace {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --topbar-height: 48px;
+  }
+
+  .hero-value {
+    font-size: 2.5rem;
+  }
+}
