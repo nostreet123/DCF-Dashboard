@@ -9,12 +9,18 @@ import {
   DuplicateGroupInsertBatch,
   DuplicateScanKey,
   DuplicateScanSampleAssets,
-  DuplicateScanSampleLimit,
   DuplicateScanSampleSnapshots,
   DuplicateSnapshotCarry,
   makeDuplicateScanRunId,
   normalizePageLimit,
 } from "./shared";
+import {
+  DuplicateScanStatePatchValidator,
+  buildAssetPhasePatch,
+  buildSnapshotPhasePatch,
+  shouldScheduleNextChunk,
+} from "./duplicateScan.logic";
+import { groupAssetDuplicatesPage, groupSnapshotDuplicatesPage } from "./duplicateScan.page";
 
 export const findDuplicateSnapshotsPage = query({
   args: {
@@ -87,72 +93,23 @@ const findDuplicateSnapshotsPageInternalImpl = async (
       cursor: args.cursor ?? null,
       numItems: limit,
     });
-
-  const duplicates: Array<{
-    datasetKey: string;
-    regionCode: string;
-    asOfDate: string;
-    count: number;
-    ids: Array<Id<"snapshots">>;
-  }> = [];
-
-  let current =
-    args.carry && args.carry.ids.length > 0
+  const grouped = groupSnapshotDuplicatesPage(
+    result.page,
+    args.carry
       ? {
           datasetKey: args.carry.datasetKey,
           regionCode: args.carry.regionCode,
           asOfDate: args.carry.asOfDate,
-          ids: [...args.carry.ids],
+          ids: args.carry.ids,
         }
-      : null;
-
-  const pushCurrentIfDuplicate = () => {
-    if (current && current.ids.length > 1) {
-      duplicates.push({
-        datasetKey: current.datasetKey,
-        regionCode: current.regionCode,
-        asOfDate: current.asOfDate,
-        count: current.ids.length,
-        ids: current.ids,
-      });
-    }
-  };
-
-  for (const snapshot of result.page) {
-    if (!current) {
-      current = {
-        datasetKey: snapshot.datasetKey,
-        regionCode: snapshot.regionCode,
-        asOfDate: snapshot.asOfDate,
-        ids: [snapshot._id],
-      };
-      continue;
-    }
-    const sameIdentity =
-      snapshot.datasetKey === current.datasetKey &&
-      snapshot.regionCode === current.regionCode &&
-      snapshot.asOfDate === current.asOfDate;
-    if (sameIdentity) {
-      current.ids.push(snapshot._id);
-      continue;
-    }
-    pushCurrentIfDuplicate();
-    current = {
-      datasetKey: snapshot.datasetKey,
-      regionCode: snapshot.regionCode,
-      asOfDate: snapshot.asOfDate,
-      ids: [snapshot._id],
-    };
-  }
-
-  if (!result.continueCursor) {
-    pushCurrentIfDuplicate();
-  }
+      : null,
+    Boolean(result.continueCursor),
+  );
 
   return {
-    duplicates,
+    duplicates: grouped.duplicates,
     nextCursor: result.continueCursor ?? null,
-    carry: result.continueCursor ? (current ? current : null) : null,
+    carry: grouped.carry,
   };
 };
 
@@ -172,48 +129,16 @@ const findDuplicateAssetsPageInternalImpl = async (
       cursor: args.cursor ?? null,
       numItems: limit,
     });
-
-  const duplicates: Array<{
-    assetKey: string;
-    count: number;
-    ids: Array<Id<"assets">>;
-  }> = [];
-
-  let current =
-    args.carry && args.carry.ids.length > 0
-      ? { assetKey: args.carry.assetKey, ids: [...args.carry.ids] }
-      : null;
-
-  const pushCurrentIfDuplicate = () => {
-    if (current && current.ids.length > 1) {
-      duplicates.push({
-        assetKey: current.assetKey,
-        count: current.ids.length,
-        ids: current.ids,
-      });
-    }
-  };
-
-  for (const asset of result.page) {
-    if (!asset.assetKey) {
-      continue;
-    }
-    if (current && asset.assetKey === current.assetKey) {
-      current.ids.push(asset._id);
-      continue;
-    }
-    pushCurrentIfDuplicate();
-    current = { assetKey: asset.assetKey, ids: [asset._id] };
-  }
-
-  if (!result.continueCursor) {
-    pushCurrentIfDuplicate();
-  }
+  const grouped = groupAssetDuplicatesPage(
+    result.page,
+    args.carry ? { assetKey: args.carry.assetKey, ids: args.carry.ids } : null,
+    Boolean(result.continueCursor),
+  );
 
   return {
-    duplicates,
+    duplicates: grouped.duplicates,
     nextCursor: result.continueCursor ?? null,
-    carry: result.continueCursor ? (current ? current : null) : null,
+    carry: grouped.carry,
   };
 };
 
@@ -674,7 +599,7 @@ export const getDuplicateScanStateInternal = internalQuery({
 export const updateDuplicateScanStateInternal = internalMutation({
   args: {
     stateId: v.id("duplicateScanState"),
-    patch: v.any(),
+    patch: DuplicateScanStatePatchValidator,
 
     // Optional: if provided and the state has a runId, only patch when it matches.
     runId: v.optional(v.string()),
@@ -944,25 +869,12 @@ export const runDuplicateScanChunk = internalAction({
             });
           }
         }
-
-        const snapshotSample = (state.snapshotSample ?? []).slice();
-        for (const dup of res.duplicates) {
-          if (snapshotSample.length >= DuplicateScanSampleLimit) break;
-          snapshotSample.push(dup);
-        }
-
-        const nextCursor = res.nextCursor ?? null;
-        const patch: Record<string, unknown> = {
-          snapshotCursor: nextCursor ?? undefined,
-          snapshotCarry: res.carry ?? undefined,
-          snapshotPagesScanned: state.snapshotPagesScanned + 1,
-          snapshotDuplicateGroups: state.snapshotDuplicateGroups + res.duplicates.length,
-          snapshotSample,
-        };
-
-        if (!nextCursor) {
-          patch.phase = "assets";
-        }
+        const patch = buildSnapshotPhasePatch({
+          state,
+          nextCursor: res.nextCursor ?? null,
+          carry: res.carry ?? null,
+          duplicates: res.duplicates,
+        });
 
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
@@ -992,26 +904,13 @@ export const runDuplicateScanChunk = internalAction({
             });
           }
         }
-
-        const assetSample = (state.assetSample ?? []).slice();
-        for (const dup of res.duplicates) {
-          if (assetSample.length >= DuplicateScanSampleLimit) break;
-          assetSample.push(dup);
-        }
-
-        const nextCursor = res.nextCursor ?? null;
-        const patch: Record<string, unknown> = {
-          assetCursor: nextCursor ?? undefined,
-          assetCarry: res.carry ?? undefined,
-          assetPagesScanned: state.assetPagesScanned + 1,
-          assetDuplicateGroups: state.assetDuplicateGroups + res.duplicates.length,
-          assetSample,
-        };
-
-        if (!nextCursor) {
-          patch.status = "complete";
-          patch.finishedAt = now;
-        }
+        const patch = buildAssetPhasePatch({
+          state,
+          nextCursor: res.nextCursor ?? null,
+          carry: res.carry ?? null,
+          duplicates: res.duplicates,
+          now,
+        });
 
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
@@ -1023,7 +922,7 @@ export const runDuplicateScanChunk = internalAction({
       const refreshed = await ctx.runQuery(internal.maintenance.getDuplicateScanStateInternal, {
         stateId: state._id,
       });
-      if (refreshed && refreshed.status === "running") {
+      if (refreshed && shouldScheduleNextChunk(refreshed.status)) {
         await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
           stateId: state._id,
           runId: effectiveRunId,
@@ -1051,6 +950,27 @@ export const runDuplicateScanChunk = internalAction({
     }
   },
 });
+
+const scheduleDuplicateScanChunkForRunningState = async (ctx: {
+  db: any;
+  scheduler: { runAfter: (delay: number, fn: any, args: Record<string, unknown>) => Promise<unknown> };
+}) => {
+  const state = await ctx.db
+    .query("duplicateScanState")
+    .withIndex("by_key", (q: any) => q.eq("key", DuplicateScanKey))
+    .unique();
+  if (!state) {
+    return null;
+  }
+  if (state.status !== "running") {
+    return state;
+  }
+  await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
+    stateId: state._id,
+    runId: state.runId,
+  });
+  return await ctx.db.get(state._id);
+};
 
 export const runDuplicateScanOnce = mutation({
   args: { syncToken: v.optional(v.string()) },
@@ -1084,21 +1004,7 @@ export const runDuplicateScanOnce = mutation({
   ),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const state = await ctx.db
-      .query("duplicateScanState")
-      .withIndex("by_key", (q) => q.eq("key", DuplicateScanKey))
-      .unique();
-    if (!state) {
-      return null;
-    }
-    if (state.status !== "running") {
-      return state;
-    }
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
-      stateId: state._id,
-      runId: state.runId,
-    });
-    return await ctx.db.get(state._id);
+    return await scheduleDuplicateScanChunkForRunningState(ctx);
   },
 });
 
@@ -1134,21 +1040,6 @@ export const runDuplicateScanTick = mutation({
   ),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const state = await ctx.db
-      .query("duplicateScanState")
-      .withIndex("by_key", (q) => q.eq("key", DuplicateScanKey))
-      .unique();
-    if (!state) {
-      return null;
-    }
-    if (state.status !== "running") {
-      return state;
-    }
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateScanChunk, {
-      stateId: state._id,
-      runId: state.runId,
-    });
-    return await ctx.db.get(state._id);
+    return await scheduleDuplicateScanChunkForRunningState(ctx);
   },
 });
-

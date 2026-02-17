@@ -1,0 +1,235 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--topbar-height);
+  padding: 0 var(--spacing-xl);
+  gap: var(--spacing-md);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.logoText {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.tickerPill {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.tickerSymbol {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
+.tickerPrice {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+}
+
+.center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 460px;
+  min-width: 180px;
+  margin: 0 var(--spacing-xl);
+}
+
+.searchForm {
+  position: relative;
+  width: 100%;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-xl);
+  padding-left: 40px;
+  padding-right: 48px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.searchInput::placeholder {
+  color: var(--text-tertiary);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 25%, transparent);
+}
+
+.searchKbd {
+  position: absolute;
+  right: var(--spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  background: var(--surface-elevated);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.mobileIconBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.mobileIconBtn:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.modeToggle {
+  max-width: 100%;
+}
+
+.themeToggle {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.libraryTrigger,
+.assumptionsTrigger,
+.searchTrigger {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: 0 var(--spacing-md);
+    gap: var(--spacing-xs);
+  }
+
+  .center {
+    display: none;
+  }
+
+  .libraryTrigger,
+  .searchTrigger,
+  .assumptionsTrigger {
+    display: inline-flex;
+  }
+
+  .logo {
+    gap: var(--spacing-xs);
+  }
+
+  .logoText {
+    display: none;
+  }
+
+  .left {
+    gap: var(--spacing-xs);
+  }
+
+  .right {
+    gap: 6px;
+  }
+
+  .tickerPill {
+    padding: 7px 10px;
+    gap: 6px;
+  }
+
+  .tickerPrice {
+    font-size: 0.8rem;
+  }
+
+  .modeToggle {
+    transform: scale(0.92);
+    transform-origin: center;
+  }
+}
+
+@media (max-width: 1180px) {
+  .assumptionsTrigger {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 720px) {
+  .tickerPill :global(svg) {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .tickerPrice {
+    display: none;
+  }
+
+  .modeToggle {
+    transform: scale(0.84);
+  }
+}
+
+@media (max-width: 480px) {
+  .tickerPill {
+    padding: 6px 9px;
+  }
+
+  .tickerSymbol {
+    font-size: 0.8rem;
+  }
+}

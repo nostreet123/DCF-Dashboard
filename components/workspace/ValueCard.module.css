@@ -1,0 +1,121 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-sm);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.label {
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+}
+
+.scenarioLabel {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accent-gold);
+  background: rgba(212, 168, 83, 0.1);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.valueContainer {
+  margin-bottom: var(--spacing-lg);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  font-weight: 500;
+  color: var(--accent-gold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.rangeValue {
+  font-family: var(--font-mono);
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+}
+
+.rangeSeparator {
+  color: var(--text-tertiary);
+}
+
+.chart {
+  margin: var(--spacing-lg) 0;
+  display: flex;
+  justify-content: center;
+}
+
+.chips {
+  margin-top: var(--spacing-lg);
+  justify-content: center;
+}
+
+.valueAnimated {
+  display: inline-block;
+  animation: valueFadeUp 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rangeAnimated {
+  animation: fadeInSoft 300ms ease;
+}
+
+@keyframes valueFadeUp {
+  from {
+    opacity: 0.6;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInSoft {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .value {
+    font-size: 2.5rem;
+  }
+
+  .chart {
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .valueAnimated,
+  .rangeAnimated {
+    animation: none;
+  }
+}

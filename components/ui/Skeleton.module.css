@@ -1,0 +1,44 @@
+.skeleton {
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--surface-hover) 88%, transparent) 8%,
+    color-mix(in srgb, var(--surface-elevated) 78%, transparent) 18%,
+    color-mix(in srgb, var(--surface-hover) 88%, transparent) 33%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.rectangular {
+  border-radius: var(--radius-md);
+}
+
+.text {
+  border-radius: var(--radius-sm);
+}
+
+.circular {
+  border-radius: 50%;
+}
+
+.textContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+@keyframes shimmer {
+  from {
+    background-position-x: 180%;
+  }
+
+  to {
+    background-position-x: -40%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

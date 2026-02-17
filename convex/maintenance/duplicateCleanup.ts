@@ -12,6 +12,20 @@ import {
   pickAssetKeepId,
   pickSnapshotKeepId,
 } from "./shared";
+import {
+  buildAssetDryRunGroupPatch,
+  buildCleanupCompletePatch,
+  buildSnapshotDryRunGroupPatch,
+  buildSnapshotPhaseTransitionPatch,
+  DuplicateCleanupStatePatch,
+  DuplicateCleanupStatePatchValidator,
+  isCleanupLockAvailable,
+  shouldScheduleCleanupChunk,
+} from "./duplicateCleanup.logic";
+
+// @ts-expect-error TS2589: internal API reference triggers deep instantiation.
+const runDuplicateCleanupChunkAny: any = (internal as any).maintenance
+  .runDuplicateCleanupChunk;
 
 export const getDuplicateCleanupState = query({
   args: { syncToken: v.optional(v.string()) },
@@ -163,7 +177,7 @@ export const startDuplicateCleanup = mutation({
       ? (await ctx.db.patch(existing._id, payload), existing._id)
       : await ctx.db.insert("duplicateCleanupState", payload);
 
-    await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateCleanupChunk, {
+    await ctx.scheduler.runAfter(0, runDuplicateCleanupChunkAny, {
       stateId,
     });
 
@@ -232,7 +246,7 @@ export const getDuplicateCleanupStateInternal = internalQuery({
 export const updateDuplicateCleanupStateInternal = internalMutation({
   args: {
     stateId: v.id("duplicateCleanupState"),
-    patch: v.any(),
+    patch: DuplicateCleanupStatePatchValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -250,7 +264,7 @@ export const tryAcquireDuplicateCleanupLockInternal = internalMutation({
       return false;
     }
     const now = Date.now();
-    if (state.inFlightUntil && state.inFlightUntil > now) {
+    if (!isCleanupLockAvailable(state.inFlightUntil, now)) {
       return false;
     }
     await ctx.db.patch(state._id, {
@@ -362,13 +376,19 @@ export const runDuplicateCleanupChunk = internalAction({
 
       const deleteLimit = normalizePageLimit(state.pageLimit, DuplicateCleanupDeleteLimit);
       const now = Date.now();
+      const patchState = async (patch: DuplicateCleanupStatePatch) => {
+        await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
+          stateId: state._id,
+          patch,
+        });
+      };
       const scheduleNextIfRunning = async () => {
         const refreshed = await ctx.runQuery(
           internal.maintenance.getDuplicateCleanupStateInternal,
           { stateId: state._id },
         );
-        if (refreshed && refreshed.status === "running") {
-          await ctx.scheduler.runAfter(0, internal.maintenance.runDuplicateCleanupChunk, {
+        if (refreshed && shouldScheduleCleanupChunk(refreshed.status)) {
+          await ctx.scheduler.runAfter(0, runDuplicateCleanupChunkAny, {
             stateId: state._id,
           });
         }
@@ -386,12 +406,9 @@ export const runDuplicateCleanupChunk = internalAction({
               },
             );
             if (res.nextCursor) {
-              await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-                stateId: state._id,
-                patch: {
-                  snapshotDeleteCursor: res.nextCursor,
-                  tableRowsDeleted: state.tableRowsDeleted + res.deleted,
-                },
+              await patchState({
+                snapshotDeleteCursor: res.nextCursor,
+                tableRowsDeleted: state.tableRowsDeleted + res.deleted,
               });
               await scheduleNextIfRunning();
               return null;
@@ -399,11 +416,8 @@ export const runDuplicateCleanupChunk = internalAction({
             await ctx.runMutation(internal.maintenance.deleteSnapshotByIdInternal, {
               snapshotId: state.currentSnapshotId,
             });
-            await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-              stateId: state._id,
-              patch: {
-                tableRowsDeleted: state.tableRowsDeleted + res.deleted,
-              },
+            await patchState({
+              tableRowsDeleted: state.tableRowsDeleted + res.deleted,
             });
           }
 
@@ -411,14 +425,11 @@ export const runDuplicateCleanupChunk = internalAction({
           const nextId = remaining[0];
           const rest = remaining.slice(1);
           if (nextId) {
-            await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-              stateId: state._id,
-              patch: {
-                currentSnapshotId: nextId,
-                snapshotDeleteIds: rest.length > 0 ? rest : undefined,
-                snapshotDeleteCursor: undefined,
-                snapshotsDeleted: state.snapshotsDeleted + 1,
-              },
+            await patchState({
+              currentSnapshotId: nextId,
+              snapshotDeleteIds: rest.length > 0 ? rest : undefined,
+              snapshotDeleteCursor: undefined,
+              snapshotsDeleted: state.snapshotsDeleted + 1,
             });
             await scheduleNextIfRunning();
             return null;
@@ -430,16 +441,13 @@ export const runDuplicateCleanupChunk = internalAction({
             });
           }
 
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              currentSnapshotId: undefined,
-              snapshotDeleteIds: undefined,
-              snapshotDeleteCursor: undefined,
-              currentSnapshotGroupId: undefined,
-              snapshotsDeleted: state.snapshotsDeleted + 1,
-              snapshotGroupsProcessed: state.snapshotGroupsProcessed + 1,
-            },
+          await patchState({
+            currentSnapshotId: undefined,
+            snapshotDeleteIds: undefined,
+            snapshotDeleteCursor: undefined,
+            currentSnapshotGroupId: undefined,
+            snapshotsDeleted: state.snapshotsDeleted + 1,
+            snapshotGroupsProcessed: state.snapshotGroupsProcessed + 1,
           });
           await scheduleNextIfRunning();
           return null;
@@ -447,13 +455,10 @@ export const runDuplicateCleanupChunk = internalAction({
 
         if (state.snapshotDeleteIds && state.snapshotDeleteIds.length > 0) {
           const [nextId, ...rest] = state.snapshotDeleteIds;
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              currentSnapshotId: nextId,
-              snapshotDeleteIds: rest.length > 0 ? rest : undefined,
-              snapshotDeleteCursor: undefined,
-            },
+          await patchState({
+            currentSnapshotId: nextId,
+            snapshotDeleteIds: rest.length > 0 ? rest : undefined,
+            snapshotDeleteCursor: undefined,
           });
           await scheduleNextIfRunning();
           return null;
@@ -469,14 +474,7 @@ export const runDuplicateCleanupChunk = internalAction({
         );
 
         if (page.groups.length === 0) {
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              phase: "assets",
-              groupCursor: undefined,
-              currentSnapshotGroupId: undefined,
-            },
-          });
+          await patchState(buildSnapshotPhaseTransitionPatch());
           await scheduleNextIfRunning();
           return null;
         }
@@ -498,40 +496,33 @@ export const runDuplicateCleanupChunk = internalAction({
               groupId: group._id,
             });
           }
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              groupCursor: page.nextCursor ?? undefined,
-              snapshotGroupsProcessed: state.snapshotGroupsProcessed + 1,
-            },
+          await patchState({
+            groupCursor: page.nextCursor ?? undefined,
+            snapshotGroupsProcessed: state.snapshotGroupsProcessed + 1,
           });
           await scheduleNextIfRunning();
           return null;
         }
 
         if (state.dryRun) {
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              groupCursor: page.nextCursor ?? undefined,
-              snapshotGroupsProcessed: state.snapshotGroupsProcessed + 1,
-              snapshotsDeleted: state.snapshotsDeleted + deleteIds.length,
-            },
-          });
+          await patchState(
+            buildSnapshotDryRunGroupPatch({
+              state,
+              nextCursor: page.nextCursor,
+              deleteCount: deleteIds.length,
+            }),
+          );
           await scheduleNextIfRunning();
           return null;
         }
 
         const [firstId, ...rest] = deleteIds;
-        await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-          stateId: state._id,
-          patch: {
-            groupCursor: page.nextCursor ?? undefined,
-            currentSnapshotGroupId: group._id,
-            currentSnapshotId: firstId,
-            snapshotDeleteIds: rest.length > 0 ? rest : undefined,
-            snapshotDeleteCursor: undefined,
-          },
+        await patchState({
+          groupCursor: page.nextCursor ?? undefined,
+          currentSnapshotGroupId: group._id,
+          currentSnapshotId: firstId,
+          snapshotDeleteIds: rest.length > 0 ? rest : undefined,
+          snapshotDeleteCursor: undefined,
         });
         await scheduleNextIfRunning();
         return null;
@@ -551,12 +542,9 @@ export const runDuplicateCleanupChunk = internalAction({
           }
           const deletedNow = endIndex - startIndex;
           if (endIndex < state.assetDeleteIds.length) {
-            await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-              stateId: state._id,
-              patch: {
-                assetDeleteIndex: endIndex,
-                assetsDeleted: state.assetsDeleted + deletedNow,
-              },
+            await patchState({
+              assetDeleteIndex: endIndex,
+              assetsDeleted: state.assetsDeleted + deletedNow,
             });
             await scheduleNextIfRunning();
             return null;
@@ -564,15 +552,12 @@ export const runDuplicateCleanupChunk = internalAction({
           await ctx.runMutation(internal.maintenance.deleteAssetGroupByIdInternal, {
             groupId: state.currentAssetGroupId,
           });
-          await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-            stateId: state._id,
-            patch: {
-              currentAssetGroupId: undefined,
-              assetDeleteIds: undefined,
-              assetDeleteIndex: undefined,
-              assetGroupsProcessed: state.assetGroupsProcessed + 1,
-              assetsDeleted: state.assetsDeleted + deletedNow,
-            },
+          await patchState({
+            currentAssetGroupId: undefined,
+            assetDeleteIds: undefined,
+            assetDeleteIndex: undefined,
+            assetGroupsProcessed: state.assetGroupsProcessed + 1,
+            assetsDeleted: state.assetsDeleted + deletedNow,
           });
           await scheduleNextIfRunning();
           return null;
@@ -589,13 +574,7 @@ export const runDuplicateCleanupChunk = internalAction({
       );
 
       if (assetPage.groups.length === 0) {
-        await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-          stateId: state._id,
-          patch: {
-            status: "complete",
-            finishedAt: now,
-          },
-        });
+        await patchState(buildCleanupCompletePatch(now));
         await scheduleNextIfRunning();
         return null;
       }
@@ -619,38 +598,31 @@ export const runDuplicateCleanupChunk = internalAction({
             groupId: assetGroup._id,
           });
         }
-        await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-          stateId: state._id,
-          patch: {
-            groupCursor: assetPage.nextCursor ?? undefined,
-            assetGroupsProcessed: state.assetGroupsProcessed + 1,
-          },
+        await patchState({
+          groupCursor: assetPage.nextCursor ?? undefined,
+          assetGroupsProcessed: state.assetGroupsProcessed + 1,
         });
         await scheduleNextIfRunning();
         return null;
       }
 
       if (state.dryRun) {
-        await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-          stateId: state._id,
-          patch: {
-            groupCursor: assetPage.nextCursor ?? undefined,
-            assetGroupsProcessed: state.assetGroupsProcessed + 1,
-            assetsDeleted: state.assetsDeleted + assetDeleteIds.length,
-          },
-        });
+        await patchState(
+          buildAssetDryRunGroupPatch({
+            state,
+            nextCursor: assetPage.nextCursor,
+            deleteCount: assetDeleteIds.length,
+          }),
+        );
         await scheduleNextIfRunning();
         return null;
       }
 
-      await ctx.runMutation(internal.maintenance.updateDuplicateCleanupStateInternal, {
-        stateId: state._id,
-        patch: {
-          groupCursor: assetPage.nextCursor ?? undefined,
-          currentAssetGroupId: assetGroup._id,
-          assetDeleteIds,
-          assetDeleteIndex: 0,
-        },
+      await patchState({
+        groupCursor: assetPage.nextCursor ?? undefined,
+        currentAssetGroupId: assetGroup._id,
+        assetDeleteIds,
+        assetDeleteIndex: 0,
       });
 
       await scheduleNextIfRunning();
@@ -673,4 +645,3 @@ export const runDuplicateCleanupChunk = internalAction({
     }
   },
 });
-

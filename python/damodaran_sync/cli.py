@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 
 from damodaran_sync import discover, mapping_resolver, sync
 from damodaran_sync.convex_client import ConvexSyncClient
+from damodaran_sync.dataset_mappings import (
+    SEED_CATEGORIES,
+    SEED_DATASETS,
+    SEED_DATASET_MAPPINGS,
+    SEED_REGIONS,
+)
+from damodaran_sync.dataset_mappings_validation import validate_seed_integrity
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -78,6 +85,10 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=500,
         help="Pagination size for each backfill pass.",
+    )
+    subparsers.add_parser(
+        "validate-mappings",
+        help="Validate dataset/region/mapping seed integrity.",
     )
 
     return parser
@@ -321,6 +332,22 @@ def _cmd_backfill_primarykeynorm_all(limit: int) -> int:
     return 0
 
 
+def _cmd_validate_mappings() -> int:
+    errors = validate_seed_integrity(
+        categories=SEED_CATEGORIES,
+        regions=SEED_REGIONS,
+        datasets=SEED_DATASETS,
+        mappings=SEED_DATASET_MAPPINGS,
+    )
+    if errors:
+        print("Dataset mapping validation failed:")
+        for error in errors:
+            print(f"- {error}")
+        return 1
+    print("Dataset mapping validation passed.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = _build_parser()
@@ -340,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_backfill_primarykeynorm(args.snapshot_id, args.build_id)
     if args.command == "backfill-primarykeynorm-all":
         return _cmd_backfill_primarykeynorm_all(args.limit)
+    if args.command == "validate-mappings":
+        return _cmd_validate_mappings()
 
     parser.print_help()
     return 1

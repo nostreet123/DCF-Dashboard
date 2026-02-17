@@ -1,0 +1,20 @@
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.toggle:active {
+  transform: scale(0.95);
+}

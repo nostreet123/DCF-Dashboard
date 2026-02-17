@@ -1,0 +1,8 @@
+{
+  "active": true,
+  "max_iterations": 10,
+  "completion_promise": "COMPLETE_OK",
+  "iteration": 0,
+  "prompt_path": ".ralph-loop/prompt.txt",
+  "created_at": "2026-01-20T00:00:00Z"
+}

@@ -9,7 +9,17 @@
  */
 
 import type * as assets from "../assets.js";
+import type * as catalog from "../catalog.js";
+import type * as companies from "../companies.js";
+import type * as companyStatements from "../companyStatements.js";
+import type * as http from "../http.js";
+import type * as industries from "../industries.js";
 import type * as maintenance from "../maintenance.js";
+import type * as maintenance_backfill from "../maintenance/backfill.js";
+import type * as maintenance_duplicateCleanup from "../maintenance/duplicateCleanup.js";
+import type * as maintenance_duplicateScan from "../maintenance/duplicateScan.js";
+import type * as maintenance_pruning from "../maintenance/pruning.js";
+import type * as maintenance_shared from "../maintenance/shared.js";
 import type * as metrics from "../metrics.js";
 import type * as reference from "../reference.js";
 import type * as seed from "../seed.js";
@@ -29,7 +39,17 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
+  catalog: typeof catalog;
+  companies: typeof companies;
+  companyStatements: typeof companyStatements;
+  http: typeof http;
+  industries: typeof industries;
   maintenance: typeof maintenance;
+  "maintenance/backfill": typeof maintenance_backfill;
+  "maintenance/duplicateCleanup": typeof maintenance_duplicateCleanup;
+  "maintenance/duplicateScan": typeof maintenance_duplicateScan;
+  "maintenance/pruning": typeof maintenance_pruning;
+  "maintenance/shared": typeof maintenance_shared;
   metrics: typeof metrics;
   reference: typeof reference;
   seed: typeof seed;

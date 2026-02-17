@@ -2,6 +2,14 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
+import {
+  DEFAULT_REBUILD_LIMIT,
+  MAX_IDENTITY_BATCH,
+  MAX_REBUILD_LIMIT,
+  findSnapshotByIdentity,
+  isDuplicateIdentityError,
+  normalizeLimit,
+} from "./snapshots_helpers";
 
 const DataType = v.union(
   v.literal("industry"),
@@ -129,109 +137,6 @@ type SnapshotBatchResult = {
   primaryKeyNormComplete: boolean;
 };
 
-const isDuplicateIdentityError = (error: unknown) => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("unique") ||
-    message.includes("duplicate") ||
-    message.includes("already exists")
-  );
-};
-
-const MAX_IDENTITY_BATCH = 100;
-const DEFAULT_REBUILD_LIMIT = 200;
-const MAX_REBUILD_LIMIT = 2000;
-
-const normalizeLimit = (
-  requested: number | undefined,
-  defaultLimit: number,
-  maxLimit: number,
-) => {
-  if (requested === undefined) {
-    return defaultLimit;
-  }
-  const parsed = Number(requested);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: "Limit must be a positive integer",
-    });
-  }
-  return Math.min(parsed, maxLimit);
-};
-
-type SnapshotPick = {
-  _id: Id<"snapshots">;
-  activeBuildId?: string;
-  pendingBuildId?: string;
-  downloadedAt?: number;
-  parsedAt?: number;
-  _creationTime: number;
-};
-
-const pickBestSnapshot = (snapshots: SnapshotPick[]) => {
-  if (snapshots.length === 0) {
-    return null;
-  }
-  const score = (snapshot: SnapshotPick) => [
-    snapshot.activeBuildId ? 1 : 0,
-    snapshot.pendingBuildId ? 1 : 0,
-    snapshot.downloadedAt ?? 0,
-    snapshot.parsedAt ?? 0,
-    snapshot._creationTime,
-  ];
-  let best = snapshots[0];
-  let bestScore = score(best);
-  for (let i = 1; i < snapshots.length; i += 1) {
-    const candidate = snapshots[i];
-    const candidateScore = score(candidate);
-    for (let j = 0; j < candidateScore.length; j += 1) {
-      if (candidateScore[j] > bestScore[j]) {
-        best = candidate;
-        bestScore = candidateScore;
-        break;
-      }
-      if (candidateScore[j] < bestScore[j]) {
-        break;
-      }
-    }
-  }
-  return best;
-};
-
-const findSnapshotByIdentity = async (
-  ctx: { db: any },
-  datasetKey: string,
-  regionCode: string,
-  asOfDate: string,
-) => {
-  const matches = await ctx.db
-    .query("snapshots")
-    .withIndex("by_identity", (q: any) =>
-      q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
-    )
-    .take(3);
-  if (matches.length === 0) {
-    return null;
-  }
-  if (matches.length === 1) {
-    return matches[0];
-  }
-  if (matches.length === 2) {
-    return pickBestSnapshot(matches) ?? matches[0];
-  }
-  const allMatches = await ctx.db
-    .query("snapshots")
-    .withIndex("by_identity", (q: any) =>
-      q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
-    )
-    .collect();
-  return pickBestSnapshot(allMatches) ?? matches[0];
-};
-
 export const getByIdentity = query({
   args: {
     datasetKey: v.string(),
@@ -308,6 +213,61 @@ export const getByIdentityBatch = query({
       }
     }
     return results;
+  },
+});
+
+export const listByDatasetRegion = query({
+  args: {
+    datasetKey: v.string(),
+    regionCode: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    snapshots: v.array(
+      v.object({
+        _id: v.id("snapshots"),
+        asOfDate: v.string(),
+        asOfDateSource: AsOfDateSource,
+        asOfGranularity: AsOfGranularity,
+        dataStatus: DataStatus,
+        activeBuildId: v.optional(v.string()),
+        pendingBuildId: v.optional(v.string()),
+        fileName: v.string(),
+        downloadedAt: v.number(),
+        parsedAt: v.number(),
+      }),
+    ),
+    nextCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const limit = normalizeLimit(args.limit, 50, 200);
+    const result = await ctx.db
+      .query("snapshots")
+      .withIndex("by_identity", (q: any) =>
+        q.eq("datasetKey", args.datasetKey).eq("regionCode", args.regionCode),
+      )
+      .order("desc")
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: limit,
+      });
+
+    return {
+      snapshots: result.page.map((snapshot: any) => ({
+        _id: snapshot._id,
+        asOfDate: snapshot.asOfDate,
+        asOfDateSource: snapshot.asOfDateSource,
+        asOfGranularity: snapshot.asOfGranularity,
+        dataStatus: snapshot.dataStatus,
+        activeBuildId: snapshot.activeBuildId,
+        pendingBuildId: snapshot.pendingBuildId,
+        fileName: snapshot.fileName,
+        downloadedAt: snapshot.downloadedAt,
+        parsedAt: snapshot.parsedAt,
+      })),
+      nextCursor: result.continueCursor ?? null,
+    };
   },
 });
 
@@ -637,4 +597,3 @@ export const markPrimaryKeyNormComplete = mutation({
     return null;
   },
 });
-
