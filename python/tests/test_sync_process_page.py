@@ -233,3 +233,149 @@ def test_process_page_runs_upsert_insert_finalize_cleanup(monkeypatch) -> None:
     ]
     start = client.events.index("upsert_snapshot")
     assert client.events[start : start + len(expected_order)] == expected_order
+
+
+def test_process_page_additive_only_skips_existing_ready_snapshot(monkeypatch) -> None:
+    client = _FakeClient()
+    assets = [_make_asset()]
+    client.snapshot_batch_results = [
+        {
+            "datasetKey": "test_us_2024",
+            "regionCode": "unknown",
+            "asOfDate": "2024-01-01",
+            "activeBuildId": "build-1",
+            "dataStatus": "ready",
+        }
+    ]
+
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", "1")
+
+    discovery = discover.PageDiscovery(
+        page_url="https://example.com/page",
+        page_type="current",
+        page_last_updated="2024-01-01",
+        assets=assets,
+    )
+    monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
+
+    def _unexpected_download(*_args, **_kwargs):
+        raise AssertionError("download_file should not run for additive-only existing snapshots")
+
+    monkeypatch.setattr(sync.download, "download_file", _unexpected_download)
+
+    sync.process_page(
+        "https://example.com/page",
+        "current",
+        client,
+        additive_only=True,
+    )
+
+    assert "upsert_snapshot" not in client.events
+    assert "insert_rows" not in client.events
+    assert "finalize_snapshot" not in client.events
+    assert "delete_rows" not in client.events
+    assert client.finished_statuses[-1] == "success"
+    assert client.increments[-1]["assetsSkipped"] == 1
+
+
+def test_process_page_additive_only_processes_not_ready_snapshot(monkeypatch) -> None:
+    client = _FakeClient()
+    assets = [_make_asset()]
+    client.snapshot_batch_results = [
+        {
+            "datasetKey": "test_us_2024",
+            "regionCode": "unknown",
+            "asOfDate": "2024-01-01",
+            "dataStatus": "rebuilding",
+            "activeBuildId": None,
+        }
+    ]
+
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", "1")
+    monkeypatch.setenv("DAMODARAN_CONDITIONAL_GET", "true")
+
+    discovery = discover.PageDiscovery(
+        page_url="https://example.com/page",
+        page_type="current",
+        page_last_updated="2024-01-01",
+        assets=assets,
+    )
+    monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
+    monkeypatch.setattr(
+        sync.download,
+        "download_file",
+        lambda *_args, **_kwargs: DownloadResult(
+            url=assets[0].source_url,
+            path=Path("/tmp/test_us_2024.xls"),
+            sha256="abc123",
+            size_bytes=10,
+            from_cache=False,
+            etag=None,
+            last_modified=None,
+            not_modified=False,
+        ),
+    )
+    monkeypatch.setattr(sync.excel_parse, "parse_excel", lambda _path: _make_parsed_table())
+    monkeypatch.setattr(
+        sync.transform, "transform_table", lambda _parsed: _make_transform_result()
+    )
+
+    sync.process_page(
+        "https://example.com/page",
+        "current",
+        client,
+        additive_only=True,
+    )
+
+    assert "upsert_snapshot" in client.events
+    assert "insert_rows" in client.events
+    assert "finalize_snapshot" in client.events
+
+
+def test_process_page_additive_only_ignores_force_rebuild_for_ready_snapshot(
+    monkeypatch,
+) -> None:
+    client = _FakeClient()
+    assets = [_make_asset()]
+    client.snapshot_batch_results = [
+        {
+            "datasetKey": "test_us_2024",
+            "regionCode": "unknown",
+            "asOfDate": "2024-01-01",
+            "activeBuildId": "build-1",
+            "dataStatus": "ready",
+        }
+    ]
+
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", "1")
+
+    def _unexpected_download(*_args, **_kwargs):
+        raise AssertionError(
+            "download_file should not run when additive_only ignores force_rebuild"
+        )
+
+    discovery = discover.PageDiscovery(
+        page_url="https://example.com/page",
+        page_type="current",
+        page_last_updated="2024-01-01",
+        assets=assets,
+    )
+    monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
+    monkeypatch.setattr(sync.download, "download_file", _unexpected_download)
+
+    sync.process_page(
+        "https://example.com/page",
+        "current",
+        client,
+        force_rebuild=True,
+        additive_only=True,
+    )
+
+    assert "upsert_snapshot" not in client.events
+    assert "insert_rows" not in client.events
+    assert "finalize_snapshot" not in client.events
+    assert client.finished_statuses[-1] == "success"
+    assert client.increments[-1]["assetsSkipped"] == 1
