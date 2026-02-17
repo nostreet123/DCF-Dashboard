@@ -33,6 +33,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Use HEAD with conditional headers to skip unchanged downloads.",
     )
+    sync_current.add_argument(
+        "--additive-only",
+        action="store_true",
+        help=(
+            "Insert only missing snapshot identities; skip existing ready snapshots "
+            "without rebuilding or replacing rows."
+        ),
+    )
     sync_all = subparsers.add_parser("sync-all", help="Sync all archived datasets")
     sync_all.add_argument(
         "--force-rebuild",
@@ -44,6 +52,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=None,
         help="Use HEAD with conditional headers to skip unchanged downloads.",
+    )
+    sync_all.add_argument(
+        "--additive-only",
+        action="store_true",
+        help=(
+            "Insert only missing snapshot identities; skip existing ready snapshots "
+            "without rebuilding or replacing rows."
+        ),
     )
 
     subparsers.add_parser(
@@ -101,25 +117,35 @@ def _cmd_seed() -> int:
     return 0
 
 
-def _cmd_sync_current(force_rebuild: bool, head_precheck: bool | None) -> int:
+def _cmd_sync_current(
+    force_rebuild: bool,
+    head_precheck: bool | None,
+    additive_only: bool,
+) -> int:
     client = ConvexSyncClient()
     sync.process_page(
         discover.CURRENT_PAGE_URL,
         "current",
         client,
         force_rebuild,
+        additive_only=additive_only,
         head_precheck=head_precheck,
     )
     return 0
 
 
-def _cmd_sync_all(force_rebuild: bool, head_precheck: bool | None) -> int:
+def _cmd_sync_all(
+    force_rebuild: bool,
+    head_precheck: bool | None,
+    additive_only: bool,
+) -> int:
     client = ConvexSyncClient()
     sync.process_page(
         discover.ARCHIVE_PAGE_URL,
         "archive",
         client,
         force_rebuild,
+        additive_only=additive_only,
         head_precheck=head_precheck,
     )
     return 0
@@ -356,9 +382,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "seed":
         return _cmd_seed()
     if args.command == "sync-current":
-        return _cmd_sync_current(args.force_rebuild, args.head_precheck)
+        return _cmd_sync_current(
+            args.force_rebuild,
+            args.head_precheck,
+            args.additive_only,
+        )
     if args.command == "sync-all":
-        return _cmd_sync_all(args.force_rebuild, args.head_precheck)
+        return _cmd_sync_all(
+            args.force_rebuild,
+            args.head_precheck,
+            args.additive_only,
+        )
     if args.command == "status-primarykeynorm":
         return _cmd_status_primarykeynorm()
     if args.command == "cleanup-nonactive-tabledata":
