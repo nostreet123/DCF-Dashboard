@@ -182,6 +182,7 @@ def _process_asset(
     sync_log_id: str,
     datasets_map: dict[str, Any],
     force_rebuild: bool,
+    additive_only: bool,
     conditional_get_enabled: bool,
     head_precheck_enabled: bool,
     bulk_failed: bool,
@@ -210,6 +211,17 @@ def _process_asset(
                     region_code,
                     asset.as_of_date,
                 )
+
+        # Additive mode keeps existing ready snapshots immutable and only
+        # inserts identities that do not exist yet.
+        if (
+            additive_only
+            and snapshot
+            and snapshot.get("activeBuildId")
+            and snapshot.get("dataStatus") == "ready"
+        ):
+            outcome.skipped += 1
+            return outcome
 
         if (
             trust_archive_immutable
@@ -626,6 +638,7 @@ def _process_assets_serial_or_parallel(
     sync_log_id: str,
     datasets_map: dict[str, Any],
     force_rebuild: bool,
+    additive_only: bool,
     conditional_get_enabled: bool,
     head_precheck_enabled: bool,
     bulk_failed: bool,
@@ -660,6 +673,7 @@ def _process_assets_serial_or_parallel(
                 sync_log_id,
                 datasets_map,
                 force_rebuild,
+                additive_only,
                 conditional_get_enabled,
                 head_precheck_enabled,
                 bulk_failed,
@@ -682,6 +696,7 @@ def _process_assets_serial_or_parallel(
             sync_log_id,
             datasets_map,
             force_rebuild,
+            additive_only,
             conditional_get_enabled,
             head_precheck_enabled,
             bulk_failed,
@@ -738,6 +753,7 @@ def process_page(
     client: ConvexSyncClient,
     force_rebuild: bool = False,
     *,
+    additive_only: bool = False,
     head_precheck: bool | None = None,
 ) -> None:
     logger.info(f"Starting sync for {page_type} page: {page_url}")
@@ -754,6 +770,12 @@ def process_page(
     
     sync_log_id = None
     try:
+        if additive_only and force_rebuild:
+            logger.warning(
+                "Ignoring force_rebuild because additive_only is enabled."
+            )
+        effective_force_rebuild = force_rebuild and not additive_only
+
         refs = client.get_reference()
         regions_list = refs["regions"]
         datasets_list = refs["datasets"]
@@ -813,7 +835,8 @@ def process_page(
         client.increment_sync_log(sync_log_id, {"assetsDiscovered": len(discovery_result.assets)})
         if timing is not None:
             timing.inc("assets_discovered", len(discovery_result.assets))
-            timing.inc("force_rebuild", 1 if force_rebuild else 0)
+            timing.inc("force_rebuild", 1 if effective_force_rebuild else 0)
+            timing.inc("additive_only", 1 if additive_only else 0)
             if limit_assets is not None:
                 timing.inc("limit_assets", limit_assets)
 
@@ -825,7 +848,12 @@ def process_page(
             client,
             timing,
         )
-        bulk_failed = _prefetch_snapshots(resolved_assets, client, force_rebuild, timing)
+        bulk_failed = _prefetch_snapshots(
+            resolved_assets,
+            client,
+            effective_force_rebuild,
+            timing,
+        )
 
         trust_archive_immutable = _env_bool("DAMODARAN_TRUST_ARCHIVE_IMMUTABLE", False)
         conditional_get_enabled = _env_bool("DAMODARAN_CONDITIONAL_GET", True)
@@ -840,7 +868,8 @@ def process_page(
             client,
             sync_log_id,
             datasets_map,
-            force_rebuild,
+            effective_force_rebuild,
+            additive_only,
             conditional_get_enabled,
             head_precheck_enabled,
             bulk_failed,
