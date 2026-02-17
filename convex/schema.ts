@@ -191,11 +191,16 @@ export default defineSchema({
     symbol: v.string(),
     name: v.optional(v.string()),
     cik: v.optional(v.string()),
+    searchText: v.optional(v.string()),
     country: v.optional(v.string()),
     currency: v.optional(v.string()),
     source: v.string(),
     updatedAt: v.number(),
-  }).index("by_symbol", ["symbol"]),
+  })
+    .index("by_symbol", ["symbol"])
+    .searchIndex("search_text", {
+      searchField: "searchText",
+    }),
 
   companyStatements: defineTable({
     symbol: v.string(),
