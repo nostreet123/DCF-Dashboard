@@ -75,13 +75,14 @@ export const fetchDcfEngine = async <T>(
   init?: RequestInit,
 ): Promise<T> => {
   const baseUrl = resolveBaseUrl();
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   const response = await fetch(`${baseUrl}${path}`, {
     cache: "no-store",
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   return parseResponse<T>(response);
 };
