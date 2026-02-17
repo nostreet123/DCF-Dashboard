@@ -240,8 +240,8 @@ def test_process_page_additive_only_skips_existing_ready_snapshot(monkeypatch) -
     assets = [_make_asset()]
     client.snapshot_batch_results = [
         {
-            "datasetKey": "test_dataset",
-            "regionCode": "us",
+            "datasetKey": "test_us_2024",
+            "regionCode": "unknown",
             "asOfDate": "2024-01-01",
             "activeBuildId": "build-1",
             "dataStatus": "ready",
@@ -284,8 +284,8 @@ def test_process_page_additive_only_processes_not_ready_snapshot(monkeypatch) ->
     assets = [_make_asset()]
     client.snapshot_batch_results = [
         {
-            "datasetKey": "test_dataset",
-            "regionCode": "us",
+            "datasetKey": "test_us_2024",
+            "regionCode": "unknown",
             "asOfDate": "2024-01-01",
             "dataStatus": "rebuilding",
             "activeBuildId": None,
