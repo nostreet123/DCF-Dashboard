@@ -59,50 +59,40 @@ export const search = query({
     }
     const limit = normalizeLimit(args.limit);
     const symbolQuery = raw.toUpperCase();
-    const nameQuery = raw.toLowerCase();
-    const PAGE_SIZE = 200;
+    const unique = new Map<string, any>();
 
-    const matches: any[] = [];
-    let cursor: string | null = null;
-
-    while (matches.length < limit) {
-      const result = await ctx.db
-        .query("companies")
-        .withIndex("by_symbol", (q: any) => q)
-        .order("asc")
-        .paginate({
-          cursor,
-          numItems: PAGE_SIZE,
-        });
-
-      const page = result.page as any[];
-      if (page.length === 0) {
-        break;
-      }
-
-      for (const company of page) {
-        if (company.symbol.includes(symbolQuery)) {
-          matches.push(company);
-          if (matches.length >= limit) {
-            break;
-          }
-          continue;
-        }
-        if (company.name && company.name.toLowerCase().includes(nameQuery)) {
-          matches.push(company);
-          if (matches.length >= limit) {
-            break;
-          }
-        }
-      }
-
-      if (!result.continueCursor) {
-        break;
-      }
-      cursor = result.continueCursor;
+    // Fast path: prefix match on symbol via index range scan.
+    const symbolMatches = await ctx.db
+      .query("companies")
+      .withIndex("by_symbol", (q: any) =>
+        q.gte("symbol", symbolQuery).lt("symbol", `${symbolQuery}\uffff`),
+      )
+      .order("asc")
+      .take(limit);
+    for (const company of symbolMatches as any[]) {
+      unique.set(company.symbol, company);
     }
 
-    return matches;
+    const remaining = limit - unique.size;
+    if (remaining <= 0) {
+      return Array.from(unique.values()).slice(0, limit);
+    }
+
+    // Name search uses a search index to avoid paginating/scanning in a loop.
+    const nameMatches = await ctx.db
+      .query("companies")
+      .withSearchIndex("search_name", (q: any) => q.search("name", raw))
+      .take(Math.min(200, remaining * 4));
+    for (const company of nameMatches as any[]) {
+      if (!unique.has(company.symbol)) {
+        unique.set(company.symbol, company);
+        if (unique.size >= limit) {
+          break;
+        }
+      }
+    }
+
+    return Array.from(unique.values()).slice(0, limit);
   },
 });
 
