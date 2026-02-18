@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { fetchDcfEngine } from "../app/api/_lib/dcfEngine.ts";
+import { DcfEngineHttpError, fetchDcfEngine } from "../app/api/_lib/dcfEngine.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -31,7 +31,14 @@ describe("fetchDcfEngine", () => {
         headers: { "Content-Type": "application/json" },
       });
 
-    await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow("Boom");
+    try {
+      await fetchDcfEngine("/dcf/compute");
+      throw new Error("Expected fetchDcfEngine to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(DcfEngineHttpError);
+      expect((error as DcfEngineHttpError).status).toBe(500);
+      expect((error as Error).message).toContain("Boom");
+    }
   });
 
   test("throws with status for non-JSON error payloads", async () => {
@@ -41,9 +48,14 @@ describe("fetchDcfEngine", () => {
         headers: { "Content-Type": "text/plain" },
       });
 
-    await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow(
-      "DCF engine error (500)",
-    );
+    try {
+      await fetchDcfEngine("/dcf/compute");
+      throw new Error("Expected fetchDcfEngine to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(DcfEngineHttpError);
+      expect((error as DcfEngineHttpError).status).toBe(500);
+      expect((error as Error).message).toContain("DCF engine error (500)");
+    }
   });
 
   test("throws on non-JSON success payloads", async () => {

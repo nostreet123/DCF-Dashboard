@@ -195,7 +195,9 @@ export default defineSchema({
     currency: v.optional(v.string()),
     source: v.string(),
     updatedAt: v.number(),
-  }).index("by_symbol", ["symbol"]),
+  })
+    .index("by_symbol", ["symbol"])
+    .searchIndex("search_name", { searchField: "name" }),
 
   companyStatements: defineTable({
     symbol: v.string(),
