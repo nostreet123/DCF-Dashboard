@@ -1,11 +1,8 @@
 ---
 name: frontend-design
 description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.
+license: Complete terms in LICENSE.txt
 ---
-
-> Note: Adapted from codex-plugins-official. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
-> Codex CLI note: If this skill references Codex-specific setup commands, adapt them to your Codex CLI environment (install/configure the equivalent tooling outside Codex and provide required API keys), then proceed with the remaining steps.
-
 
 This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
 

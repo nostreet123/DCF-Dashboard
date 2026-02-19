@@ -38,6 +38,7 @@ Notes:
 | 2026-02-16 | You want relevant skills applied directly when requested. | When you say "use them," I will execute concrete code changes guided by the matching skills, then verify with typecheck/tests. |
 | 2026-02-19 | For stale PRs, you prefer closing out from current `main` with full validation gates instead of reviving old branches. | I will default to proving behavior on `main` with Bun tests, Python pytest, and Convex typecheck before proposing any new PR. |
 | 2026-02-19 | When PR history is confusing, you want concrete cleanup actions (not just explanation). | I will post clarifying PR comments and add/maintain a canonical in-repo timeline note to reduce repeated ambiguity. |
+| 2026-02-19 | You want third-party Codex skill packs installed end-to-end (skills + agents + runtime dependencies) when requested. | I will install requested skill repos, wire agent configs in `~/.codex/config.toml`, and provision required CLIs/venvs with verification output. |
 
 ## Update Rule
 
