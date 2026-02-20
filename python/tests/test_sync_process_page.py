@@ -84,7 +84,11 @@ class _FakeClient:
             "regions": [{"code": "us", "fileTokens": ["us"]}],
             "datasets": [{"key": "test_dataset", "dataType": "other"}],
             "datasetMappings": [
-                {"pattern": "test", "datasetKey": "test_dataset", "isRegex": False}
+                {
+                    "pattern": "test_us_2024",
+                    "datasetKey": "test_dataset",
+                    "isRegex": False,
+                }
             ],
         }
 

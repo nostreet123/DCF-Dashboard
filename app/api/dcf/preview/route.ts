@@ -43,10 +43,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return errorResponse(
-      "DCF_ENGINE_ERROR",
-      error instanceof Error ? error.message : "DCF compute failed",
-      502,
-    );
+    console.error("DCF preview failed", error);
+    return errorResponse("DCF_ENGINE_ERROR", "DCF compute failed", 502);
   }
 }

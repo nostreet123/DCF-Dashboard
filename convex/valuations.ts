@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
-import { requireSyncToken } from "./syncAuth";
+import { hasValidSyncToken, requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
   v.literal("none"),
@@ -10,6 +10,7 @@ const TraceStorage = v.union(
 );
 
 const RunStatus = v.union(v.literal("success"), v.literal("error"));
+const JsonObject = v.record(v.string(), v.any());
 
 const valuationRunValidator = v.object({
   _id: v.id("valuationRuns"),
@@ -20,15 +21,15 @@ const valuationRunValidator = v.object({
   error: v.optional(v.string()),
   requestId: v.optional(v.string()),
   symbol: v.optional(v.string()),
-  inputs: v.any(),
-  normalizedInputs: v.optional(v.any()),
-  provenance: v.optional(v.any()),
-  resultSummary: v.optional(v.any()),
+  inputs: JsonObject,
+  normalizedInputs: v.optional(JsonObject),
+  provenance: v.optional(JsonObject),
+  resultSummary: v.optional(JsonObject),
   primaryKeyNorm: v.optional(v.string()),
   regionCode: v.optional(v.string()),
   asOfDate: v.optional(v.string()),
   traceStorage: TraceStorage,
-  trace: v.optional(v.any()),
+  trace: v.optional(JsonObject),
   traceByteSize: v.optional(v.number()),
   traceId: v.optional(v.id("valuationRunTraces")),
 });
@@ -39,7 +40,7 @@ const valuationRunTraceValidator = v.object({
   runId: v.id("valuationRuns"),
   createdAt: v.number(),
   byteSize: v.number(),
-  trace: v.any(),
+  trace: JsonObject,
 });
 
 type RunPick = {
@@ -87,6 +88,31 @@ const runSummary = (run: any) => {
   return summary;
 };
 
+const redactedRunSummary = (run: any) => {
+  const summary = runSummary(run);
+  summary.inputs = {};
+  summary.traceStorage = "none";
+  if ("normalizedInputs" in summary) {
+    delete summary.normalizedInputs;
+  }
+  if ("provenance" in summary) {
+    delete summary.provenance;
+  }
+  if ("requestId" in summary) {
+    delete summary.requestId;
+  }
+  if ("error" in summary) {
+    delete summary.error;
+  }
+  if ("traceId" in summary) {
+    delete summary.traceId;
+  }
+  if ("traceByteSize" in summary) {
+    delete summary.traceByteSize;
+  }
+  return summary;
+};
+
 const normalizeLimit = (requested: number | undefined) => {
   const DEFAULT_LIMIT = 50;
   const MAX_LIMIT = 200;
@@ -120,15 +146,15 @@ export const create = mutation({
     engineVersion: v.string(),
     status: RunStatus,
     error: v.optional(v.string()),
-    inputs: v.any(),
-    normalizedInputs: v.optional(v.any()),
-    provenance: v.optional(v.any()),
-    resultSummary: v.optional(v.any()),
+    inputs: JsonObject,
+    normalizedInputs: v.optional(JsonObject),
+    provenance: v.optional(JsonObject),
+    resultSummary: v.optional(JsonObject),
     primaryKeyNorm: v.optional(v.string()),
     regionCode: v.optional(v.string()),
     asOfDate: v.optional(v.string()),
     traceStorage: TraceStorage,
-    trace: v.optional(v.any()),
+    trace: v.optional(JsonObject),
     traceByteSize: v.optional(v.number()),
     requestId: v.optional(v.string()),
     symbol: v.optional(v.string()),
@@ -218,7 +244,7 @@ export const attachTrace = mutation({
   args: {
     syncToken: v.optional(v.string()),
     runId: v.id("valuationRuns"),
-    trace: v.any(),
+    trace: JsonObject,
     traceByteSize: v.optional(v.number()),
   },
   returns: v.object({
@@ -255,6 +281,7 @@ export const attachTrace = mutation({
 
 export const get = query({
   args: {
+    syncToken: v.optional(v.string()),
     runId: v.id("valuationRuns"),
     includeTrace: v.optional(v.boolean()),
   },
@@ -266,12 +293,19 @@ export const get = query({
     }),
   ),
   handler: async (ctx, args) => {
+    const isAuthorized = hasValidSyncToken(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
       return null;
     }
     if (!args.includeTrace) {
-      return { run: runSummary(run) };
+      return { run: isAuthorized ? runSummary(run) : redactedRunSummary(run) };
+    }
+    if (!isAuthorized) {
+      throw new ConvexError({
+        code: "UNAUTHORIZED",
+        message: "Invalid sync token",
+      });
     }
     if (run.traceStorage === "inline") {
       return { run };
@@ -288,12 +322,14 @@ export const get = query({
 
 export const listBySymbol = query({
   args: {
+    syncToken: v.optional(v.string()),
     primaryKeyNorm: v.string(),
     regionCode: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
+    const isAuthorized = hasValidSyncToken(args.syncToken);
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
       const runs = await ctx.db
@@ -305,7 +341,9 @@ export const listBySymbol = query({
         )
         .order("desc")
         .take(limit);
-      return runs.map(runSummary);
+      return runs.map((run) =>
+        isAuthorized ? runSummary(run) : redactedRunSummary(run),
+      );
     }
     const runs = await ctx.db
       .query("valuationRuns")
@@ -314,17 +352,21 @@ export const listBySymbol = query({
       )
       .order("desc")
       .take(limit);
-    return runs.map(runSummary);
+    return runs.map((run) =>
+      isAuthorized ? runSummary(run) : redactedRunSummary(run),
+    );
   },
 });
 
 export const listByTicker = query({
   args: {
+    syncToken: v.optional(v.string()),
     symbol: v.string(),
     limit: v.optional(v.number()),
   },
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
+    const isAuthorized = hasValidSyncToken(args.syncToken);
     const symbol = normalizeSymbol(args.symbol);
     if (!symbol) {
       throw new ConvexError({
@@ -338,6 +380,8 @@ export const listByTicker = query({
       .withIndex("by_symbol_createdAt", (q: any) => q.eq("symbol", symbol))
       .order("desc")
       .take(limit);
-    return runs.map(runSummary);
+    return runs.map((run) =>
+      isAuthorized ? runSummary(run) : redactedRunSummary(run),
+    );
   },
 });

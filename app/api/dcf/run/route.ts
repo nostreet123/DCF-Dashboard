@@ -4,6 +4,7 @@ import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import {
   parseMonteCarloPreset,
   sanitizePayload,
@@ -44,11 +45,13 @@ export async function POST(request: Request) {
       body: JSON.stringify(computePayload),
     });
   } catch (error) {
-    return errorResponse(
-      "DCF_ENGINE_ERROR",
-      error instanceof Error ? error.message : "DCF compute failed",
-      502,
-    );
+    console.error("DCF run failed", error);
+    return errorResponse("DCF_ENGINE_ERROR", "DCF compute failed", 502);
+  }
+
+  if (!isInternalPersistenceRequest(request)) {
+    console.warn("Skipping valuation persistence: request is not authorized");
+    return NextResponse.json(result);
   }
 
   const convexClient = getConvexClient();
