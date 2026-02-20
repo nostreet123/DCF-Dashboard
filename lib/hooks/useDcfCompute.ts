@@ -31,6 +31,138 @@ interface UseDcfComputeOptions {
   debounceMs?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Core logic — framework-agnostic, testable without React
+// ---------------------------------------------------------------------------
+
+/** Mutable refs used by the compute engine. */
+export interface ComputeRefs {
+  abortController: AbortController | null;
+  debounceTimer: ReturnType<typeof setTimeout> | null;
+  requestId: number;
+  pendingReject: ((reason?: unknown) => void) | null;
+}
+
+/** Callbacks the engine uses to push state outward. */
+export interface ComputeCallbacks {
+  setIsLoading: (v: boolean) => void;
+  setError: (v: Error | null) => void;
+  setResult: (v: DcfResult | null) => void;
+}
+
+export function createComputeRefs(): ComputeRefs {
+  return {
+    abortController: null,
+    debounceTimer: null,
+    requestId: 0,
+    pendingReject: null,
+  };
+}
+
+/**
+ * Build a `compute` function and a `reset` function that operate on the
+ * supplied mutable refs and push state through the supplied callbacks.
+ *
+ * This is intentionally framework-agnostic so it can be unit-tested without
+ * mocking React.
+ */
+export function buildComputeFns(
+  refs: ComputeRefs,
+  cbs: ComputeCallbacks,
+  debounceMs: number,
+) {
+  const compute = (inputs: DcfInputs): Promise<DcfResult> => {
+    const myRequestId = ++refs.requestId;
+
+    // Clear any pending debounce and reject the superseded promise
+    if (refs.debounceTimer) {
+      clearTimeout(refs.debounceTimer);
+      if (refs.pendingReject) {
+        refs.pendingReject(new DOMException('Superseded', 'AbortError'));
+        refs.pendingReject = null;
+      }
+    }
+
+    // Abort any in-flight request
+    if (refs.abortController) {
+      refs.abortController.abort();
+    }
+
+    return new Promise<DcfResult>((resolve, reject) => {
+      refs.pendingReject = reject;
+
+      refs.debounceTimer = setTimeout(async () => {
+        refs.pendingReject = null;
+
+        if (refs.requestId === myRequestId) {
+          cbs.setIsLoading(true);
+          cbs.setError(null);
+        }
+
+        const controller = new AbortController();
+        refs.abortController = controller;
+
+        try {
+          const response = await fetch('/api/dcf/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(inputs),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (refs.requestId === myRequestId) {
+            cbs.setResult(data);
+          }
+          resolve(data);
+        } catch (err) {
+          const error =
+            err instanceof Error ? err : new Error('Unknown error');
+          if (error.name !== 'AbortError' && refs.requestId === myRequestId) {
+            cbs.setError(error);
+          }
+          // Always settle the promise, even on AbortError
+          reject(error);
+        } finally {
+          if (refs.requestId === myRequestId) {
+            cbs.setIsLoading(false);
+          }
+        }
+      }, debounceMs);
+    });
+  };
+
+  const reset = () => {
+    cbs.setResult(null);
+    cbs.setError(null);
+    cbs.setIsLoading(false);
+
+    if (refs.abortController) {
+      refs.abortController.abort();
+    }
+    if (refs.debounceTimer) {
+      clearTimeout(refs.debounceTimer);
+    }
+    if (refs.pendingReject) {
+      refs.pendingReject(new DOMException('Reset', 'AbortError'));
+      refs.pendingReject = null;
+    }
+    ++refs.requestId;
+  };
+
+  return { compute, reset };
+}
+
+// ---------------------------------------------------------------------------
+// React hook — thin wrapper around the core logic
+// ---------------------------------------------------------------------------
+
 /**
  * Hook to compute DCF valuations via the API.
  * Includes debouncing and loading state management.
@@ -42,120 +174,36 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
   const [result, setResult] = useState<DcfResult | null>(null);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Track the latest request ID to guard state updates
-  const requestIdRef = useRef<number>(0);
-  // Store the pending reject function for debounced promises
-  const pendingRejectRef = useRef<((reason?: any) => void) | null>(null);
+  const refsRef = useRef<ComputeRefs>(createComputeRefs());
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      const r = refsRef.current;
+      if (r.abortController) {
+        r.abortController.abort();
       }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      if (r.debounceTimer) {
+        clearTimeout(r.debounceTimer);
       }
-      if (pendingRejectRef.current) {
-        pendingRejectRef.current(new DOMException('Unmounted', 'AbortError'));
+      if (r.pendingReject) {
+        r.pendingReject(new DOMException('Unmounted', 'AbortError'));
       }
     };
   }, []);
 
-  const compute = useCallback(
-    async (inputs: DcfInputs) => {
-      const myRequestId = ++requestIdRef.current;
-
-      // Clear any pending debounce and reject the superseded promise
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        if (pendingRejectRef.current) {
-          pendingRejectRef.current(new DOMException('Superseded', 'AbortError'));
-          pendingRejectRef.current = null;
-        }
-      }
-
-      // Abort any in-flight request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      return new Promise<DcfResult>((resolve, reject) => {
-        pendingRejectRef.current = reject;
-
-        debounceTimerRef.current = setTimeout(async () => {
-          pendingRejectRef.current = null;
-          
-          if (requestIdRef.current === myRequestId) {
-            setIsLoading(true);
-            setError(null);
-          }
-
-          const controller = new AbortController();
-          abortControllerRef.current = controller;
-
-          try {
-            const response = await fetch('/api/dcf/preview', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(inputs),
-              signal: controller.signal,
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              throw new Error(errorData.error || `HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            if (requestIdRef.current === myRequestId) {
-              setResult(data);
-            }
-            resolve(data);
-          } catch (err) {
-            const error = err instanceof Error ? err : new Error('Unknown error');
-            if (error.name !== 'AbortError' && requestIdRef.current === myRequestId) {
-              setError(error);
-            }
-            // Always settle the promise, even on AbortError
-            reject(error);
-          } finally {
-            if (requestIdRef.current === myRequestId) {
-              setIsLoading(false);
-            }
-          }
-        }, debounceMs);
-      });
-    },
-    [debounceMs]
+  const { compute, reset } = buildComputeFns(
+    refsRef.current,
+    { setIsLoading, setError, setResult },
+    debounceMs,
   );
 
-  const reset = useCallback(() => {
-    setResult(null);
-    setError(null);
-    setIsLoading(false);
-    
-    // Also cancel any pending work
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    if (pendingRejectRef.current) {
-      pendingRejectRef.current(new DOMException('Reset', 'AbortError'));
-      pendingRejectRef.current = null;
-    }
-    ++requestIdRef.current;
-  }, []);
+  const stableCompute = useCallback(compute, [compute]);
+  const stableReset = useCallback(reset, [reset]);
 
   return {
-    compute,
-    reset,
+    compute: stableCompute,
+    reset: stableReset,
     result,
     isLoading,
     error,
