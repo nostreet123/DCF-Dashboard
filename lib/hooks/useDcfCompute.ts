@@ -44,6 +44,11 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track the latest request ID to guard state updates
+  const requestIdRef = useRef<number>(0);
+  // Store the pending reject function for debounced promises
+  const pendingRejectRef = useRef<((reason?: any) => void) | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -54,14 +59,23 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      if (pendingRejectRef.current) {
+        pendingRejectRef.current(new DOMException('Unmounted', 'AbortError'));
+      }
     };
   }, []);
 
   const compute = useCallback(
     async (inputs: DcfInputs) => {
-      // Clear any pending debounce
+      const myRequestId = ++requestIdRef.current;
+
+      // Clear any pending debounce and reject the superseded promise
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        if (pendingRejectRef.current) {
+          pendingRejectRef.current(new DOMException('Superseded', 'AbortError'));
+          pendingRejectRef.current = null;
+        }
       }
 
       // Abort any in-flight request
@@ -70,9 +84,15 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
       }
 
       return new Promise<DcfResult>((resolve, reject) => {
+        pendingRejectRef.current = reject;
+
         debounceTimerRef.current = setTimeout(async () => {
-          setIsLoading(true);
-          setError(null);
+          pendingRejectRef.current = null;
+          
+          if (requestIdRef.current === myRequestId) {
+            setIsLoading(true);
+            setError(null);
+          }
 
           const controller = new AbortController();
           abortControllerRef.current = controller;
@@ -91,18 +111,22 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
             }
 
             const data = await response.json();
-            setResult(data);
+            
+            if (requestIdRef.current === myRequestId) {
+              setResult(data);
+            }
             resolve(data);
           } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              // Ignore abort errors
-              return;
-            }
             const error = err instanceof Error ? err : new Error('Unknown error');
-            setError(error);
+            if (error.name !== 'AbortError' && requestIdRef.current === myRequestId) {
+              setError(error);
+            }
+            // Always settle the promise, even on AbortError
             reject(error);
           } finally {
-            setIsLoading(false);
+            if (requestIdRef.current === myRequestId) {
+              setIsLoading(false);
+            }
           }
         }, debounceMs);
       });
@@ -114,6 +138,19 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
     setResult(null);
     setError(null);
     setIsLoading(false);
+    
+    // Also cancel any pending work
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (pendingRejectRef.current) {
+      pendingRejectRef.current(new DOMException('Reset', 'AbortError'));
+      pendingRejectRef.current = null;
+    }
+    ++requestIdRef.current;
   }, []);
 
   return {
