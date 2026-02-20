@@ -9,6 +9,7 @@ type CompanyBackfillCandidate = {
   searchText?: string;
 };
 
+
 const companyValidator = v.object({
   _id: v.id("companies"),
   _creationTime: v.number(),
@@ -77,6 +78,7 @@ export const getCompanyBackfillPatch = (company: CompanyBackfillCandidate) => {
   return { searchText: expected };
 };
 
+
 const normalizeLimit = (requested: number | undefined) => {
   const DEFAULT_LIMIT = 20;
   const MAX_LIMIT = 50;
@@ -109,6 +111,7 @@ const normalizeBackfillLimit = (requested: number | undefined) => {
   return Math.min(limit, MAX_LIMIT);
 };
 
+
 export const get = query({
   args: {
     symbol: v.string(),
@@ -137,6 +140,7 @@ export const search = query({
     const limit = normalizeLimit(args.limit);
     const symbolQuery = raw.toUpperCase();
     const textQuery = raw.toLowerCase();
+
 
     const symbolMatches = await ctx.db
       .query("companies")
