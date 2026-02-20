@@ -93,8 +93,9 @@ export const myMutation = mutation({
 ```
 
 - All write operations require `syncToken`
-- Token validated against `DAMODARAN_SYNC_TOKEN` env var
-- Throws on mismatch or missing token
+- Token checks are synchronous and timing-resistant (`TextEncoder` + XOR compare)
+- `requireSyncToken()` throws `UNAUTHORIZED` on missing/mismatch config or token
+- For public queries with optional elevated access, use `hasValidSyncToken()` and redact by default
 
 ### 4. Build ID Read Semantics
 

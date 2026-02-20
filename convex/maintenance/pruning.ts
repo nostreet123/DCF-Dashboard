@@ -7,6 +7,7 @@ import {
   normalizeDeleteLimit,
   normalizeRetentionDays,
 } from "./shared";
+import { buildTraceRefClearPatch } from "./pruning.logic";
 
 export const pruneOperationalData = mutation({
   args: {
@@ -109,10 +110,11 @@ export const pruneOperationalData = mutation({
       }
       if (!dryRun) {
         await ctx.db.delete(trace._id);
-        await ctx.db.patch(trace.runId, {
-          traceId: undefined,
-          traceStorage: "none",
-        });
+        const run = await ctx.db.get(trace.runId);
+        const patch = buildTraceRefClearPatch(run, trace._id);
+        if (patch) {
+          await ctx.db.patch(trace.runId, patch);
+        }
       }
       deletedTraces += 1;
     }
@@ -134,4 +136,3 @@ export const pruneOperationalData = mutation({
     };
   },
 });
-

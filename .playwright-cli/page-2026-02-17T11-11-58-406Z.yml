@@ -1,0 +1,171 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - button "Open library panel" [ref=e5] [cursor=pointer]:
+          - img [ref=e6]
+        - img [ref=e9]
+        - generic [ref=e15]: AAPL
+      - generic [ref=e16]:
+        - button "Open search" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+        - generic [ref=e21]:
+          - button "Workbench" [pressed] [ref=e22] [cursor=pointer]
+          - button "Investor" [ref=e23] [cursor=pointer]
+        - button "Open assumptions panel" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - button "Switch to light theme" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+    - dialog "Search companies" [ref=e250]:
+      - generic [ref=e251]: Search companies
+      - textbox "Search companies" [active] [ref=e252]:
+        - /placeholder: AAPL, Microsoft, semiconductor...
+      - generic [ref=e253]:
+        - button "Cancel" [ref=e254] [cursor=pointer]
+        - button "Search" [ref=e255] [cursor=pointer]
+    - main [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e39]:
+          - button "Bear" [ref=e40] [cursor=pointer]:
+            - img [ref=e41]
+            - text: Bear
+          - button "Base" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - text: Base
+          - button "Bull" [pressed] [ref=e46] [cursor=pointer]:
+            - img [ref=e47]
+            - text: Bull
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]: AAPL Fair Value
+            - generic [ref=e52]: BULL CASE
+          - generic [ref=e53]:
+            - generic [ref=e245]: $185.50
+            - generic [ref=e246]:
+              - generic [ref=e247]: $112.30
+              - generic [ref=e248]: —
+              - generic [ref=e249]: $185.50
+          - img [ref=e60]:
+            - generic [ref=e64]:
+              - generic [ref=e65]: $100.00
+              - generic [ref=e66]: $190.00
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - generic [ref=e69]: Growth
+              - generic [ref=e70]: ↑18%
+            - generic [ref=e71]:
+              - generic [ref=e72]: Margin
+              - generic [ref=e73]: ↑30%
+            - generic [ref=e74]:
+              - generic [ref=e75]: WACC
+              - generic [ref=e76]: ↓8%
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - heading "Sensitivity Analysis" [level=2] [ref=e79]
+            - paragraph [ref=e80]: How valuation changes with growth and discount rate assumptions
+          - generic [ref=e81]:
+            - generic [ref=e83]: WACC
+            - generic [ref=e85]:
+              - img [ref=e86]:
+                - generic [ref=e87]:
+                  - generic [ref=e88]: "-2%"
+                  - generic [ref=e89]: "-1%"
+                  - generic [ref=e90]: 0%
+                  - generic [ref=e91]: +1%
+                  - generic [ref=e92]: +2%
+                - generic [ref=e93]:
+                  - generic [ref=e94]: "-2%"
+                  - generic [ref=e95]: "-1%"
+                  - generic [ref=e96]: 0%
+                  - generic [ref=e97]: +1%
+                  - generic [ref=e98]: +2%
+                - generic [ref=e99]:
+                  - generic [ref=e102]: $95.00
+                  - generic [ref=e105]: $105.00
+                  - generic [ref=e108]: $115.00
+                  - generic [ref=e111]: $125.00
+                  - generic [ref=e114]: $135.00
+                  - generic [ref=e117]: $105.00
+                  - generic [ref=e120]: $118.00
+                  - generic [ref=e123]: $130.00
+                  - generic [ref=e126]: $142.00
+                  - generic [ref=e129]: $155.00
+                  - generic [ref=e132]: $115.00
+                  - generic [ref=e135]: $130.00
+                  - generic [ref=e138]: $145.00
+                  - generic [ref=e141]: $160.00
+                  - generic [ref=e144]: $175.00
+                  - generic [ref=e147]: $125.00
+                  - generic [ref=e150]: $142.00
+                  - generic [ref=e153]: $160.00
+                  - generic [ref=e156]: $178.00
+                  - generic [ref=e159]: $195.00
+                  - generic [ref=e162]: $135.00
+                  - generic [ref=e165]: $155.00
+                  - generic [ref=e168]: $175.00
+                  - generic [ref=e171]: $195.00
+                  - generic [ref=e174]: $215.00
+              - generic [ref=e175]:
+                - generic [ref=e176]: ← Lower Growth
+                - generic [ref=e177]: Higher Growth →
+          - generic [ref=e178]: Revenue Growth Rate
+        - generic [ref=e179]:
+          - heading "Financial Projections" [level=2] [ref=e181]
+          - generic "Financial projection table with horizontal scroll" [ref=e182]:
+            - table [ref=e183]:
+              - rowgroup [ref=e184]:
+                - row "Metric 2027 2028 2029 2030 2031 Trend" [ref=e185]:
+                  - columnheader "Metric" [ref=e186]
+                  - columnheader "2027" [ref=e187]
+                  - columnheader "2028" [ref=e188]
+                  - columnheader "2029" [ref=e189]
+                  - columnheader "2030" [ref=e190]
+                  - columnheader "2031" [ref=e191]
+                  - columnheader "Trend" [ref=e192]
+              - rowgroup [ref=e193]:
+                - row "Revenue $394B $425B $460B $498B $540B" [ref=e194]:
+                  - rowheader "Revenue" [ref=e195]
+                  - cell "$394B" [ref=e196]
+                  - cell "$425B" [ref=e197]
+                  - cell "$460B" [ref=e198]
+                  - cell "$498B" [ref=e199]
+                  - cell "$540B" [ref=e200]
+                  - cell [ref=e201]:
+                    - img [ref=e202]
+                - row "Gross Margin 43.2% 44.5% 45.2% 46.0% 46.5%" [ref=e204]:
+                  - rowheader "Gross Margin" [ref=e205]
+                  - cell "43.2%" [ref=e206]
+                  - cell "44.5%" [ref=e207]
+                  - cell "45.2%" [ref=e208]
+                  - cell "46.0%" [ref=e209]
+                  - cell "46.5%" [ref=e210]
+                  - cell [ref=e211]:
+                    - img [ref=e212]
+                - row "Operating Income $119B $132B $147B $162B $178B" [ref=e214]:
+                  - rowheader "Operating Income" [ref=e215]
+                  - cell "$119B" [ref=e216]
+                  - cell "$132B" [ref=e217]
+                  - cell "$147B" [ref=e218]
+                  - cell "$162B" [ref=e219]
+                  - cell "$178B" [ref=e220]
+                  - cell [ref=e221]:
+                    - img [ref=e222]
+                - row "Free Cash Flow $99B $110B $122B $135B $148B" [ref=e224]:
+                  - rowheader "Free Cash Flow" [ref=e225]
+                  - cell "$99B" [ref=e226]
+                  - cell "$110B" [ref=e227]
+                  - cell "$122B" [ref=e228]
+                  - cell "$135B" [ref=e229]
+                  - cell "$148B" [ref=e230]
+                  - cell [ref=e231]:
+                    - img [ref=e232]
+                - row "CapEx $11B $12B $13B $14B $15B" [ref=e234]:
+                  - rowheader "CapEx" [ref=e235]
+                  - cell "$11B" [ref=e236]
+                  - cell "$12B" [ref=e237]
+                  - cell "$13B" [ref=e238]
+                  - cell "$14B" [ref=e239]
+                  - cell "$15B" [ref=e240]
+                  - cell [ref=e241]:
+                    - img [ref=e242]
+  - alert [ref=e244]

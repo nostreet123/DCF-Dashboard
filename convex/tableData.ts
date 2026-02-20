@@ -80,7 +80,7 @@ const TableDataRow = v.object({
   primaryKey: v.string(),
   primaryKeyNorm: v.string(),
   secondaryKey: v.optional(v.string()),
-  metrics: v.any(),
+  metrics: v.record(v.string(), v.any()),
 });
 
 export const insertBatch = mutation({
@@ -94,7 +94,7 @@ export const insertBatch = mutation({
         primaryKey: v.string(),
         primaryKeyNorm: v.string(),
         secondaryKey: v.optional(v.string()),
-        metrics: v.any(),
+        metrics: v.record(v.string(), v.any()),
       }),
     ),
   },
