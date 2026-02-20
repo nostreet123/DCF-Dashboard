@@ -45,7 +45,11 @@ def sec_facts(symbol: str = Query(..., min_length=1)) -> object:
         raise HTTPException(status_code=500, detail=SEC_FACTS_FAILURE_DETAIL) from exc
 
 
-@app.post("/dcf/compute", response_model=WorkbenchResponse)
+@app.post(
+    "/dcf/compute",
+    response_model=WorkbenchResponse,
+    response_model_by_alias=True,
+)
 def dcf_compute(request: WorkbenchRequest) -> WorkbenchResponse:
     try:
         return run_workbench(request)

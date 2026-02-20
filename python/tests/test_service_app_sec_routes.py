@@ -11,13 +11,13 @@ client = TestClient(service_app.app)
 
 def _valid_dcf_payload() -> dict[str, object]:
     scenario = {
-        "revenue_growth": 0.08,
-        "ebit_margin": 0.2,
-        "tax_rate": 0.25,
-        "sales_to_capital": 2.0,
+        "revenueGrowth": 0.08,
+        "ebitMargin": 0.2,
+        "taxRate": 0.25,
+        "salesToCapital": 2.0,
         "wacc": 0.1,
-        "g_stable": 0.03,
-        "wacc_stable": 0.09,
+        "gStable": 0.03,
+        "waccStable": 0.09,
     }
     return {
         "baseYear": 2025,
@@ -97,3 +97,11 @@ def test_dcf_compute_hides_runtime_error_details(
     response = client.post("/dcf/compute", json=_valid_dcf_payload())
     assert response.status_code == 500
     assert response.json()["detail"] == service_app.DCF_COMPUTE_FAILURE_DETAIL
+
+
+def test_dcf_compute_serializes_scenario_assumptions_with_camel_case_keys() -> None:
+    response = client.post("/dcf/compute", json=_valid_dcf_payload())
+    assert response.status_code == 200
+    assumptions = response.json()["base"]["assumptions"]
+    assert "revenueGrowth" in assumptions
+    assert "revenue_growth" not in assumptions

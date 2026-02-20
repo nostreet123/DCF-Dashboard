@@ -12,13 +12,21 @@ class WorkbenchBaseModel(BaseModel):
 
 
 class ScenarioAssumptions(WorkbenchBaseModel):
-    revenue_growth: float = Field(..., description="Annual revenue growth rate.")
-    ebit_margin: float = Field(..., description="EBIT margin.")
-    tax_rate: float = Field(..., description="Tax rate.")
-    sales_to_capital: float = Field(..., description="Sales-to-capital ratio.")
+    revenue_growth: float = Field(
+        ...,
+        alias="revenueGrowth",
+        description="Annual revenue growth rate.",
+    )
+    ebit_margin: float = Field(..., alias="ebitMargin", description="EBIT margin.")
+    tax_rate: float = Field(..., alias="taxRate", description="Tax rate.")
+    sales_to_capital: float = Field(
+        ...,
+        alias="salesToCapital",
+        description="Sales-to-capital ratio.",
+    )
     wacc: float = Field(..., description="WACC.")
-    g_stable: float = Field(..., description="Stable growth rate.")
-    wacc_stable: float = Field(..., description="Stable WACC.")
+    g_stable: float = Field(..., alias="gStable", description="Stable growth rate.")
+    wacc_stable: float = Field(..., alias="waccStable", description="Stable WACC.")
 
 
 class SensitivitySpec(WorkbenchBaseModel):
