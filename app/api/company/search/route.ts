@@ -9,6 +9,7 @@ type EdgarSearchResponse = {
 };
 
 export async function GET(request: Request) {
+  // TODO: Add rate limiting (infrastructure-level preferred) for this public endpoint.
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   if (!q) {
@@ -55,10 +56,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ results: response.results, source: "edgar" });
   } catch (error) {
-    return errorResponse(
-      "EDGAR_ERROR",
-      error instanceof Error ? error.message : "EDGAR search failed",
-      502,
-    );
+    console.error("Company search failed", error);
+    return errorResponse("EDGAR_ERROR", "EDGAR search failed", 502);
   }
 }

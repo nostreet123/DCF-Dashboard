@@ -21,21 +21,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Inline script to prevent theme flash */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('dcf-theme');
-                  if (theme === 'light' || theme === 'dark') {
-                    document.documentElement.setAttribute('data-theme', theme);
-                  }
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
+        <script src="/theme-init.js" />
       </head>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}

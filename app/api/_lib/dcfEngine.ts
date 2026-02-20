@@ -1,15 +1,3 @@
-export class DcfEngineHttpError extends Error {
-  status: number;
-  data: unknown;
-
-  constructor(status: number, message: string, data: unknown) {
-    super(message);
-    this.name = "DcfEngineHttpError";
-    this.status = status;
-    this.data = data;
-  }
-}
-
 const resolveBaseUrl = () => {
   const baseUrl = process.env.DCF_ENGINE_URL;
   if (!baseUrl) {
@@ -66,14 +54,10 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const message = extractErrorMessage(data);
     if (message) {
-      throw new DcfEngineHttpError(response.status, message, data);
+      throw new Error(message);
     }
     const detail = text ? `: ${truncateText(text)}` : "";
-    throw new DcfEngineHttpError(
-      response.status,
-      `DCF engine error (${response.status})${detail}`,
-      data ?? (text ? truncateText(text) : null),
-    );
+    throw new Error(`DCF engine error (${response.status})${detail}`);
   }
   if (data === null) {
     if (text) {
