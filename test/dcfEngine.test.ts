@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { fetchDcfEngine } from "../app/api/_lib/dcfEngine.ts";
+import { DcfEngineHttpError, fetchDcfEngine } from "../app/api/_lib/dcfEngine.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -34,6 +34,19 @@ describe("fetchDcfEngine", () => {
     await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow("Boom");
   });
 
+  test("JSON error payload preserves upstream HTTP status", async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ message: "Unknown symbol" }), {
+        status: 422,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const err = await fetchDcfEngine("/dcf/compute").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DcfEngineHttpError);
+    expect((err as DcfEngineHttpError).message).toBe("Unknown symbol");
+    expect((err as DcfEngineHttpError).status).toBe(422);
+  });
+
   test("throws with status for non-JSON error payloads", async () => {
     globalThis.fetch = async () =>
       new Response("Internal Server Error", {
@@ -41,9 +54,10 @@ describe("fetchDcfEngine", () => {
         headers: { "Content-Type": "text/plain" },
       });
 
-    await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow(
-      "DCF engine error (500)",
-    );
+    const err = await fetchDcfEngine("/dcf/compute").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DcfEngineHttpError);
+    expect((err as DcfEngineHttpError).status).toBe(500);
+    expect((err as DcfEngineHttpError).message).toContain("DCF engine error (500)");
   });
 
   test("throws on non-JSON success payloads", async () => {

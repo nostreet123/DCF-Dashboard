@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConvexClient } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
+import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 
 type EdgarSearchResponse = {
@@ -57,6 +57,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: response.results, source: "edgar" });
   } catch (error) {
     console.error("Company search failed", error);
-    return errorResponse("EDGAR_ERROR", "EDGAR search failed", 502);
+    const status = error instanceof DcfEngineHttpError ? error.status : 502;
+    return errorResponse(
+      "EDGAR_ERROR",
+      error instanceof Error ? error.message : "EDGAR search failed",
+      status,
+    );
   }
 }
