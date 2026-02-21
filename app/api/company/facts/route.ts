@@ -63,8 +63,11 @@ const persistFacts = async (facts: EdgarFacts): Promise<void> => {
     throw new Error("Persistence backend is not configured");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
   const upsertCompany = "companies:upsertCompany" as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
   const upsertBatch = "companyStatements:upsertBatch" as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
   await (convexClient as any).mutation(upsertCompany, {
     syncToken,
     symbol: facts.symbol,
@@ -89,6 +92,7 @@ const persistFacts = async (facts: EdgarFacts): Promise<void> => {
     updatedAt: facts.updated_at,
   }));
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
   await (convexClient as any).mutation(upsertBatch, {
     syncToken,
     symbol: facts.symbol,
