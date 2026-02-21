@@ -11,6 +11,7 @@ Notes:
 
 | Date | Task or Context | Mistake | Correction | Guardrail for Next Time |
 | --- | --- | --- | --- | --- |
+| 2026-02-20 | Security remediation planning handoff | I stated implementation had not started even though the worktree already contained substantial security changes. | Performed a self-review against git status/diff, reconciled implemented vs pending work, and executed only the remaining scoped fixes. | Before presenting status, verify with `git status --porcelain` and inspect key file diffs so progress reporting matches the actual tree. |
 | 2026-02-17 | Running `gh-fix-ci` on PR #7 | I tried the bundled `inspect_pr_checks.py` script first, but this environment's `gh` CLI does not support `gh pr checks --json`, so the script failed. | Switched to manual fallback commands: `gh pr checks <pr>` and `gh run list --branch <branch>` to verify status. | Check `gh pr checks --help` for `--json` support before using the helper script; if unsupported, use manual `gh` commands immediately. |
 | 2026-02-16 | Adding tests/helpers for `companies.search` and backfill behavior | I over-constrained helper return types in `convex/companies.ts`, causing `convex typecheck` to fail. | Refactored helper typing to a shape-preserving generic (`<T extends { _id: unknown }>`), and reran typecheck/tests. | When extracting testable helpers from Convex handlers, preserve document shape with generics instead of narrowing to partial types. |
 | 2026-02-16 | Running `gh-address-comments` workflow | I assumed `scripts/fetch_comments.py` existed at repo root and tried to run it before verifying path availability. | Fell back to `gh api graphql` to fetch and enumerate open PR review threads/comments directly. | When a skill references a helper script, verify the file exists first; if missing, use equivalent `gh` API commands and continue without blocking. |
@@ -34,6 +35,9 @@ Notes:
 | 2026-02-16 | You prefer solutions that avoid API keys and minimize always-on server friction. | When designing integrations (proxies/bridges), I will propose low-friction auth and on-demand execution patterns first. |
 | 2026-02-16 | When you say "don't modify anything," you want read-only analysis only. | I will restrict to exploration and write-ups (no file edits, no commits) until you explicitly switch to implementation. |
 | 2026-02-16 | You want relevant skills applied directly when requested. | When you say "use them," I will execute concrete code changes guided by the matching skills, then verify with typecheck/tests. |
+| 2026-02-19 | For direct repo operations (like switching to a PR branch), you want immediate execution with minimal back-and-forth. | I will run the requested git workflow first and then confirm the resulting branch succinctly. |
+| 2026-02-19 | When you invoke a security skill directly, you want a concrete security report artifact with prioritized findings. | I will produce a repo-local markdown report with severity, file/line evidence, and remediation order before proposing code fixes. |
+| 2026-02-19 | When you ask to continue, you want end-to-end completion of all open findings in one pass. | I will keep executing remaining scoped items until all are implemented and verified, then report final status. |
 
 ## Update Rule
 

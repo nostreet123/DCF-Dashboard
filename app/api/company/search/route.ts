@@ -9,6 +9,7 @@ type EdgarSearchResponse = {
 };
 
 export async function GET(request: Request) {
+  // TODO: Add rate limiting (infrastructure-level preferred) for this public endpoint.
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   if (!q) {
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ results: response.results, source: "edgar" });
   } catch (error) {
+    console.error("Company search failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
     return errorResponse(
       "EDGAR_ERROR",

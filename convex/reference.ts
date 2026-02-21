@@ -18,7 +18,7 @@ const rowValidator = v.object({
   primaryKey: v.string(),
   primaryKeyNorm: v.string(),
   secondaryKey: v.union(v.string(), v.null()),
-  metrics: v.any(),
+  metrics: v.record(v.string(), v.any()),
 });
 
 const pickBestRow = <T extends { rowIndex: number; _creationTime: number }>(

@@ -160,7 +160,7 @@ export default defineSchema({
     primaryKey: v.string(),
     primaryKeyNorm: v.string(),
     secondaryKey: v.optional(v.string()),
-    metrics: v.any(),
+    metrics: v.record(v.string(), v.any()),
   })
     .index("by_snapshot_build_rowIndex", ["snapshotId", "buildId", "rowIndex"])
     .index("by_snapshot_build_primaryKey", [
@@ -282,7 +282,7 @@ export default defineSchema({
     action: v.string(),
     source: v.string(),
     createdAt: v.number(),
-    details: v.optional(v.any()),
+    details: v.optional(v.record(v.string(), v.any())),
   }).index("by_createdAt", ["createdAt"]),
 
   duplicateScanState: defineTable({
@@ -431,15 +431,15 @@ export default defineSchema({
     error: v.optional(v.string()),
     requestId: v.optional(v.string()),
     symbol: v.optional(v.string()),
-    inputs: v.any(),
-    normalizedInputs: v.optional(v.any()),
-    provenance: v.optional(v.any()),
-    resultSummary: v.optional(v.any()),
+    inputs: v.record(v.string(), v.any()),
+    normalizedInputs: v.optional(v.record(v.string(), v.any())),
+    provenance: v.optional(v.record(v.string(), v.any())),
+    resultSummary: v.optional(v.record(v.string(), v.any())),
     primaryKeyNorm: v.optional(v.string()),
     regionCode: v.optional(v.string()),
     asOfDate: v.optional(v.string()),
     traceStorage: TraceStorage,
-    trace: v.optional(v.any()),
+    trace: v.optional(v.record(v.string(), v.any())),
     traceByteSize: v.optional(v.number()),
     traceId: v.optional(v.id("valuationRunTraces")),
   })
@@ -457,7 +457,7 @@ export default defineSchema({
     runId: v.id("valuationRuns"),
     createdAt: v.number(),
     byteSize: v.number(),
-    trace: v.any(),
+    trace: v.record(v.string(), v.any()),
   })
     .index("by_runId", ["runId"])
     .index("by_createdAt", ["createdAt"]),
