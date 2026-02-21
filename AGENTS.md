@@ -31,7 +31,7 @@
 ```bash
 # Install dependencies
 npm install                           # JavaScript/TypeScript (canonical)
-pip install -e ./python[dev]          # Python packages
+pip install -r python/requirements.txt  # Python packages
 
 # Development
 bunx convex dev                       # Local Convex
