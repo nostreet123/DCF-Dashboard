@@ -36,7 +36,7 @@ export function MetricsTableSkeleton({ rows = 5 }: MetricsTableSkeletonProps) {
             {Array.from({ length: rows }).map((_, rowIndex) => (
               <tr key={rowIndex}>
                 <td className={styles.metricCell}>
-                  <Skeleton width={100 + Math.random() * 40} height={14} />
+                  <Skeleton width={100 + (rowIndex % 3) * 20} height={14} />
                 </td>
                 {[1, 2, 3, 4, 5].map((i) => (
                   <td key={i} className={styles.valueCell}>

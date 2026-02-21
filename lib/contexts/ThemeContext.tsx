@@ -18,6 +18,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem('dcf-theme') as Theme | null;
     if (stored && (stored === 'dark' || stored === 'light')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reading persisted theme on mount is standard hydration
       setTheme(stored);
       return;
     }
