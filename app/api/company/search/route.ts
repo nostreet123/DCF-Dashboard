@@ -28,7 +28,9 @@ export async function GET(request: Request) {
   const convexClient = getConvexClient();
   if (convexClient) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const searchCompanies = "companies:search" as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const results = await (convexClient as any).query(searchCompanies, {
         q,
         limit,

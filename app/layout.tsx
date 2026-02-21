@@ -21,6 +21,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- intentional: must block render to set theme before first paint */}
         <script src="/theme-init.js" />
       </head>
       <body

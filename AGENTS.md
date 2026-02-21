@@ -3,7 +3,7 @@
 ## Project Snapshot
 
 - **Type**: Simple hybrid project (Python 3.12+ backend, Convex TypeScript database)
-- **Package managers**: Bun (JavaScript), pip (Python)
+- **Package managers**: npm (JavaScript, canonical), pip (Python); Bun is used only as the test runner
 - **Database**: Convex serverless
 - **Testing**: pytest (Python), Bun tests in `convex_tests/`
 - Sub-modules have their own AGENTS.md files for detailed guidance.
@@ -30,8 +30,8 @@
 
 ```bash
 # Install dependencies
-bun install                           # Convex TypeScript
-pip install -e ./python[dev]          # Python packages
+npm install                           # JavaScript/TypeScript (canonical)
+pip install -r python/requirements.txt  # Python packages
 
 # Development
 bunx convex dev                       # Local Convex
