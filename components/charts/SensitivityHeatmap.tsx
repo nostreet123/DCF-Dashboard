@@ -32,7 +32,7 @@ export function SensitivityHeatmap({
 }: SensitivityHeatmapProps) {
   const { theme } = useTheme();
 
-  const { min, max, cells } = useMemo(() => {
+  const { cells } = useMemo(() => {
     if (!data?.length || !data[0]?.length) {
       return { min: 0, max: 0, cells: [] };
     }

@@ -178,8 +178,8 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
 
   // Cleanup on unmount
   useEffect(() => {
+    const r = refsRef.current;
     return () => {
-      const r = refsRef.current;
       if (r.abortController) {
         r.abortController.abort();
       }
@@ -192,18 +192,30 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
     };
   }, []);
 
-  const { compute, reset } = buildComputeFns(
-    refsRef.current,
-    { setIsLoading, setError, setResult },
-    debounceMs,
+  const compute = useCallback(
+    (inputs: DcfInputs) => {
+      const fns = buildComputeFns(
+        refsRef.current,
+        { setIsLoading, setError, setResult },
+        debounceMs,
+      );
+      return fns.compute(inputs);
+    },
+    [debounceMs],
   );
 
-  const stableCompute = useCallback(compute, [compute]);
-  const stableReset = useCallback(reset, [reset]);
+  const reset = useCallback(() => {
+    const fns = buildComputeFns(
+      refsRef.current,
+      { setIsLoading, setError, setResult },
+      debounceMs,
+    );
+    fns.reset();
+  }, [debounceMs]);
 
   return {
-    compute: stableCompute,
-    reset: stableReset,
+    compute,
+    reset,
     result,
     isLoading,
     error,
