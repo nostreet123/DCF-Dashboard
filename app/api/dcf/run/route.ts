@@ -38,8 +38,10 @@ export async function POST(request: Request) {
     ...(monteCarlo ? { monteCarlo } : {}),
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DCF engine returns an open-ended JSON object
   let result: Record<string, any>;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DCF engine returns an open-ended JSON object
     result = await fetchDcfEngine<Record<string, any>>("/dcf/compute", {
       method: "POST",
       body: JSON.stringify(computePayload),
@@ -91,7 +93,9 @@ export async function POST(request: Request) {
       monteCarlo: result.monteCarlo,
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
     const createValuation = "valuations:create" as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
     await (convexClient as any).mutation(createValuation, {
       syncToken,
       engineVersion: "workbench-v1",

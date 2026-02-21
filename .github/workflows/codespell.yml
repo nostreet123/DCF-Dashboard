@@ -14,4 +14,4 @@ jobs:
         run: pip install codespell
       - name: Run codespell
         # Skip binary/generated files and hidden dirs
-        run: codespell --skip="./.git,./.venv,./node_modules,./bun.lock,./.cache"
+        run: codespell --skip="./.git,./.venv,./node_modules,./.cache"
