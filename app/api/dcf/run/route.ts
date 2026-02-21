@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
+import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
   parseMonteCarloPreset,
@@ -44,10 +44,11 @@ export async function POST(request: Request) {
       body: JSON.stringify(computePayload),
     });
   } catch (error) {
+    const status = error instanceof DcfEngineHttpError ? error.status : 502;
     return errorResponse(
       "DCF_ENGINE_ERROR",
       error instanceof Error ? error.message : "DCF compute failed",
-      502,
+      status,
     );
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
+import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 
 type EdgarStatement = {
@@ -40,10 +40,11 @@ export async function GET(request: Request) {
       { method: "GET" },
     );
   } catch (error) {
+    const status = error instanceof DcfEngineHttpError ? error.status : 502;
     return errorResponse(
       "EDGAR_ERROR",
       error instanceof Error ? error.message : "EDGAR facts failed",
-      502,
+      status,
     );
   }
 

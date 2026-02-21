@@ -44,10 +44,16 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingRejectRef = useRef<((reason: unknown) => void) | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (pendingRejectRef.current) {
+        const err = new DOMException('Component unmounted', 'AbortError');
+        pendingRejectRef.current(err);
+        pendingRejectRef.current = null;
+      }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -59,6 +65,13 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
 
   const compute = useCallback(
     async (inputs: DcfInputs) => {
+      // Reject any promise still waiting in the debounce queue
+      if (pendingRejectRef.current) {
+        const supersededErr = new DOMException('Superseded by newer call', 'AbortError');
+        pendingRejectRef.current(supersededErr);
+        pendingRejectRef.current = null;
+      }
+
       // Clear any pending debounce
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -70,7 +83,12 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
       }
 
       return new Promise<DcfResult>((resolve, reject) => {
+        pendingRejectRef.current = reject;
+
         debounceTimerRef.current = setTimeout(async () => {
+          // This promise is now executing — clear the debounce-queue reference
+          pendingRejectRef.current = null;
+
           setIsLoading(true);
           setError(null);
 
@@ -95,7 +113,8 @@ export function useDcfCompute(options: UseDcfComputeOptions = {}) {
             resolve(data);
           } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') {
-              // Ignore abort errors
+              // Settle the promise so callers don't hang
+              reject(err);
               return;
             }
             const error = err instanceof Error ? err : new Error('Unknown error');
