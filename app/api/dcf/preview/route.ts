@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
+    console.error("DCF preview failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
     return errorResponse(
       "DCF_ENGINE_ERROR",

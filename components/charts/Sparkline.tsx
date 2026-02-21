@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useId } from 'react';
 
 interface SparklineProps {
   /** Array of numeric values to plot */
@@ -68,7 +68,8 @@ export function Sparkline({
     return path;
   }, [data, width, height]);
 
-  const glowId = useMemo(() => `sparkline-glow-${Math.random().toString(36).slice(2, 9)}`, []);
+  const rawId = useId();
+  const glowId = `sparkline-glow-${rawId.replace(/:/g, '')}`;
 
   if (!data || data.length < 2) {
     return null;

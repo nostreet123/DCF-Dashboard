@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="DCF Engine Service", version="0.1.0")
 
+SEC_SEARCH_FAILURE_DETAIL = "SEC search failed"
+SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
+SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"
+DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
+DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
+
 
 @app.get("/sec/search")
 def sec_search(
@@ -23,7 +29,7 @@ def sec_search(
         results = search_companies(q, limit=limit)
     except (RuntimeError, requests.RequestException) as exc:
         logger.exception("SEC search failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=SEC_SEARCH_FAILURE_DETAIL) from exc
     return {"results": results}
 
 
@@ -33,19 +39,23 @@ def sec_facts(symbol: str = Query(..., min_length=1)) -> object:
         return fetch_company_facts(symbol)
     except ValueError as exc:
         logger.warning("Unknown ticker requested: %s", symbol)
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=SEC_FACTS_NOT_FOUND_DETAIL) from exc
     except (RuntimeError, requests.RequestException) as exc:
         logger.exception("SEC facts fetch failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=SEC_FACTS_FAILURE_DETAIL) from exc
 
 
-@app.post("/dcf/compute", response_model=WorkbenchResponse)
+@app.post(
+    "/dcf/compute",
+    response_model=WorkbenchResponse,
+    response_model_by_alias=True,
+)
 def dcf_compute(request: WorkbenchRequest) -> WorkbenchResponse:
     try:
         return run_workbench(request)
     except ValueError as exc:
         logger.warning("DCF compute failed: %s", exc)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=DCF_COMPUTE_BAD_REQUEST_DETAIL) from exc
     except RuntimeError as exc:
         logger.exception("DCF compute error")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=DCF_COMPUTE_FAILURE_DETAIL) from exc
