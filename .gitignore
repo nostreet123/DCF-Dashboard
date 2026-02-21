@@ -24,6 +24,10 @@ out/
 .next/
 *.tsbuildinfo
 
+# Bun lockfile (npm is canonical)
+bun.lock
+bun.lockb
+
 # Playwright
 playwright-report/
 test-results/

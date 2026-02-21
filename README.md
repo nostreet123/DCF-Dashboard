@@ -1,6 +1,15 @@
 # DCF-Dashboard
 A prototype for a Damodaran DCF Dashboard inspired by his valuation Excel model.
 
+## Install
+
+```bash
+npm install          # JavaScript/TypeScript (canonical lockfile: package-lock.json)
+pip install -e ./python[dev]   # Python packages
+```
+
+Bun is used only as the test runner (`bun test`). npm is the canonical package manager for dependency tracking and security alerts.
+
 ## API (prototype)
 
 DCF compute routes (Next.js → FastAPI):
