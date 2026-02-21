@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
-import { fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
+import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 
@@ -108,7 +108,12 @@ export async function GET(request: Request) {
     return NextResponse.json(facts);
   } catch (error) {
     console.error("Company facts fetch failed", error);
-    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", 502);
+    const status = error instanceof DcfEngineHttpError ? error.status : 502;
+    return errorResponse(
+      "EDGAR_ERROR",
+      error instanceof Error ? error.message : "EDGAR facts failed",
+      status,
+    );
   }
 }
 
@@ -127,7 +132,12 @@ export async function POST(request: Request) {
     facts = await fetchFacts(symbol);
   } catch (error) {
     console.error("Company facts fetch failed", error);
-    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", 502);
+    const status = error instanceof DcfEngineHttpError ? error.status : 502;
+    return errorResponse(
+      "EDGAR_ERROR",
+      error instanceof Error ? error.message : "EDGAR facts failed",
+      status,
+    );
   }
 
   try {
