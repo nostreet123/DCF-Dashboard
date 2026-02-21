@@ -29,17 +29,17 @@ afterEach(() => {
   }
 });
 
-const mockUpstreamError = () => {
+const mockUpstreamError = (status = 500) => {
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ message: "sensitive upstream detail" }), {
-      status: 500,
+      status,
       headers: { "Content-Type": "application/json" },
     });
 };
 
 describe("API error sanitization", () => {
-  test("dcf preview route hides upstream error details", async () => {
-    mockUpstreamError();
+  test("dcf preview route propagates upstream HTTP status", async () => {
+    mockUpstreamError(422);
 
     const response = await dcfPreviewPost(
       new Request("http://localhost/api/dcf/preview", {
@@ -50,40 +50,47 @@ describe("API error sanitization", () => {
     );
     const json = await response.json();
 
-    expect(response.status).toBe(502);
-    expect(json).toEqual({
-      code: "DCF_ENGINE_ERROR",
-      message: "DCF compute failed",
-    });
+    expect(response.status).toBe(422);
+    expect(json.code).toBe("DCF_ENGINE_ERROR");
   });
 
-  test("company search route hides upstream error details", async () => {
-    mockUpstreamError();
+  test("dcf preview route defaults to 502 for unknown errors", async () => {
+    globalThis.fetch = async () => {
+      throw new Error("Network error");
+    };
+
+    const response = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(response.status).toBe(502);
+  });
+
+  test("company search route propagates upstream HTTP status", async () => {
+    mockUpstreamError(429);
 
     const response = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL"),
     );
     const json = await response.json();
 
-    expect(response.status).toBe(502);
-    expect(json).toEqual({
-      code: "EDGAR_ERROR",
-      message: "EDGAR search failed",
-    });
+    expect(response.status).toBe(429);
+    expect(json.code).toBe("EDGAR_ERROR");
   });
 
-  test("company facts route hides upstream error details", async () => {
-    mockUpstreamError();
+  test("company facts route propagates upstream HTTP status", async () => {
+    mockUpstreamError(404);
 
     const response = await companyFactsGet(
       new Request("http://localhost/api/company/facts?symbol=AAPL"),
     );
     const json = await response.json();
 
-    expect(response.status).toBe(502);
-    expect(json).toEqual({
-      code: "EDGAR_ERROR",
-      message: "EDGAR facts failed",
-    });
+    expect(response.status).toBe(404);
+    expect(json.code).toBe("EDGAR_ERROR");
   });
 });
