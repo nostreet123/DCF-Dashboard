@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useDialogInteractions } from '@/lib/hooks/useDialogInteractions';
 import styles from './Drawer.module.css';
 
 interface DrawerProps {
@@ -13,6 +12,9 @@ interface DrawerProps {
   children: ReactNode;
 }
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
 export function Drawer({
   open,
   onClose,
@@ -22,19 +24,64 @@ export function Drawer({
 }: DrawerProps) {
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard SSR hydration guard
     setMounted(true);
   }, []);
 
-  useDialogInteractions({
-    open,
-    onEscape: onClose,
-    containerRef: panelRef,
-    trapFocus: true,
-    lockScroll: true,
-  });
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const panel = panelRef.current;
+    const focusables = panel?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    const firstFocusable = focusables?.[0] ?? panel;
+    firstFocusable?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panel) {
+        return;
+      }
+
+      const focusableElements = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const current = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey && current === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && current === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      lastFocusedRef.current?.focus();
+    };
+  }, [open, onClose]);
 
   if (!mounted || !open) {
     return null;

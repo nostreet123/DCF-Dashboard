@@ -45,9 +45,9 @@ export const colors = {
       coral: '#b5636a',
     },
     heatmap: {
-      low: '#be6d79',
-      mid: '#d3a95e',
-      high: '#7ea076',
+      low: '#c78a92',
+      mid: '#e6c589',
+      high: '#9bb897',
     },
   },
 } as const;

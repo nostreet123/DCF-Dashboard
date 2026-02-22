@@ -3,8 +3,6 @@
  * Interpolates between burgundy (low) -> amber (mid) -> sage (high)
  */
 
-import { colors, type Theme } from '@/lib/design/colors';
-
 interface RGB {
   r: number;
   g: number;
@@ -49,12 +47,20 @@ function lerpRgb(a: RGB, b: RGB, t: number): RGB {
 }
 
 /**
- * Heatmap colors sourced from design tokens
+ * Default heatmap colors matching the design tokens
  */
 export const heatmapColors = {
-  dark: colors.dark.heatmap,
-  light: colors.light.heatmap,
-} as const satisfies Record<Theme, { low: string; mid: string; high: string }>;
+  dark: {
+    low: '#8b4a52',   // burgundy
+    mid: '#d4a853',   // amber/gold
+    high: '#7a9b76',  // sage
+  },
+  light: {
+    low: '#be6d79',   // rose clay
+    mid: '#d3a95e',   // amber ochre
+    high: '#7ea076',  // muted sage
+  },
+};
 
 /**
  * Get heatmap color for a normalized value (0-1)
@@ -62,7 +68,7 @@ export const heatmapColors = {
  */
 export function getHeatmapColor(
   value: number,
-  theme: Theme = 'dark'
+  theme: 'dark' | 'light' = 'dark'
 ): string {
   const colors = heatmapColors[theme];
   const low = hexToRgb(colors.low);
@@ -99,7 +105,7 @@ export function getHeatmapColorForValue(
   value: number,
   min: number,
   max: number,
-  theme: Theme = 'dark'
+  theme: 'dark' | 'light' = 'dark'
 ): string {
   const normalized = normalizeValue(value, min, max);
   return getHeatmapColor(normalized, theme);
