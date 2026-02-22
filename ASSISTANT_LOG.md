@@ -36,6 +36,7 @@ Notes:
 | 2026-02-16 | When you say "don't modify anything," you want read-only analysis only. | I will restrict to exploration and write-ups (no file edits, no commits) until you explicitly switch to implementation. |
 | 2026-02-16 | You want relevant skills applied directly when requested. | When you say "use them," I will execute concrete code changes guided by the matching skills, then verify with typecheck/tests. |
 | 2026-02-19 | For direct repo operations (like switching to a PR branch), you want immediate execution with minimal back-and-forth. | I will run the requested git workflow first and then confirm the resulting branch succinctly. |
+| 2026-02-22 | When you request a PR switch, you want me to execute the checkout immediately and verify the PR metadata after switching. | I will use `gh pr checkout <number>` first, then confirm active branch and PR details (`head`, `base`, `URL`) in one quick pass. |
 | 2026-02-19 | When you invoke a security skill directly, you want a concrete security report artifact with prioritized findings. | I will produce a repo-local markdown report with severity, file/line evidence, and remediation order before proposing code fixes. |
 | 2026-02-19 | When you ask to continue, you want end-to-end completion of all open findings in one pass. | I will keep executing remaining scoped items until all are implemented and verified, then report final status. |
 
