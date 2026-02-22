@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import { normalizePositiveIntegerLimit } from "./normalization";
 import { requireSyncToken } from "./syncAuth";
 
 const normalizePrimaryKey = (value: string) =>
@@ -14,19 +15,7 @@ const normalizePageLimit = (
   requested: number | undefined,
   defaultLimit: number,
   maxLimit: number,
-) => {
-  if (requested === undefined) {
-    return defaultLimit;
-  }
-  const limit = Number(requested);
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: "Limit must be a positive integer",
-    });
-  }
-  return Math.min(limit, maxLimit);
-};
+) => normalizePositiveIntegerLimit(requested, defaultLimit, maxLimit);
 
 const getMaxInsertRowsPerCall = () => {
   const raw = process.env.TABLEDATA_INSERT_MAX_ROWS;
@@ -83,6 +72,154 @@ const TableDataRow = v.object({
   metrics: v.record(v.string(), v.any()),
 });
 
+type InsertBatchRow = {
+  rowIndex: number;
+  primaryKey: string;
+  primaryKeyNorm: string;
+  secondaryKey?: string;
+  metrics: Record<string, unknown>;
+};
+
+const assertInsertBatchSize = (rows: InsertBatchRow[], maxRows: number) => {
+  if (rows.length > maxRows) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: `Batch too large: max ${maxRows} rows per call`,
+    });
+  }
+};
+
+const validatedPrimaryKeyNorm = (row: InsertBatchRow) => {
+  const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
+  if (row.primaryKeyNorm !== primaryKeyNorm) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message:
+        `primaryKeyNorm mismatch at row ${row.rowIndex}: ` +
+        `expected ${primaryKeyNorm}`,
+    });
+  }
+  return primaryKeyNorm;
+};
+
+const queryRowsBySnapshotBuildAndIndex = (
+  ctx: MutationCtx,
+  snapshotId: any,
+  buildId: string,
+  rowIndex: number,
+) =>
+  ctx.db.query("tableData").withIndex("by_snapshot_build_rowIndex", (q) =>
+    q.eq("snapshotId", snapshotId).eq("buildId", buildId).eq("rowIndex", rowIndex),
+  );
+
+const listExistingRowsForRow = async (
+  ctx: MutationCtx,
+  snapshotId: any,
+  buildId: string,
+  rowIndex: number,
+) => {
+  const matches = await queryRowsBySnapshotBuildAndIndex(
+    ctx,
+    snapshotId,
+    buildId,
+    rowIndex,
+  ).take(2);
+  if (matches.length <= 1) {
+    return matches;
+  }
+  return await queryRowsBySnapshotBuildAndIndex(
+    ctx,
+    snapshotId,
+    buildId,
+    rowIndex,
+  ).collect();
+};
+
+const isEquivalentRow = (
+  existing: any,
+  row: InsertBatchRow,
+  primaryKeyNorm: string,
+  rowMetricsJson: string,
+) => {
+  const sameSecondaryKey = (existing.secondaryKey ?? null) === (row.secondaryKey ?? null);
+  const sameMetrics = stableStringify(existing.metrics) === rowMetricsJson;
+  return (
+    existing.primaryKey === row.primaryKey &&
+    existing.primaryKeyNorm === primaryKeyNorm &&
+    sameSecondaryKey &&
+    sameMetrics
+  );
+};
+
+const hasEquivalentExistingRows = async (
+  ctx: MutationCtx,
+  snapshotId: any,
+  buildId: string,
+  row: InsertBatchRow,
+  primaryKeyNorm: string,
+) => {
+  const existingRows = await listExistingRowsForRow(
+    ctx,
+    snapshotId,
+    buildId,
+    row.rowIndex,
+  );
+  if (existingRows.length === 0) {
+    return false;
+  }
+  const rowMetricsJson = stableStringify(row.metrics);
+  if (
+    !existingRows.every((existing: any) =>
+      isEquivalentRow(existing, row, primaryKeyNorm, rowMetricsJson),
+    )
+  ) {
+    throw new ConvexError({
+      code: "CONFLICT",
+      message: `Row ${row.rowIndex} already exists with different data`,
+    });
+  }
+  return true;
+};
+
+const insertTableDataRow = async (
+  ctx: MutationCtx,
+  snapshotId: any,
+  buildId: string,
+  row: InsertBatchRow,
+  primaryKeyNorm: string,
+) => {
+  await ctx.db.insert("tableData", {
+    snapshotId,
+    buildId,
+    rowIndex: row.rowIndex,
+    primaryKey: row.primaryKey,
+    primaryKeyNorm,
+    secondaryKey: row.secondaryKey,
+    metrics: row.metrics,
+  });
+};
+
+const processInsertBatchRow = async (
+  ctx: MutationCtx,
+  snapshotId: any,
+  buildId: string,
+  row: InsertBatchRow,
+) => {
+  const primaryKeyNorm = validatedPrimaryKeyNorm(row);
+  const exists = await hasEquivalentExistingRows(
+    ctx,
+    snapshotId,
+    buildId,
+    row,
+    primaryKeyNorm,
+  );
+  if (exists) {
+    return false;
+  }
+  await insertTableDataRow(ctx, snapshotId, buildId, row, primaryKeyNorm);
+  return true;
+};
+
 export const insertBatch = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -104,79 +241,19 @@ export const insertBatch = mutation({
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
     const maxRows = getMaxInsertRowsPerCall();
-    if (args.rows.length > maxRows) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: `Batch too large: max ${maxRows} rows per call`,
-      });
-    }
+    assertInsertBatchSize(args.rows as InsertBatchRow[], maxRows);
 
     let inserted = 0;
     for (const row of args.rows) {
-      const primaryKeyNorm = normalizePrimaryKey(row.primaryKey);
-      if (row.primaryKeyNorm !== primaryKeyNorm) {
-        throw new ConvexError({
-          code: "BAD_REQUEST",
-          message:
-            `primaryKeyNorm mismatch at row ${row.rowIndex}: ` +
-            `expected ${primaryKeyNorm}`,
-        });
+      const didInsert = await processInsertBatchRow(
+        ctx,
+        args.snapshotId,
+        args.buildId,
+        row as InsertBatchRow,
+      );
+      if (didInsert) {
+        inserted += 1;
       }
-
-      const matches = await ctx.db
-        .query("tableData")
-        .withIndex("by_snapshot_build_rowIndex", (q) =>
-          q
-            .eq("snapshotId", args.snapshotId)
-            .eq("buildId", args.buildId)
-            .eq("rowIndex", row.rowIndex),
-        )
-        .take(2);
-      if (matches.length > 0) {
-        const rowMetricsJson = stableStringify(row.metrics);
-        const isEquivalent = (existing: any) => {
-          const sameSecondaryKey =
-            (existing.secondaryKey ?? null) === (row.secondaryKey ?? null);
-          const sameMetrics = stableStringify(existing.metrics) === rowMetricsJson;
-          return (
-            existing.primaryKey === row.primaryKey &&
-            existing.primaryKeyNorm === primaryKeyNorm &&
-            sameSecondaryKey &&
-            sameMetrics
-          );
-        };
-
-        const existingRows =
-          matches.length === 1
-            ? matches
-            : await ctx.db
-                .query("tableData")
-                .withIndex("by_snapshot_build_rowIndex", (q) =>
-                  q
-                    .eq("snapshotId", args.snapshotId)
-                    .eq("buildId", args.buildId)
-                    .eq("rowIndex", row.rowIndex),
-                )
-                .collect();
-        if (!existingRows.every((existing: any) => isEquivalent(existing))) {
-          throw new ConvexError({
-            code: "CONFLICT",
-            message: `Row ${row.rowIndex} already exists with different data`,
-          });
-        }
-        continue;
-      }
-
-      await ctx.db.insert("tableData", {
-        snapshotId: args.snapshotId,
-        buildId: args.buildId,
-        rowIndex: row.rowIndex,
-        primaryKey: row.primaryKey,
-        primaryKeyNorm,
-        secondaryKey: row.secondaryKey,
-        metrics: row.metrics,
-      });
-      inserted += 1;
     }
 
     return { inserted };
