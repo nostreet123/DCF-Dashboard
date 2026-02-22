@@ -1,14 +1,8 @@
 'use client';
 
 import { Slider } from '@/components/ui/Slider';
+import { defaultAssumptions, type Assumptions } from '@/lib/workbench/scenarioProfiles';
 import styles from './RightPanel.module.css';
-
-interface Assumptions {
-  revenueGrowth: number;
-  operatingMargin: number;
-  discountRate: number;
-  terminalGrowth: number;
-}
 
 interface SensitivityDriver {
   name: string;
@@ -34,12 +28,7 @@ interface RightPanelProps {
  * 300px fixed width.
  */
 export function RightPanel({
-  assumptions = {
-    revenueGrowth: 12,
-    operatingMargin: 25,
-    discountRate: 10,
-    terminalGrowth: 2.5,
-  },
+  assumptions = defaultAssumptions,
   onAssumptionChange,
   drivers,
   isCalculating,

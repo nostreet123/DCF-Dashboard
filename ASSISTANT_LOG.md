@@ -38,6 +38,10 @@ Notes:
 | 2026-02-19 | For direct repo operations (like switching to a PR branch), you want immediate execution with minimal back-and-forth. | I will run the requested git workflow first and then confirm the resulting branch succinctly. |
 | 2026-02-19 | When you invoke a security skill directly, you want a concrete security report artifact with prioritized findings. | I will produce a repo-local markdown report with severity, file/line evidence, and remediation order before proposing code fixes. |
 | 2026-02-19 | When you ask to continue, you want end-to-end completion of all open findings in one pass. | I will keep executing remaining scoped items until all are implemented and verified, then report final status. |
+| 2026-02-21 | For "switch to latest PR" requests, you want me to select the newest open PR by creation time and check it out immediately. | I will default to `gh pr list --state open --search "sort:created-desc"` and then run `gh pr checkout <number>` unless you specify a different sort order. |
+| 2026-02-21 | When asking for prior conversation severity items, you want direct search in the local history file. | I will search `/root/.codex/history.jsonl` first and return exact matching sessions/snippets before using any broader interpretation. |
+| 2026-02-22 | You value proactive codebase audits that surface refactor candidates before implementation work starts. | I will run focused cross-module scans and return a prioritized shortlist with file/line anchors and concrete refactor directions. |
+| 2026-02-22 | You want me to avoid subagents when quota is constrained. | I will execute tasks directly in the main session unless you explicitly ask for subagents. |
 
 ## Update Rule
 
