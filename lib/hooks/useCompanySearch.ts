@@ -2,9 +2,16 @@
 
 import { useQuery } from 'convex/react';
 import { useState, useEffect } from 'react';
-import { getConvexApi } from './convexApiBootstrap';
 
-const api = getConvexApi();
+// Avoid importing api directly to prevent deep type instantiation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let api: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- avoids deep type instantiation from generated Convex API
+  api = require('@/convex/_generated/api').api;
+} catch {
+  api = {};
+}
 
 interface Company {
   _id: string;
