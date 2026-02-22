@@ -3,6 +3,22 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+PERIOD_SERIES_FIELDS: tuple[str, ...] = (
+    "revenue_growth",
+    "ebit_margin",
+    "tax_rate",
+    "sales_to_capital",
+    "wacc",
+)
+
+REQUIRED_PERIOD_SERIES_FIELDS: tuple[str, ...] = (
+    "ebit_margin",
+    "tax_rate",
+    "sales_to_capital",
+    "wacc",
+)
+
+
 class InputAssumptions(BaseModel):
     base_year: int = Field(..., description="Base year for t=0.")
     currency: str | None = Field(None, description="Reporting currency code.")
