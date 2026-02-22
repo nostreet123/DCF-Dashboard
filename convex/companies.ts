@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
+import { normalizePositiveIntegerLimit, normalizeSymbol } from "./normalization";
 import { requireSyncToken } from "./syncAuth";
 
 type CompanyBackfillCandidate = {
@@ -22,8 +23,6 @@ const companyValidator = v.object({
   source: v.string(),
   updatedAt: v.number(),
 });
-
-const normalizeSymbol = (symbol: string) => symbol.trim().toUpperCase();
 
 export const buildSearchText = (
   symbol: string,
@@ -79,37 +78,11 @@ export const getCompanyBackfillPatch = (company: CompanyBackfillCandidate) => {
 };
 
 
-const normalizeLimit = (requested: number | undefined) => {
-  const DEFAULT_LIMIT = 20;
-  const MAX_LIMIT = 50;
-  if (requested === undefined) {
-    return DEFAULT_LIMIT;
-  }
-  const limit = Number(requested);
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: "Limit must be a positive integer",
-    });
-  }
-  return Math.min(limit, MAX_LIMIT);
-};
+const normalizeLimit = (requested: number | undefined) =>
+  normalizePositiveIntegerLimit(requested, 20, 50);
 
-const normalizeBackfillLimit = (requested: number | undefined) => {
-  const DEFAULT_LIMIT = 200;
-  const MAX_LIMIT = 500;
-  if (requested === undefined) {
-    return DEFAULT_LIMIT;
-  }
-  const limit = Number(requested);
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: "Limit must be a positive integer",
-    });
-  }
-  return Math.min(limit, MAX_LIMIT);
-};
+const normalizeBackfillLimit = (requested: number | undefined) =>
+  normalizePositiveIntegerLimit(requested, 200, 500);
 
 
 export const get = query({

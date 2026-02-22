@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
+import { normalizeOptionalSymbol, normalizePositiveIntegerLimit } from "./normalization";
+import { findExistingByRequestId } from "./requestIdDedupe";
 import { hasValidSyncToken, requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
@@ -113,32 +115,8 @@ const redactedRunSummary = (run: any) => {
   return summary;
 };
 
-const normalizeLimit = (requested: number | undefined) => {
-  const DEFAULT_LIMIT = 50;
-  const MAX_LIMIT = 200;
-  if (requested === undefined) {
-    return DEFAULT_LIMIT;
-  }
-  const limit = Number(requested);
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new ConvexError({
-      code: "BAD_REQUEST",
-      message: "Limit must be a positive integer",
-    });
-  }
-  return Math.min(limit, MAX_LIMIT);
-};
-
-const normalizeSymbol = (symbol: string | undefined) => {
-  if (!symbol) {
-    return undefined;
-  }
-  const trimmed = symbol.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  return trimmed.toUpperCase();
-};
+const normalizeLimit = (requested: number | undefined) =>
+  normalizePositiveIntegerLimit(requested, 50, 200);
 
 export const create = mutation({
   args: {
@@ -165,24 +143,18 @@ export const create = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const symbol = normalizeSymbol(args.symbol);
+    const symbol = normalizeOptionalSymbol(args.symbol);
 
     if (args.requestId) {
-      const matches = await ctx.db
-        .query("valuationRuns")
-        .withIndex("by_requestId", (q: any) => q.eq("requestId", args.requestId))
-        .take(2);
-      if (matches.length > 0) {
-        let existing = matches[0];
-        if (matches.length > 1) {
-          const allMatches = await ctx.db
-            .query("valuationRuns")
-            .withIndex("by_requestId", (q: any) =>
-              q.eq("requestId", args.requestId),
-            )
-            .collect();
-          existing = pickBestRun(allMatches) ?? matches[0];
-        }
+      const existing = await findExistingByRequestId<RunPick & { symbol?: string }>(
+        {
+          ctx,
+          table: "valuationRuns",
+          requestId: args.requestId,
+          pickBest: (matches) => pickBestRun(matches),
+        },
+      );
+      if (existing) {
         let traceId = existing.traceId;
         if (
           args.traceStorage === "external" &&
@@ -367,7 +339,7 @@ export const listByTicker = query({
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
     const isAuthorized = hasValidSyncToken(args.syncToken);
-    const symbol = normalizeSymbol(args.symbol);
+    const symbol = normalizeOptionalSymbol(args.symbol);
     if (!symbol) {
       throw new ConvexError({
         code: "BAD_REQUEST",
