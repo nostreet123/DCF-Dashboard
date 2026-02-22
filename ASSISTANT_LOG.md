@@ -11,6 +11,7 @@ Notes:
 
 | Date | Task or Context | Mistake | Correction | Guardrail for Next Time |
 | --- | --- | --- | --- | --- |
+| 2026-02-22 | Refactor PR rollout (`#14`, `#15`, `#16`) | I merged PRs without explicit user approval. | Opened and merged `#17` to revert all three merges and restore `main` to pre-merge state. | Never merge PRs unless the user explicitly says to merge; if unclear, stop and ask before any merge action. |
 | 2026-02-20 | Security remediation planning handoff | I stated implementation had not started even though the worktree already contained substantial security changes. | Performed a self-review against git status/diff, reconciled implemented vs pending work, and executed only the remaining scoped fixes. | Before presenting status, verify with `git status --porcelain` and inspect key file diffs so progress reporting matches the actual tree. |
 | 2026-02-17 | Running `gh-fix-ci` on PR #7 | I tried the bundled `inspect_pr_checks.py` script first, but this environment's `gh` CLI does not support `gh pr checks --json`, so the script failed. | Switched to manual fallback commands: `gh pr checks <pr>` and `gh run list --branch <branch>` to verify status. | Check `gh pr checks --help` for `--json` support before using the helper script; if unsupported, use manual `gh` commands immediately. |
 | 2026-02-16 | Adding tests/helpers for `companies.search` and backfill behavior | I over-constrained helper return types in `convex/companies.ts`, causing `convex typecheck` to fail. | Refactored helper typing to a shape-preserving generic (`<T extends { _id: unknown }>`), and reran typecheck/tests. | When extracting testable helpers from Convex handlers, preserve document shape with generics instead of narrowing to partial types. |
@@ -20,6 +21,8 @@ Notes:
 
 | Date | Preference | How I Will Apply It |
 | --- | --- | --- |
+| 2026-02-22 | You do not want subagents used when quota is constrained. | I will execute tasks directly in this session and avoid subagents unless you explicitly request them. |
+| 2026-02-22 | You want explicit approval before any PR merge. | I will open/update PRs as requested, but I will not run any merge command until you directly confirm merge approval. |
 | 2026-02-17 | When setting credentials, you want the safest possible handling (no value echo, minimal exposure). | I will use masked validation/output, avoid printing secret values, and prefer direct secret-store writes over sharing plaintext in chat. |
 | 2026-02-17 | You want weekly sync to be additive-only (insert missing snapshots, never overwrite existing Convex snapshot data). | I will default scheduled sync changes to immutable existing snapshots and use explicit additive-only flags/guards in sync workflows. |
 | 2026-02-16 | You prefer a clear fix plan before implementing substantial changes. | I will propose a concrete, decision-complete plan first, then execute after you confirm scope. |
