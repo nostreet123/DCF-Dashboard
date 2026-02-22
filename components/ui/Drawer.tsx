@@ -27,6 +27,7 @@ export function Drawer({
   const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard SSR hydration guard
     setMounted(true);
   }, []);
 
