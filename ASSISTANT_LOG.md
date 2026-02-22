@@ -42,7 +42,12 @@ Notes:
 | 2026-02-22 | When you request a PR switch, you want me to execute the checkout immediately and verify the PR metadata after switching. | I will use `gh pr checkout <number>` first, then confirm active branch and PR details (`head`, `base`, `URL`) in one quick pass. |
 | 2026-02-19 | When you invoke a security skill directly, you want a concrete security report artifact with prioritized findings. | I will produce a repo-local markdown report with severity, file/line evidence, and remediation order before proposing code fixes. |
 | 2026-02-19 | When you ask to continue, you want end-to-end completion of all open findings in one pass. | I will keep executing remaining scoped items until all are implemented and verified, then report final status. |
+<<<<<<< HEAD
 | 2026-02-23 | For security hardening, you want remaining blockers fully resolved to real mergeability, not just CI-green status. | I will treat cross-instance bypasses and identity-trust gaps as required fixes, then re-run full verification before calling a PR mergeable. |
+| 2026-02-21 | For "switch to latest PR" requests, you want me to select the newest open PR by creation time and check it out immediately. | I will default to `gh pr list --state open --search "sort:created-desc"` and then run `gh pr checkout <number>` unless you specify a different sort order. |
+| 2026-02-21 | When asking for prior conversation severity items, you want direct search in the local history file. | I will search `/root/.codex/history.jsonl` first and return exact matching sessions/snippets before using any broader interpretation. |
+| 2026-02-22 | You value proactive codebase audits that surface refactor candidates before implementation work starts. | I will run focused cross-module scans and return a prioritized shortlist with file/line anchors and concrete refactor directions. |
+| 2026-02-22 | You want me to avoid subagents when quota is constrained. | I will execute tasks directly in the main session unless you explicitly ask for subagents. |
 
 ## Update Rule
 
