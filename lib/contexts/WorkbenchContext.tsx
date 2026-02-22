@@ -8,15 +8,13 @@ import {
   useReducer,
   type ReactNode,
 } from 'react';
+import {
+  cloneScenarioAssumptions,
+  type Assumptions,
+  type Scenario,
+} from '@/lib/workbench/scenarioProfiles';
 
-export type Scenario = 'base' | 'bull' | 'bear';
-
-export interface Assumptions {
-  revenueGrowth: number;
-  operatingMargin: number;
-  discountRate: number;
-  terminalGrowth: number;
-}
+export type { Scenario, Assumptions };
 
 export interface ValuationResult {
   fairValue: number;
@@ -39,42 +37,13 @@ export interface WorkbenchState {
   error: Error | null;
 }
 
-const baseAssumptions: Record<Scenario, Assumptions> = {
-  base: {
-    revenueGrowth: 12,
-    operatingMargin: 25,
-    discountRate: 10,
-    terminalGrowth: 2.5,
-  },
-  bull: {
-    revenueGrowth: 18,
-    operatingMargin: 30,
-    discountRate: 8,
-    terminalGrowth: 3,
-  },
-  bear: {
-    revenueGrowth: 6,
-    operatingMargin: 18,
-    discountRate: 14,
-    terminalGrowth: 2,
-  },
-};
-
-function cloneAssumptions() {
-  return {
-    base: { ...baseAssumptions.base },
-    bull: { ...baseAssumptions.bull },
-    bear: { ...baseAssumptions.bear },
-  };
-}
-
 export function createInitialWorkbenchState(): WorkbenchState {
   return {
     selectedSymbol: null,
     selectedCompanyId: null,
     selectedRunId: null,
     scenario: 'base',
-    assumptions: cloneAssumptions(),
+    assumptions: cloneScenarioAssumptions(),
     result: null,
     isComputing: false,
     error: null,
