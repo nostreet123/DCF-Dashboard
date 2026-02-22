@@ -6,8 +6,8 @@ from typing import Any
 
 import yaml
 
-from dcf_engine.normalization import ReferenceSelector
 from dcf_engine.schema import InputAssumptions
+from dcf_engine.normalization import ReferenceSelector
 
 
 def _load_raw(path: Path) -> dict[str, Any]:
@@ -28,29 +28,19 @@ def _load_raw(path: Path) -> dict[str, Any]:
     return data
 
 
-def _normalize_as_of_date(value: Any) -> str | None:
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return value
-
-
-def _build_reference_selector(reference: Any) -> ReferenceSelector | None:
-    if reference is None:
-        return None
-    if not isinstance(reference, dict):
-        raise ValueError("reference must be a mapping")
-
-    return ReferenceSelector(
-        primary_key_norm=reference.get("primary_key_norm"),
-        region_code=reference.get("region_code"),
-        as_of_date=_normalize_as_of_date(reference.get("as_of_date")),
-        policy=reference.get("policy", "latest"),
-    )
-
-
 def load_config(path: str) -> tuple[InputAssumptions, ReferenceSelector | None]:
-    payload = _load_raw(Path(path))
-    reference_payload = payload.pop("reference", None)
-    inputs = InputAssumptions.model_validate(payload)
-    selector = _build_reference_selector(reference_payload)
+    raw = _load_raw(Path(path))
+    reference = raw.pop("reference", None)
+    inputs = InputAssumptions.model_validate(raw)
+    selector = None
+    if reference is not None:
+        as_of_date = reference.get("as_of_date")
+        if hasattr(as_of_date, "isoformat"):
+            as_of_date = as_of_date.isoformat()
+        selector = ReferenceSelector(
+            primary_key_norm=reference.get("primary_key_norm"),
+            region_code=reference.get("region_code"),
+            as_of_date=as_of_date,
+            policy=reference.get("policy", "latest"),
+        )
     return inputs, selector

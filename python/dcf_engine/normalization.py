@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Literal
+from typing import Literal
 
 from dcf_engine.reference.provider import ReferenceProvider
-from dcf_engine.reference.provider import RowRef
-from dcf_engine.reference.profiles.base import MetricResolution
 from dcf_engine.reference.profiles import wacc as wacc_profile
 from dcf_engine.reference.profiles import taxrate as taxrate_profile
 from dcf_engine.reference.profiles import margin as margin_profile
 from dcf_engine.schema import InputAssumptions, NormalizedAssumptions
-from dcf_engine.validation import ensure_list_length
 
 
 ReferencePolicy = Literal["latest", "at_or_before"]
@@ -82,7 +79,7 @@ def _missing_row_message(dataset_key: str, selector: ReferenceSelector) -> str:
 
 def _missing_column_message(
     dataset_key: str,
-    row: RowRef,
+    row: object,
     candidate_columns: list[str],
 ) -> str:
     snapshot = row.snapshot
@@ -94,67 +91,29 @@ def _missing_column_message(
     )
 
 
-def _resolve_reference_metric(
-    provided_values: list[float] | None,
-    *,
-    provider: ReferenceProvider,
-    selector: ReferenceSelector,
-    periods: int,
-    dataset_key: str,
-    candidate_columns: list[str],
-    resolver: Callable[[RowRef], MetricResolution | None],
-) -> tuple[list[float], MetricProvenance | None]:
-    if provided_values is not None:
-        return provided_values, None
-
-    row, metric = _resolve_row(provider, dataset_key, selector) or (None, None)
-    if row is None:
-        raise ValueError(_missing_row_message(dataset_key, selector))
-
-    resolved = resolver(row)
-    if resolved is None:
-        raise ValueError(_missing_column_message(dataset_key, row, candidate_columns))
-
-    return [resolved.value] * periods, MetricProvenance(**metric, column=resolved.column)
-
-
 def normalize_inputs(
     inputs: InputAssumptions,
     provider: ReferenceProvider | None,
     selector: ReferenceSelector | None = None,
 ) -> tuple[NormalizedAssumptions, Provenance]:
+    def _ensure_list(name: str, values: list[float] | None, periods: int) -> None:
+        if values is None:
+            raise ValueError(f"{name} is required unless --use-convex is enabled")
+        if len(values) != periods:
+            raise ValueError(f"{name} must have {periods} values")
+
     if inputs.revenue_growth is None:
         raise ValueError("revenue_growth is required")
     if inputs.sales_to_capital is None:
         raise ValueError("sales_to_capital is required")
     if provider is None or selector is None:
         periods = inputs.periods
-        required_message = "{name} is required unless --use-convex is enabled"
-        ensure_list_length(
-            "ebit_margin",
-            inputs.ebit_margin,
-            periods,
-            required_message=required_message,
-        )
-        ensure_list_length(
-            "tax_rate",
-            inputs.tax_rate,
-            periods,
-            required_message=required_message,
-        )
-        ensure_list_length(
-            "sales_to_capital",
-            inputs.sales_to_capital,
-            periods,
-            required_message=required_message,
-        )
-        ensure_list_length(
-            "wacc",
-            inputs.wacc,
-            periods,
-            required_message=required_message,
-        )
-        ensure_list_length("revenue_growth", inputs.revenue_growth, periods)
+        _ensure_list("ebit_margin", inputs.ebit_margin, periods)
+        _ensure_list("tax_rate", inputs.tax_rate, periods)
+        _ensure_list("sales_to_capital", inputs.sales_to_capital, periods)
+        _ensure_list("wacc", inputs.wacc, periods)
+        if len(inputs.revenue_growth) != periods:
+            raise ValueError(f"revenue_growth must have {periods} values")
         normalized = NormalizedAssumptions(
             base_year=inputs.base_year,
             periods=inputs.periods,
@@ -182,41 +141,77 @@ def normalize_inputs(
     periods = inputs.periods
     filled_from_convex: set[str] = set()
 
-    wacc, wacc_metric = _resolve_reference_metric(
-        inputs.wacc,
-        provider=provider,
-        selector=selector,
-        periods=periods,
-        dataset_key=wacc_profile.DATASET_KEY,
-        candidate_columns=wacc_profile.CANDIDATE_COLUMNS,
-        resolver=wacc_profile.resolve_wacc,
-    )
-    if wacc_metric is not None:
+    wacc = inputs.wacc
+    if wacc is None:
+        row, metric = _resolve_row(provider, wacc_profile.DATASET_KEY, selector) or (None, None)
+        if row is None:
+            raise ValueError(_missing_row_message(wacc_profile.DATASET_KEY, selector))
+        resolved = wacc_profile.resolve_wacc(row)
+        if resolved is None:
+            raise ValueError(
+                _missing_column_message(
+                    wacc_profile.DATASET_KEY,
+                    row,
+                    wacc_profile.CANDIDATE_COLUMNS,
+                )
+            )
+        wacc = [resolved.value] * periods
         filled_from_convex.add("wacc")
+        provenance = Provenance(
+            wacc=MetricProvenance(**metric, column=resolved.column),
+            tax_rate=provenance.tax_rate,
+            ebit_margin=provenance.ebit_margin,
+            beta=provenance.beta,
+            sources=provenance.sources,
+        )
 
-    tax_rate, tax_rate_metric = _resolve_reference_metric(
-        inputs.tax_rate,
-        provider=provider,
-        selector=selector,
-        periods=periods,
-        dataset_key=taxrate_profile.DATASET_KEY,
-        candidate_columns=taxrate_profile.CANDIDATE_COLUMNS,
-        resolver=taxrate_profile.resolve_tax_rate,
-    )
-    if tax_rate_metric is not None:
+    tax_rate = inputs.tax_rate
+    if tax_rate is None:
+        row, metric = _resolve_row(provider, taxrate_profile.DATASET_KEY, selector) or (None, None)
+        if row is None:
+            raise ValueError(_missing_row_message(taxrate_profile.DATASET_KEY, selector))
+        resolved = taxrate_profile.resolve_tax_rate(row)
+        if resolved is None:
+            raise ValueError(
+                _missing_column_message(
+                    taxrate_profile.DATASET_KEY,
+                    row,
+                    taxrate_profile.CANDIDATE_COLUMNS,
+                )
+            )
+        tax_rate = [resolved.value] * periods
         filled_from_convex.add("tax_rate")
+        provenance = Provenance(
+            wacc=provenance.wacc,
+            tax_rate=MetricProvenance(**metric, column=resolved.column),
+            ebit_margin=provenance.ebit_margin,
+            beta=provenance.beta,
+            sources=provenance.sources,
+        )
 
-    ebit_margin, ebit_margin_metric = _resolve_reference_metric(
-        inputs.ebit_margin,
-        provider=provider,
-        selector=selector,
-        periods=periods,
-        dataset_key=margin_profile.DATASET_KEY,
-        candidate_columns=margin_profile.CANDIDATE_COLUMNS,
-        resolver=margin_profile.resolve_margin,
-    )
-    if ebit_margin_metric is not None:
+    ebit_margin = inputs.ebit_margin
+    if ebit_margin is None:
+        row, metric = _resolve_row(provider, margin_profile.DATASET_KEY, selector) or (None, None)
+        if row is None:
+            raise ValueError(_missing_row_message(margin_profile.DATASET_KEY, selector))
+        resolved = margin_profile.resolve_margin(row)
+        if resolved is None:
+            raise ValueError(
+                _missing_column_message(
+                    margin_profile.DATASET_KEY,
+                    row,
+                    margin_profile.CANDIDATE_COLUMNS,
+                )
+            )
+        ebit_margin = [resolved.value] * periods
         filled_from_convex.add("ebit_margin")
+        provenance = Provenance(
+            wacc=provenance.wacc,
+            tax_rate=provenance.tax_rate,
+            ebit_margin=MetricProvenance(**metric, column=resolved.column),
+            beta=provenance.beta,
+            sources=provenance.sources,
+        )
 
     normalized = NormalizedAssumptions(
         base_year=inputs.base_year,
@@ -240,9 +235,9 @@ def normalize_inputs(
     )
     sources = _build_sources(inputs, normalized, filled_from_convex)
     provenance = Provenance(
-        wacc=wacc_metric,
-        tax_rate=tax_rate_metric,
-        ebit_margin=ebit_margin_metric,
+        wacc=provenance.wacc,
+        tax_rate=provenance.tax_rate,
+        ebit_margin=provenance.ebit_margin,
         beta=provenance.beta,
         sources=sources,
     )
