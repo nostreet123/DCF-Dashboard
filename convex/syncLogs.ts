@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
+import { findExistingByRequestId } from "./requestIdDedupe";
 import { requireSyncToken } from "./syncAuth";
 
 const SyncStatus = v.union(
@@ -32,6 +33,28 @@ type SyncLogPick = {
   completedAt?: number;
   startedAt: number;
   _creationTime: number;
+};
+
+const SyncLogCounterKeys = [
+  "assetsDiscovered",
+  "assetsDownloaded",
+  "assetsSkipped",
+  "rowsInserted",
+  "errorCount",
+] as const;
+
+type SyncLogCounterKey = (typeof SyncLogCounterKeys)[number];
+type SyncLogCounters = Record<SyncLogCounterKey, number>;
+
+const buildCounterPatch = (
+  log: SyncLogCounters,
+  delta: Partial<SyncLogCounters>,
+) => {
+  const patch = {} as SyncLogCounters;
+  for (const key of SyncLogCounterKeys) {
+    patch[key] = log[key] + (delta[key] ?? 0);
+  }
+  return patch;
 };
 
 const pickBestSyncLog = (logs: SyncLogPick[]) => {
@@ -74,19 +97,13 @@ export const create = mutation({
     requireSyncToken(args.syncToken);
 
     if (args.requestId) {
-      const matches = await ctx.db
-        .query("syncLogs")
-        .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
-        .take(2);
-      if (matches.length > 0) {
-        if (matches.length === 1) {
-          return matches[0]._id;
-        }
-        const allMatches = await ctx.db
-          .query("syncLogs")
-          .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
-          .collect();
-        const existing = pickBestSyncLog(allMatches) ?? matches[0];
+      const existing = await findExistingByRequestId<SyncLogPick>({
+        ctx,
+        table: "syncLogs",
+        requestId: args.requestId,
+        pickBest: pickBestSyncLog,
+      });
+      if (existing) {
         return existing._id;
       }
     }
@@ -152,13 +169,7 @@ export const increment = mutation({
       });
     }
 
-    await ctx.db.patch(args.syncLogId, {
-      assetsDiscovered: log.assetsDiscovered + (args.delta.assetsDiscovered ?? 0),
-      assetsDownloaded: log.assetsDownloaded + (args.delta.assetsDownloaded ?? 0),
-      assetsSkipped: log.assetsSkipped + (args.delta.assetsSkipped ?? 0),
-      rowsInserted: log.rowsInserted + (args.delta.rowsInserted ?? 0),
-      errorCount: log.errorCount + (args.delta.errorCount ?? 0),
-    });
+    await ctx.db.patch(args.syncLogId, buildCounterPatch(log, args.delta));
     return null;
   },
 });
