@@ -1,6 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
-import { normalizePositiveIntegerLimit } from "./normalization";
+import { ConvexError, v } from "convex/values";
 import { requireSyncToken } from "./syncAuth";
 
 const SyncStage = v.union(
@@ -64,7 +63,19 @@ export const listBySyncLogId = query({
   ),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    const limit = normalizePositiveIntegerLimit(args.limit, 200, 1000);
+    const DEFAULT_LIMIT = 200;
+    const MAX_LIMIT = 1000;
+    let limit = DEFAULT_LIMIT;
+    if (args.limit !== undefined) {
+      const requested = Number(args.limit);
+      if (!Number.isInteger(requested) || requested <= 0) {
+        throw new ConvexError({
+          code: "BAD_REQUEST",
+          message: "Limit must be a positive integer",
+        });
+      }
+      limit = Math.min(requested, MAX_LIMIT);
+    }
     return ctx.db
       .query("syncErrors")
       .withIndex("by_syncLogId_timestamp", (q) =>

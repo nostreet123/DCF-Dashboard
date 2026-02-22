@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dcf_engine.schema import ForecastTable, NormalizedAssumptions
-from dcf_engine.validation import ensure_positive
 
 
 def build_forecast(inputs: NormalizedAssumptions) -> ForecastTable:
@@ -33,10 +32,8 @@ def build_forecast(inputs: NormalizedAssumptions) -> ForecastTable:
         if lag_index < 0:
             lag_index = 0
         stc_for_reinvestment = inputs.sales_to_capital[lag_index]
-        ensure_positive(
-            stc_for_reinvestment,
-            message="sales_to_capital must be positive",
-        )
+        if stc_for_reinvestment <= 0:
+            raise ValueError("sales_to_capital must be positive")
         current_reinvestment = (current_revenue - prior_revenue) / stc_for_reinvestment
 
         current_fcff = current_nopat - current_reinvestment

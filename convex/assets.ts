@@ -67,21 +67,6 @@ const findExistingAsset = async (ctx: { db: any }, assetKey: string) => {
   return pickBestAsset(allMatches) ?? matches[0];
 };
 
-type AssetInput = {
-  sourcePageUrl: string;
-  pageType: "current" | "archive";
-  pageLastUpdated?: string;
-  sourceUrl: string;
-  fileName: string;
-  linkLabel: string;
-  resolved: boolean;
-  resolvedDatasetKey?: string;
-  resolvedRegionCode?: string;
-  resolvedAsOfDate?: string;
-  resolvedAsOfDateSource?: "label" | "page_last_update" | "filename_inferred";
-  resolutionError?: string;
-};
-
 const getMaxAssetBatch = () => {
   const raw = process.env.ASSETS_RECORD_MAX_ROWS;
   if (!raw) {
@@ -127,44 +112,6 @@ export const buildAssetKey = (asset: {
     asset.resolutionError ?? "",
   ].join("\u001f");
 
-const toAssetInsertDoc = (
-  asset: AssetInput,
-  assetKey: string,
-  discoveredAt: number,
-) => ({
-  sourcePageUrl: asset.sourcePageUrl,
-  pageType: asset.pageType,
-  pageLastUpdated: asset.pageLastUpdated,
-  sourceUrl: asset.sourceUrl,
-  fileName: asset.fileName,
-  linkLabel: asset.linkLabel,
-  resolved: asset.resolved,
-  resolvedDatasetKey: asset.resolvedDatasetKey,
-  resolvedRegionCode: asset.resolvedRegionCode,
-  resolvedAsOfDate: asset.resolvedAsOfDate,
-  resolvedAsOfDateSource: asset.resolvedAsOfDateSource,
-  resolutionError: asset.resolutionError,
-  assetKey,
-  discoveredAt,
-});
-
-const recordAssetIfMissing = async (
-  ctx: { db: any },
-  asset: AssetInput,
-  getDiscoveredAt: () => number,
-) => {
-  const assetKey = buildAssetKey(asset);
-  const existing = await findExistingAsset(ctx, assetKey);
-  if (existing) {
-    return { assetId: existing._id, created: false as const };
-  }
-  const assetId = await ctx.db.insert(
-    "assets",
-    toAssetInsertDoc(asset, assetKey, getDiscoveredAt()),
-  );
-  return { assetId, created: true as const };
-};
-
 export const record = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -189,7 +136,28 @@ export const record = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
-    return await recordAssetIfMissing(ctx, args.asset as AssetInput, () => Date.now());
+    const assetKey = buildAssetKey(args.asset);
+    const existing = await findExistingAsset(ctx, assetKey);
+    if (existing) {
+      return { assetId: existing._id, created: false };
+    }
+    const assetId = await ctx.db.insert("assets", {
+      sourcePageUrl: args.asset.sourcePageUrl,
+      pageType: args.asset.pageType,
+      pageLastUpdated: args.asset.pageLastUpdated,
+      sourceUrl: args.asset.sourceUrl,
+      fileName: args.asset.fileName,
+      linkLabel: args.asset.linkLabel,
+      resolved: args.asset.resolved,
+      resolvedDatasetKey: args.asset.resolvedDatasetKey,
+      resolvedRegionCode: args.asset.resolvedRegionCode,
+      resolvedAsOfDate: args.asset.resolvedAsOfDate,
+      resolvedAsOfDateSource: args.asset.resolvedAsOfDateSource,
+      resolutionError: args.asset.resolutionError,
+      assetKey,
+      discoveredAt: Date.now(),
+    });
+    return { assetId, created: true };
   },
 });
 
@@ -237,15 +205,27 @@ export const recordBatch = mutation({
         continue;
       }
       seen.add(assetKey);
-      const result = await recordAssetIfMissing(
-        ctx,
-        asset as AssetInput,
-        () => discoveredAt,
-      );
-      if (!result.created) {
+      const existing = await findExistingAsset(ctx, assetKey);
+      if (existing) {
         skipped += 1;
         continue;
       }
+      await ctx.db.insert("assets", {
+        sourcePageUrl: asset.sourcePageUrl,
+        pageType: asset.pageType,
+        pageLastUpdated: asset.pageLastUpdated,
+        sourceUrl: asset.sourceUrl,
+        fileName: asset.fileName,
+        linkLabel: asset.linkLabel,
+        resolved: asset.resolved,
+        resolvedDatasetKey: asset.resolvedDatasetKey,
+        resolvedRegionCode: asset.resolvedRegionCode,
+        resolvedAsOfDate: asset.resolvedAsOfDate,
+        resolvedAsOfDateSource: asset.resolvedAsOfDateSource,
+        resolutionError: asset.resolutionError,
+        assetKey,
+        discoveredAt,
+      });
       inserted += 1;
     }
     return { inserted, skipped };

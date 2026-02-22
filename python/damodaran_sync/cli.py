@@ -16,19 +16,24 @@ from damodaran_sync.dataset_mappings import (
 from damodaran_sync.dataset_mappings_validation import validate_seed_integrity
 
 
-def _add_sync_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="damodaran_sync")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("seed", help="Seed reference data in Convex")
+    sync_current = subparsers.add_parser("sync-current", help="Sync current datasets")
+    sync_current.add_argument(
         "--force-rebuild",
         action="store_true",
         help="Rebuild snapshots even if file hashes are unchanged.",
     )
-    parser.add_argument(
+    sync_current.add_argument(
         "--head-precheck",
         action="store_true",
         default=None,
         help="Use HEAD with conditional headers to skip unchanged downloads.",
     )
-    parser.add_argument(
+    sync_current.add_argument(
         "--additive-only",
         action="store_true",
         help=(
@@ -36,17 +41,26 @@ def _add_sync_flags(parser: argparse.ArgumentParser) -> None:
             "without rebuilding or replacing rows."
         ),
     )
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="damodaran_sync")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    subparsers.add_parser("seed", help="Seed reference data in Convex")
-    sync_current = subparsers.add_parser("sync-current", help="Sync current datasets")
-    _add_sync_flags(sync_current)
     sync_all = subparsers.add_parser("sync-all", help="Sync all archived datasets")
-    _add_sync_flags(sync_all)
+    sync_all.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="Rebuild snapshots even if file hashes are unchanged.",
+    )
+    sync_all.add_argument(
+        "--head-precheck",
+        action="store_true",
+        default=None,
+        help="Use HEAD with conditional headers to skip unchanged downloads.",
+    )
+    sync_all.add_argument(
+        "--additive-only",
+        action="store_true",
+        help=(
+            "Insert only missing snapshot identities; skip existing ready snapshots "
+            "without rebuilding or replacing rows."
+        ),
+    )
 
     subparsers.add_parser(
         "status-primarykeynorm",
@@ -190,76 +204,51 @@ def _cmd_status_primarykeynorm() -> int:
     return 0
 
 
-def _get_snapshot_or_print_missing(
-    client: ConvexSyncClient, snapshot_id: str
-) -> dict[str, object] | None:
-    snapshot = client.get_snapshot_by_id(snapshot_id)
-    if not snapshot:
-        print(f"Snapshot not found: {snapshot_id}")
-        return None
-    return snapshot
-
-
-def _delete_rows_for_build(
-    client: ConvexSyncClient, snapshot_id: str, build_id: str
+def _cmd_cleanup_nonactive_tabledata(
+    snapshot_id: str | None, build_id: str | None
 ) -> int:
-    total_deleted = 0
-    while True:
-        deleted = client.delete_rows(snapshot_id, build_id, 1000)
-        total_deleted += deleted
-        if deleted == 0:
-            break
-    return total_deleted
+    client = ConvexSyncClient()
+    if snapshot_id:
+        if build_id:
+            snapshot = client.get_snapshot_by_id(snapshot_id)
+            if not snapshot:
+                print(f"Snapshot not found: {snapshot_id}")
+                return 1
+            if snapshot.get("activeBuildId") == build_id:
+                print(f"Refusing to delete active build {build_id} for {snapshot_id}")
+                return 1
+            total_deleted = 0
+            while True:
+                deleted = client.delete_rows(snapshot_id, build_id, 1000)
+                total_deleted += deleted
+                if deleted == 0:
+                    break
+            print(f"Deleted {total_deleted} rows for build {build_id}.")
+            return 0
 
+        snapshot = client.get_snapshot_by_id(snapshot_id)
+        if not snapshot:
+            print(f"Snapshot not found: {snapshot_id}")
+            return 1
+        active_build_id = snapshot.get("activeBuildId")
+        if not active_build_id:
+            print(f"Snapshot has no activeBuildId: {snapshot_id}")
+            return 1
+        total_deleted = 0
+        cursor = None
+        while True:
+            deleted, cursor = client.delete_non_active_rows_page(
+                snapshot_id,
+                active_build_id,
+                cursor=cursor,
+                limit=500,
+            )
+            total_deleted += deleted
+            if not cursor:
+                break
+        print(f"Deleted {total_deleted} non-active tableData rows.")
+        return 0
 
-def _delete_non_active_rows(
-    client: ConvexSyncClient, snapshot_id: str, active_build_id: str
-) -> int:
-    total_deleted = 0
-    cursor = None
-    while True:
-        deleted, cursor = client.delete_non_active_rows_page(
-            snapshot_id,
-            active_build_id,
-            cursor=cursor,
-            limit=500,
-        )
-        total_deleted += deleted
-        if not cursor:
-            break
-    return total_deleted
-
-
-def _cleanup_snapshot_build(
-    client: ConvexSyncClient, snapshot_id: str, build_id: str
-) -> int:
-    snapshot = _get_snapshot_or_print_missing(client, snapshot_id)
-    if not snapshot:
-        return 1
-    if snapshot.get("activeBuildId") == build_id:
-        print(f"Refusing to delete active build {build_id} for {snapshot_id}")
-        return 1
-
-    total_deleted = _delete_rows_for_build(client, snapshot_id, build_id)
-    print(f"Deleted {total_deleted} rows for build {build_id}.")
-    return 0
-
-
-def _cleanup_snapshot_non_active_rows(client: ConvexSyncClient, snapshot_id: str) -> int:
-    snapshot = _get_snapshot_or_print_missing(client, snapshot_id)
-    if not snapshot:
-        return 1
-    active_build_id = snapshot.get("activeBuildId")
-    if not active_build_id:
-        print(f"Snapshot has no activeBuildId: {snapshot_id}")
-        return 1
-
-    total_deleted = _delete_non_active_rows(client, snapshot_id, active_build_id)
-    print(f"Deleted {total_deleted} non-active tableData rows.")
-    return 0
-
-
-def _cleanup_current_page_non_active_rows(client: ConvexSyncClient) -> int:
     discovery = discover.discover_page_assets(
         discover.CURRENT_PAGE_URL,
         "current",
@@ -294,25 +283,20 @@ def _cleanup_current_page_non_active_rows(client: ConvexSyncClient) -> int:
         if not snapshot or not snapshot.get("activeBuildId"):
             continue
 
-        total_deleted += _delete_non_active_rows(
-            client,
-            snapshot["_id"],
-            snapshot["activeBuildId"],
-        )
+        cursor = None
+        while True:
+            deleted, cursor = client.delete_non_active_rows_page(
+                snapshot["_id"],
+                snapshot["activeBuildId"],
+                cursor=cursor,
+                limit=500,
+            )
+            total_deleted += deleted
+            if not cursor:
+                break
 
     print(f"Deleted {total_deleted} non-active tableData rows.")
     return 0
-
-
-def _cmd_cleanup_nonactive_tabledata(
-    snapshot_id: str | None, build_id: str | None
-) -> int:
-    client = ConvexSyncClient()
-    if snapshot_id:
-        if build_id:
-            return _cleanup_snapshot_build(client, snapshot_id, build_id)
-        return _cleanup_snapshot_non_active_rows(client, snapshot_id)
-    return _cleanup_current_page_non_active_rows(client)
 
 
 def _cmd_backfill_primarykeynorm(snapshot_id: str, build_id: str) -> int:

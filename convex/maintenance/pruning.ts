@@ -9,32 +9,6 @@ import {
 } from "./shared";
 import { buildTraceRefClearPatch } from "./pruning.logic";
 
-const processPruneCandidates = async <T>({
-  candidates,
-  cutoff,
-  dryRun,
-  getTimestamp,
-  onDelete,
-}: {
-  candidates: T[];
-  cutoff: number;
-  dryRun: boolean;
-  getTimestamp: (candidate: T) => number;
-  onDelete: (candidate: T) => Promise<void>;
-}) => {
-  let deleted = 0;
-  for (const candidate of candidates) {
-    if (getTimestamp(candidate) >= cutoff) {
-      break;
-    }
-    if (!dryRun) {
-      await onDelete(candidate);
-    }
-    deleted += 1;
-  }
-  return deleted;
-};
-
 export const pruneOperationalData = mutation({
   args: {
     syncToken: v.optional(v.string()),
@@ -76,70 +50,74 @@ export const pruneOperationalData = mutation({
       normalizeRetentionDays(retention.valuationRunTraces, 30),
     );
 
+    let deletedSyncLogs = 0;
     const syncLogs = await ctx.db
       .query("syncLogs")
       .withIndex("by_startedAt", (q) => q)
       .order("asc")
       .take(maxDeletes);
-    const deletedSyncLogs = await processPruneCandidates({
-      candidates: syncLogs,
-      cutoff: syncLogsCutoff,
-      dryRun,
-      getTimestamp: (log) => log.startedAt,
-      onDelete: async (log) => {
+    for (const log of syncLogs) {
+      if (log.startedAt >= syncLogsCutoff) {
+        break;
+      }
+      if (!dryRun) {
         await ctx.db.delete(log._id);
-      },
-    });
+      }
+      deletedSyncLogs += 1;
+    }
 
+    let deletedSyncErrors = 0;
     const syncErrors = await ctx.db
       .query("syncErrors")
       .withIndex("by_timestamp", (q) => q)
       .order("asc")
       .take(maxDeletes);
-    const deletedSyncErrors = await processPruneCandidates({
-      candidates: syncErrors,
-      cutoff: syncErrorsCutoff,
-      dryRun,
-      getTimestamp: (error) => error.timestamp,
-      onDelete: async (error) => {
+    for (const error of syncErrors) {
+      if (error.timestamp >= syncErrorsCutoff) {
+        break;
+      }
+      if (!dryRun) {
         await ctx.db.delete(error._id);
-      },
-    });
+      }
+      deletedSyncErrors += 1;
+    }
 
+    let deletedSyncLogIncrements = 0;
     const increments = await ctx.db
       .query("syncLogIncrements")
       .withIndex("by_createdAt", (q) => q)
       .order("asc")
       .take(maxDeletes);
-    const deletedSyncLogIncrements = await processPruneCandidates({
-      candidates: increments,
-      cutoff: syncLogIncrementsCutoff,
-      dryRun,
-      getTimestamp: (increment) => increment.createdAt,
-      onDelete: async (increment) => {
+    for (const increment of increments) {
+      if (increment.createdAt >= syncLogIncrementsCutoff) {
+        break;
+      }
+      if (!dryRun) {
         await ctx.db.delete(increment._id);
-      },
-    });
+      }
+      deletedSyncLogIncrements += 1;
+    }
 
+    let deletedTraces = 0;
     const traces = await ctx.db
       .query("valuationRunTraces")
       .withIndex("by_createdAt", (q) => q)
       .order("asc")
       .take(maxDeletes);
-    const deletedTraces = await processPruneCandidates({
-      candidates: traces,
-      cutoff: valuationRunTracesCutoff,
-      dryRun,
-      getTimestamp: (trace) => trace.createdAt,
-      onDelete: async (trace) => {
+    for (const trace of traces) {
+      if (trace.createdAt >= valuationRunTracesCutoff) {
+        break;
+      }
+      if (!dryRun) {
         await ctx.db.delete(trace._id);
         const run = await ctx.db.get(trace.runId);
         const patch = buildTraceRefClearPatch(run, trace._id);
         if (patch) {
           await ctx.db.patch(trace.runId, patch);
         }
-      },
-    });
+      }
+      deletedTraces += 1;
+    }
 
     return {
       dryRun,

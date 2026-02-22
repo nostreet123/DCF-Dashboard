@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useReducer } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
 
 export type ViewMode = 'workbench' | 'investor';
 export type DrawerState = 'library' | 'assumptions' | null;
@@ -46,8 +46,15 @@ export function workbenchViewReducer(
     case 'close_drawers':
       return { ...state, activeDrawer: null };
     case 'select_company':
+      if (action.source === 'drawer') {
+        return { ...state, activeDrawer: null };
+      }
+      return state;
     case 'select_run':
-      return action.source === 'drawer' ? { ...state, activeDrawer: null } : state;
+      if (action.source === 'drawer') {
+        return { ...state, activeDrawer: null };
+      }
+      return state;
     default:
       return state;
   }
@@ -58,12 +65,14 @@ export function resolveActiveCompany(
   selectedCompanyId: string | null,
 ): DatasetItem | null {
   const ordered = Object.values(datasets).flat();
-  if (ordered.length === 0) {
+  if (ordered.length == 0) {
     return null;
   }
+
   if (!selectedCompanyId) {
     return ordered[0];
   }
+
   return ordered.find((item) => item.id === selectedCompanyId) ?? ordered[0];
 }
 
@@ -94,53 +103,24 @@ export function useWorkbenchViewState() {
     dispatch({ type: 'select_run', source });
   }, []);
 
-  const onDockedCompanySelected = useCallback(() => {
-    dispatch({ type: 'select_company', source: 'docked' });
-  }, []);
-
-  const onDrawerCompanySelected = useCallback(() => {
-    dispatch({ type: 'select_company', source: 'drawer' });
-  }, []);
-
-  const onDockedRunSelected = useCallback(() => {
-    dispatch({ type: 'select_run', source: 'docked' });
-  }, []);
-
-  const onDrawerRunSelected = useCallback(() => {
-    dispatch({ type: 'select_run', source: 'drawer' });
-  }, []);
-
-  const getRailSelectionHandlers = useCallback(
-    (source: RailVariant) =>
-      source === 'drawer'
-        ? {
-            onCompanySelected: onDrawerCompanySelected,
-            onRunSelected: onDrawerRunSelected,
-          }
-        : {
-            onCompanySelected: onDockedCompanySelected,
-            onRunSelected: onDockedRunSelected,
-          },
+  return useMemo(
+    () => ({
+      ...state,
+      closeDrawers,
+      onCompanySelected,
+      onRunSelected,
+      openAssumptionsDrawer,
+      openLibraryDrawer,
+      setViewMode,
+    }),
     [
-      onDockedCompanySelected,
-      onDockedRunSelected,
-      onDrawerCompanySelected,
-      onDrawerRunSelected,
+      closeDrawers,
+      onCompanySelected,
+      onRunSelected,
+      openAssumptionsDrawer,
+      openLibraryDrawer,
+      setViewMode,
+      state,
     ],
   );
-
-  return {
-    ...state,
-    closeDrawers,
-    getRailSelectionHandlers,
-    onCompanySelected,
-    onDockedCompanySelected,
-    onDockedRunSelected,
-    onDrawerCompanySelected,
-    onDrawerRunSelected,
-    onRunSelected,
-    openAssumptionsDrawer,
-    openLibraryDrawer,
-    setViewMode,
-  };
 }

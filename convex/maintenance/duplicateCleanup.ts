@@ -27,70 +27,6 @@ import {
 const runDuplicateCleanupChunkAny: any = (internal as any).maintenance
   .runDuplicateCleanupChunk;
 
-type DuplicateCleanupStartPayload = {
-  key: string;
-  status: "running";
-  phase: "snapshots";
-  scanId: Id<"duplicateScanState">;
-  dryRun: boolean;
-  pageLimit: number;
-  groupCursor?: string;
-  currentSnapshotGroupId?: Id<"duplicateSnapshotGroups">;
-  snapshotDeleteIds?: Array<Id<"snapshots">>;
-  currentSnapshotId?: Id<"snapshots">;
-  snapshotDeleteCursor?: string;
-  currentAssetGroupId?: Id<"duplicateAssetGroups">;
-  assetDeleteIds?: Array<Id<"assets">>;
-  assetDeleteIndex?: number;
-  snapshotGroupsProcessed: number;
-  snapshotsDeleted: number;
-  tableRowsDeleted: number;
-  assetGroupsProcessed: number;
-  assetsDeleted: number;
-  startedAt: number;
-  updatedAt: number;
-  finishedAt?: number;
-  error?: string;
-  inFlightUntil?: number;
-};
-
-const buildInitialCleanupPayload = ({
-  scanId,
-  dryRun,
-  pageLimit,
-  now,
-}: {
-  scanId: Id<"duplicateScanState">;
-  dryRun: boolean;
-  pageLimit: number;
-  now: number;
-}): DuplicateCleanupStartPayload => ({
-  key: DuplicateCleanupKey,
-  status: "running",
-  phase: "snapshots",
-  scanId,
-  dryRun,
-  pageLimit,
-  groupCursor: undefined,
-  currentSnapshotGroupId: undefined,
-  snapshotDeleteIds: undefined,
-  currentSnapshotId: undefined,
-  snapshotDeleteCursor: undefined,
-  currentAssetGroupId: undefined,
-  assetDeleteIds: undefined,
-  assetDeleteIndex: undefined,
-  snapshotGroupsProcessed: 0,
-  snapshotsDeleted: 0,
-  tableRowsDeleted: 0,
-  assetGroupsProcessed: 0,
-  assetsDeleted: 0,
-  startedAt: now,
-  updatedAt: now,
-  finishedAt: undefined,
-  error: undefined,
-  inFlightUntil: undefined,
-});
-
 export const getDuplicateCleanupState = query({
   args: { syncToken: v.optional(v.string()) },
   returns: v.union(
@@ -185,12 +121,57 @@ export const startDuplicateCleanup = mutation({
     }
 
     const now = Date.now();
-    const payload = buildInitialCleanupPayload({
+    const payload: {
+      key: string;
+      status: "running";
+      phase: "snapshots";
+      scanId: Id<"duplicateScanState">;
+      dryRun: boolean;
+      pageLimit: number;
+      groupCursor?: string;
+      currentSnapshotGroupId?: Id<"duplicateSnapshotGroups">;
+      snapshotDeleteIds?: Array<Id<"snapshots">>;
+      currentSnapshotId?: Id<"snapshots">;
+      snapshotDeleteCursor?: string;
+      currentAssetGroupId?: Id<"duplicateAssetGroups">;
+      assetDeleteIds?: Array<Id<"assets">>;
+      assetDeleteIndex?: number;
+      snapshotGroupsProcessed: number;
+      snapshotsDeleted: number;
+      tableRowsDeleted: number;
+      assetGroupsProcessed: number;
+      assetsDeleted: number;
+      startedAt: number;
+      updatedAt: number;
+      finishedAt?: number;
+      error?: string;
+      inFlightUntil?: number;
+    } = {
+      key: DuplicateCleanupKey,
+      status: "running",
+      phase: "snapshots",
       scanId: scanDoc._id,
       dryRun,
       pageLimit,
-      now,
-    });
+      groupCursor: undefined,
+      currentSnapshotGroupId: undefined,
+      snapshotDeleteIds: undefined,
+      currentSnapshotId: undefined,
+      snapshotDeleteCursor: undefined,
+      currentAssetGroupId: undefined,
+      assetDeleteIds: undefined,
+      assetDeleteIndex: undefined,
+      snapshotGroupsProcessed: 0,
+      snapshotsDeleted: 0,
+      tableRowsDeleted: 0,
+      assetGroupsProcessed: 0,
+      assetsDeleted: 0,
+      startedAt: now,
+      updatedAt: now,
+      finishedAt: undefined,
+      error: undefined,
+      inFlightUntil: undefined,
+    };
 
     const stateId = existing
       ? (await ctx.db.patch(existing._id, payload), existing._id)

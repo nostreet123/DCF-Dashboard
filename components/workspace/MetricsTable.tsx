@@ -27,10 +27,6 @@ interface MetricsTableProps {
   className?: string;
 }
 
-type MetricFormat = MetricRow['format'];
-
-const DEFAULT_PAGE_SIZE = 5;
-
 const defaultRows: MetricRow[] = [
   {
     id: 'revenue',
@@ -89,27 +85,12 @@ const defaultRows: MetricRow[] = [
   },
 ];
 
-function formatMetricValue(value: number, format?: MetricFormat): string {
-  switch (format) {
-    case 'currency':
-      return formatCompactCurrency(value);
-    case 'percent':
-      return formatPercent(value);
-    default:
-      return value.toLocaleString();
-  }
-}
-
-function getProjectionYears(currentYear: number = new Date().getFullYear()): number[] {
-  return [currentYear + 1, currentYear + 2, currentYear + 3, currentYear + 4, currentYear + 5];
-}
-
 /**
  * Paginated table displaying financial projections with sparkline trends.
  */
 export function MetricsTable({
   rows = defaultRows,
-  pageSize = DEFAULT_PAGE_SIZE,
+  pageSize = 5,
   className,
 }: MetricsTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -118,7 +99,25 @@ export function MetricsTable({
   const startIndex = (currentPage - 1) * pageSize;
   const visibleRows = rows.slice(startIndex, startIndex + pageSize);
 
-  const projectionYears = getProjectionYears();
+  const formatValue = (value: number, format?: 'currency' | 'percent' | 'number') => {
+    switch (format) {
+      case 'currency':
+        return formatCompactCurrency(value);
+      case 'percent':
+        return formatPercent(value);
+      default:
+        return value.toLocaleString();
+    }
+  };
+
+  const currentYear = new Date().getFullYear();
+  const projectionYears = [
+    currentYear + 1,
+    currentYear + 2,
+    currentYear + 3,
+    currentYear + 4,
+    currentYear + 5,
+  ];
 
   return (
     <div className={`${styles.container} ${className || ''}`}>
@@ -141,11 +140,11 @@ export function MetricsTable({
             {visibleRows.map((row) => (
               <tr key={row.id}>
                 <th scope="row" className={`${styles.metricCell} ${styles.stickyMetric}`}>{row.label}</th>
-                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatMetricValue(row.year1, row.format)}</td>
-                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatMetricValue(row.year2, row.format)}</td>
-                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatMetricValue(row.year3, row.format)}</td>
-                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatMetricValue(row.year4, row.format)}</td>
-                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatMetricValue(row.year5, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year1, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year2, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year3, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year4, row.format)}</td>
+                <td className={`${styles.valueCell} ${styles.numericCell}`}>{formatValue(row.year5, row.format)}</td>
                 <td className={styles.trendCell}>
                   <Sparkline
                     data={row.trend}
