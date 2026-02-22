@@ -4,9 +4,10 @@ This document clarifies what shipped to `main`, what was superseded, and where t
 
 ## Current Mainline Snapshot
 
-- `main` HEAD: `9c183d3` (`fix: harden company search and EDGAR facts errors (#9)`)
+- `main` HEAD: `97b2fab` (`revert: undo refactor PRs #14 #15 #16 (#17)`)
 - PR #6 is **closed and unmerged**.
 - The capabilities discussed in/around PR #6 were delivered via later merged PRs (primarily #7, plus #8 and #9).
+- PRs #14, #15, and #16 were merged and then intentionally reverted by PR #17.
 
 ## PR Timeline
 
@@ -36,6 +37,18 @@ This document clarifies what shipped to `main`, what was superseded, and where t
 
 9. PR #9 (MERGED, 2026-02-18): `fix: harden company search and EDGAR facts errors`
    - Company/EDGAR API error mapping hardening.
+
+10. PR #14 (MERGED, 2026-02-22): `refactor(convex): extract shared normalization and decompose handlers`
+   - Convex refactor changes (later reverted).
+
+11. PR #15 (MERGED, 2026-02-22): `refactor(python): decompose sync orchestration and centralize validation`
+   - Python refactor changes (later reverted).
+
+12. PR #16 (MERGED, 2026-02-22): `refactor(frontend): centralize workbench defaults and shared UI interactions`
+   - Frontend refactor changes (later reverted).
+
+13. PR #17 (MERGED, 2026-02-22): `revert: undo refactor PRs #14 #15 #16`
+   - Restored `main` to the state before #14.
 
 ## Where Features Landed
 
