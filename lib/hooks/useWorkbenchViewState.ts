@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useReducer } from 'react';
 
 export type ViewMode = 'workbench' | 'investor';
 export type DrawerState = 'library' | 'assumptions' | null;
@@ -46,15 +46,8 @@ export function workbenchViewReducer(
     case 'close_drawers':
       return { ...state, activeDrawer: null };
     case 'select_company':
-      if (action.source === 'drawer') {
-        return { ...state, activeDrawer: null };
-      }
-      return state;
     case 'select_run':
-      if (action.source === 'drawer') {
-        return { ...state, activeDrawer: null };
-      }
-      return state;
+      return action.source === 'drawer' ? { ...state, activeDrawer: null } : state;
     default:
       return state;
   }
@@ -65,14 +58,12 @@ export function resolveActiveCompany(
   selectedCompanyId: string | null,
 ): DatasetItem | null {
   const ordered = Object.values(datasets).flat();
-  if (ordered.length == 0) {
+  if (ordered.length === 0) {
     return null;
   }
-
   if (!selectedCompanyId) {
     return ordered[0];
   }
-
   return ordered.find((item) => item.id === selectedCompanyId) ?? ordered[0];
 }
 
@@ -103,24 +94,53 @@ export function useWorkbenchViewState() {
     dispatch({ type: 'select_run', source });
   }, []);
 
-  return useMemo(
-    () => ({
-      ...state,
-      closeDrawers,
-      onCompanySelected,
-      onRunSelected,
-      openAssumptionsDrawer,
-      openLibraryDrawer,
-      setViewMode,
-    }),
+  const onDockedCompanySelected = useCallback(() => {
+    dispatch({ type: 'select_company', source: 'docked' });
+  }, []);
+
+  const onDrawerCompanySelected = useCallback(() => {
+    dispatch({ type: 'select_company', source: 'drawer' });
+  }, []);
+
+  const onDockedRunSelected = useCallback(() => {
+    dispatch({ type: 'select_run', source: 'docked' });
+  }, []);
+
+  const onDrawerRunSelected = useCallback(() => {
+    dispatch({ type: 'select_run', source: 'drawer' });
+  }, []);
+
+  const getRailSelectionHandlers = useCallback(
+    (source: RailVariant) =>
+      source === 'drawer'
+        ? {
+            onCompanySelected: onDrawerCompanySelected,
+            onRunSelected: onDrawerRunSelected,
+          }
+        : {
+            onCompanySelected: onDockedCompanySelected,
+            onRunSelected: onDockedRunSelected,
+          },
     [
-      closeDrawers,
-      onCompanySelected,
-      onRunSelected,
-      openAssumptionsDrawer,
-      openLibraryDrawer,
-      setViewMode,
-      state,
+      onDockedCompanySelected,
+      onDockedRunSelected,
+      onDrawerCompanySelected,
+      onDrawerRunSelected,
     ],
   );
+
+  return {
+    ...state,
+    closeDrawers,
+    getRailSelectionHandlers,
+    onCompanySelected,
+    onDockedCompanySelected,
+    onDockedRunSelected,
+    onDrawerCompanySelected,
+    onDrawerRunSelected,
+    onRunSelected,
+    openAssumptionsDrawer,
+    openLibraryDrawer,
+    setViewMode,
+  };
 }

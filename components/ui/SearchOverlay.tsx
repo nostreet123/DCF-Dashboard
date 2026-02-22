@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import { useDialogInteractions } from '@/lib/hooks/useDialogInteractions';
 import styles from './SearchOverlay.module.css';
 
 interface SearchOverlayProps {
@@ -20,28 +21,14 @@ export function SearchOverlay({
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }, 10);
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open, onClose]);
+  useDialogInteractions({
+    open,
+    onEscape: onClose,
+    initialFocusRef: inputRef,
+    focusDelayMs: 10,
+    selectOnFocus: true,
+    restoreFocus: false,
+  });
 
   if (!open) {
     return null;
