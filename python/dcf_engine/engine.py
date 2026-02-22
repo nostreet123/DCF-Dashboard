@@ -7,25 +7,22 @@ from dcf_engine.schedules import build_schedule
 from dcf_engine.schema import (
     InputAssumptions,
     NormalizedAssumptions,
+    REQUIRED_PERIOD_SERIES_FIELDS,
     Trace,
     ValuationResult,
 )
+from dcf_engine.validation import ensure_list_length
 
 
-def _ensure_length(name: str, values: list[float] | None, periods: int) -> None:
-    if values is None:
-        raise ValueError(f"{name} is required")
-    if len(values) != periods:
-        raise ValueError(f"{name} must have {periods} values")
+def _validate_required_period_series(inputs: InputAssumptions, periods: int) -> None:
+    ensure_list_length("revenue_growth", inputs.revenue_growth, periods)
+    for name in REQUIRED_PERIOD_SERIES_FIELDS:
+        ensure_list_length(name, getattr(inputs, name), periods)
 
 
 def _normalize(inputs: InputAssumptions) -> NormalizedAssumptions:
     periods = inputs.periods
-    _ensure_length("revenue_growth", inputs.revenue_growth, periods)
-    _ensure_length("ebit_margin", inputs.ebit_margin, periods)
-    _ensure_length("tax_rate", inputs.tax_rate, periods)
-    _ensure_length("sales_to_capital", inputs.sales_to_capital, periods)
-    _ensure_length("wacc", inputs.wacc, periods)
+    _validate_required_period_series(inputs, periods)
 
     return NormalizedAssumptions(
         base_year=inputs.base_year,
