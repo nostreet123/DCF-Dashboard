@@ -1,7 +1,5 @@
-const FORWARDED_FOR_HEADER = "x-forwarded-for";
 const REAL_IP_HEADER = "x-real-ip";
 const CF_CONNECTING_IP_HEADER = "cf-connecting-ip";
-const USER_AGENT_HEADER = "user-agent";
 
 type Bucket = {
   count: number;
@@ -16,17 +14,8 @@ type RateLimitRule = {
 
 const buckets = new Map<string, Bucket>();
 
-const firstForwardedIp = (value: string | null): string | null => {
-  if (!value) {
-    return null;
-  }
-  const first = value.split(",")[0]?.trim();
-  return first || null;
-};
-
 const clientIdentifier = (request: Request): string => {
-  // Prefer headers set by the edge/CDN layer (hardest to spoof) over
-  // x-forwarded-for which any client can inject upstream.
+  // Only trust edge headers controlled by known infra layers.
   const cfIp = request.headers.get(CF_CONNECTING_IP_HEADER)?.trim();
   if (cfIp) {
     return `ip:${cfIp}`;
@@ -35,15 +24,7 @@ const clientIdentifier = (request: Request): string => {
   if (realIp) {
     return `ip:${realIp}`;
   }
-  const forwarded = firstForwardedIp(request.headers.get(FORWARDED_FOR_HEADER));
-  if (forwarded) {
-    return `ip:${forwarded}`;
-  }
-  const userAgent = request.headers.get(USER_AGENT_HEADER)?.trim();
-  if (userAgent) {
-    return `ua:${userAgent}`;
-  }
-  return "unknown";
+  return "untrusted";
 };
 
 const gcExpiredBuckets = (now: number) => {

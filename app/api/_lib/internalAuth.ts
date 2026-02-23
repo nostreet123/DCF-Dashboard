@@ -1,13 +1,17 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "crypto";
 
+import { DEFAULT_JSON_BODY_LIMIT_BYTES } from "@/app/api/_lib/body";
+
 const INTERNAL_PERSISTENCE_SIGNATURE_HEADER = "x-dcf-internal-signature";
 const INTERNAL_PERSISTENCE_TIMESTAMP_HEADER = "x-dcf-internal-ts";
 const INTERNAL_PERSISTENCE_NONCE_HEADER = "x-dcf-internal-nonce";
 const INTERNAL_PERSISTENCE_MAX_SKEW_MS = 5 * 60 * 1000;
 const NONCE_TTL_MS = INTERNAL_PERSISTENCE_MAX_SKEW_MS;
+const INTERNAL_PERSISTENCE_MAX_BODY_BYTES = DEFAULT_JSON_BODY_LIMIT_BYTES;
 
 type NonceState = {
   expiresAt: number;
+  status: "pending" | "used";
 };
 
 const seenNonces = new Map<string, NonceState>();
@@ -59,35 +63,86 @@ const cleanExpiredNonces = (now: number) => {
   }
 };
 
-const isReplay = (nonce: string, now: number): boolean => {
+const reserveNonce = (nonce: string, now: number): boolean => {
   cleanExpiredNonces(now);
   const state = seenNonces.get(nonce);
-  if (!state) {
+  if (state && state.expiresAt > now) {
     return false;
   }
-  if (state.expiresAt <= now) {
+  if (state && state.expiresAt <= now) {
     seenNonces.delete(nonce);
-    return false;
   }
+  seenNonces.set(nonce, {
+    expiresAt: now + NONCE_TTL_MS,
+    status: "pending",
+  });
   return true;
 };
 
-const markNonce = (nonce: string, now: number) => {
-  seenNonces.set(nonce, { expiresAt: now + NONCE_TTL_MS });
+const markNonceUsed = (nonce: string, now: number) => {
+  seenNonces.set(nonce, {
+    expiresAt: now + NONCE_TTL_MS,
+    status: "used",
+  });
+};
+
+const releasePendingNonce = (nonce: string) => {
+  const state = seenNonces.get(nonce);
+  if (state?.status === "pending") {
+    seenNonces.delete(nonce);
+  }
 };
 
 const isFreshTimestamp = (timestampMs: number, now: number): boolean => {
   return Math.abs(now - timestampMs) <= INTERNAL_PERSISTENCE_MAX_SKEW_MS;
 };
 
-const readBodyForSignature = async (request: Request): Promise<string> => {
+const hashBodyForSignature = async (
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> => {
   if (request.method === "GET" || request.method === "HEAD") {
-    return "";
+    return sha256Hex("");
   }
+
+  const lengthHeader = request.headers.get("content-length");
+  if (lengthHeader) {
+    const length = Number(lengthHeader);
+    if (Number.isFinite(length) && length > maxBytes) {
+      return null;
+    }
+  }
+
   try {
-    return await request.clone().text();
+    const cloned = request.clone();
+    const reader = cloned.body?.getReader();
+    if (!reader) {
+      const bodyText = await cloned.text();
+      if (Buffer.byteLength(bodyText, "utf8") > maxBytes) {
+        return null;
+      }
+      return sha256Hex(bodyText);
+    }
+
+    const hash = createHash("sha256");
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value) {
+        received += value.byteLength;
+        if (received > maxBytes) {
+          await reader.cancel();
+          return null;
+        }
+        hash.update(Buffer.from(value));
+      }
+    }
+    return hash.digest("hex");
   } catch {
-    return "";
+    return null;
   }
 };
 
@@ -113,24 +168,30 @@ export const isInternalPersistenceRequest = async (request: Request): Promise<bo
   if (!isFreshTimestamp(parsedTimestamp, now)) {
     return false;
   }
-  if (isReplay(nonce, now)) {
+  if (!reserveNonce(nonce, now)) {
     return false;
   }
 
-  const body = await readBodyForSignature(request);
+  const bodyHash = await hashBodyForSignature(request, INTERNAL_PERSISTENCE_MAX_BODY_BYTES);
+  if (!bodyHash) {
+    releasePendingNonce(nonce);
+    return false;
+  }
+
   const payload = canonicalPayload({
     method: request.method.toUpperCase(),
     pathAndQuery: canonicalPath(request.url),
     timestampMs: String(parsedTimestamp),
     nonce,
-    bodyHash: sha256Hex(body),
+    bodyHash,
   });
   const expected = hmacHex(secret, payload);
   if (!safeCompare(signature, expected)) {
+    releasePendingNonce(nonce);
     return false;
   }
 
-  markNonce(nonce, now);
+  markNonceUsed(nonce, now);
   return true;
 };
 

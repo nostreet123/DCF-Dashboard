@@ -1,4 +1,4 @@
-const DEFAULT_LIMIT = 200 * 1024;
+export const DEFAULT_JSON_BODY_LIMIT_BYTES = 200 * 1024;
 
 export class BodyLimitError extends Error {
   constructor(message: string) {
@@ -9,7 +9,7 @@ export class BodyLimitError extends Error {
 
 export const parseJsonWithLimit = async <T>(
   request: Request,
-  limit: number = DEFAULT_LIMIT,
+  limit: number = DEFAULT_JSON_BODY_LIMIT_BYTES,
 ): Promise<T> => {
   const lengthHeader = request.headers.get("content-length");
   if (lengthHeader) {
