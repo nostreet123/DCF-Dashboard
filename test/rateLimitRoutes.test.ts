@@ -1,0 +1,84 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+
+import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
+import { GET as companySearchGet } from "../app/api/company/search/route";
+import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
+
+const originalFetch = globalThis.fetch;
+const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
+const originalPreviewLimit = process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
+const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
+
+beforeEach(() => {
+  process.env.DCF_ENGINE_URL = "http://example.test";
+  process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "1";
+  process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = "1";
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ results: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+});
+
+afterEach(() => {
+  resetRateLimitStateForTests();
+  globalThis.fetch = originalFetch;
+  if (originalDcfEngineUrl === undefined) {
+    delete process.env.DCF_ENGINE_URL;
+  } else {
+    process.env.DCF_ENGINE_URL = originalDcfEngineUrl;
+  }
+  if (originalPreviewLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
+  } else {
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = originalPreviewLimit;
+  }
+  if (originalSearchLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
+  } else {
+    process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = originalSearchLimit;
+  }
+});
+
+describe("route rate limiting", () => {
+  test("limits dcf preview requests per client", async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      "x-forwarded-for": "203.0.113.10",
+    };
+    const first = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+    );
+    const second = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("limits company search requests per client", async () => {
+    const headers = { "x-forwarded-for": "203.0.113.11" };
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers,
+      }),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers,
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+});

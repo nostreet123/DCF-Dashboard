@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { GET, POST } from "../app/api/company/facts/route";
-import { internalPersistenceHeaderName } from "../app/api/_lib/internalAuth";
+import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
+import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 
 afterEach(() => {
+  resetRateLimitStateForTests();
   if (originalInternalPersistenceKey === undefined) {
     delete process.env.INTERNAL_PERSISTENCE_KEY;
   } else {
@@ -31,12 +33,18 @@ describe("company facts route auth boundaries", () => {
 
   test("POST validates symbol even for authorized requests", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "POST",
+      url: "http://localhost/api/company/facts",
+      body: "",
+      nonce: "company-facts-auth-test",
+      timestampMs: Date.now(),
+    });
     const response = await POST(
       new Request("http://localhost/api/company/facts", {
         method: "POST",
-        headers: {
-          [internalPersistenceHeaderName]: "secret",
-        },
+        headers: authHeaders,
       }),
     );
     expect(response.status).toBe(400);

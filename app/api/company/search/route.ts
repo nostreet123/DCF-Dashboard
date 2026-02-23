@@ -3,13 +3,24 @@ import { NextResponse } from "next/server";
 import { getConvexClient } from "@/app/api/_lib/convex";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { enforceRateLimit, getRateLimitPerMinute } from "@/app/api/_lib/rateLimit";
 
 type EdgarSearchResponse = {
   results: Array<{ symbol: string; name: string; cik: string }>;
 };
 
 export async function GET(request: Request) {
-  // TODO: Add rate limiting (infrastructure-level preferred) for this public endpoint.
+  const rateLimit = enforceRateLimit(request, {
+    key: "api:company:search",
+    limit: getRateLimitPerMinute("API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE", 60),
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return errorResponse("RATE_LIMITED", "Too many requests", 429, {
+      "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
+    });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   if (!q) {
@@ -62,7 +73,7 @@ export async function GET(request: Request) {
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
     return errorResponse(
       "EDGAR_ERROR",
-      error instanceof Error ? error.message : "EDGAR search failed",
+      "EDGAR search failed",
       status,
     );
   }

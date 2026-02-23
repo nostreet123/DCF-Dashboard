@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ConvexHttpClient } from "convex/browser";
 
 import { POST as dcfRunPost } from "../app/api/dcf/run/route";
-import { internalPersistenceHeaderName } from "../app/api/_lib/internalAuth";
+import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
+import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 
 const originalFetch = globalThis.fetch;
 const originalConvexUrl = process.env.CONVEX_URL;
@@ -18,6 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetRateLimitStateForTests();
   globalThis.fetch = originalFetch;
   ConvexHttpClient.prototype.mutation = originalMutation;
 
@@ -77,14 +79,23 @@ describe("dcf run persistence auth", () => {
         headers: { "Content-Type": "application/json" },
       });
 
+    const body = JSON.stringify({ requestId: "req-2" });
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "internal-key",
+      method: "POST",
+      url: "http://localhost/api/dcf/run",
+      body,
+      nonce: "dcf-run-auth-test",
+      timestampMs: Date.now(),
+    });
     const response = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          [internalPersistenceHeaderName]: "internal-key",
+          ...authHeaders,
         },
-        body: JSON.stringify({ requestId: "req-2" }),
+        body,
       }),
     );
 
