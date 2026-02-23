@@ -25,17 +25,19 @@ const firstForwardedIp = (value: string | null): string | null => {
 };
 
 const clientIdentifier = (request: Request): string => {
-  const forwarded = firstForwardedIp(request.headers.get(FORWARDED_FOR_HEADER));
-  if (forwarded) {
-    return `ip:${forwarded}`;
+  // Prefer headers set by the edge/CDN layer (hardest to spoof) over
+  // x-forwarded-for which any client can inject upstream.
+  const cfIp = request.headers.get(CF_CONNECTING_IP_HEADER)?.trim();
+  if (cfIp) {
+    return `ip:${cfIp}`;
   }
   const realIp = request.headers.get(REAL_IP_HEADER)?.trim();
   if (realIp) {
     return `ip:${realIp}`;
   }
-  const cfIp = request.headers.get(CF_CONNECTING_IP_HEADER)?.trim();
-  if (cfIp) {
-    return `ip:${cfIp}`;
+  const forwarded = firstForwardedIp(request.headers.get(FORWARDED_FOR_HEADER));
+  if (forwarded) {
+    return `ip:${forwarded}`;
   }
   const userAgent = request.headers.get(USER_AGENT_HEADER)?.trim();
   if (userAgent) {
