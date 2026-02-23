@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { GET as companyFactsGet } from "../app/api/company/facts/route";
 import { GET as companySearchGet } from "../app/api/company/search/route";
 import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
+import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 
 const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
@@ -14,6 +15,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetRateLimitStateForTests();
   globalThis.fetch = originalFetch;
 
   if (originalDcfEngineUrl === undefined) {
@@ -52,6 +54,7 @@ describe("API error sanitization", () => {
 
     expect(response.status).toBe(422);
     expect(json.code).toBe("DCF_ENGINE_ERROR");
+    expect(String(json.message)).not.toContain("sensitive upstream detail");
   });
 
   test("dcf preview route defaults to 502 for unknown errors", async () => {
@@ -80,6 +83,7 @@ describe("API error sanitization", () => {
 
     expect(response.status).toBe(429);
     expect(json.code).toBe("EDGAR_ERROR");
+    expect(String(json.message)).not.toContain("sensitive upstream detail");
   });
 
   test("company facts route propagates upstream HTTP status", async () => {
@@ -92,5 +96,6 @@ describe("API error sanitization", () => {
 
     expect(response.status).toBe(404);
     expect(json.code).toBe("EDGAR_ERROR");
+    expect(String(json.message)).not.toContain("sensitive upstream detail");
   });
 });
