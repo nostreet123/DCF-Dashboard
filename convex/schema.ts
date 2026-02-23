@@ -63,6 +63,8 @@ const DuplicateCleanupStatus = v.union(
   v.literal("error"),
 );
 
+const NonceStatus = v.union(v.literal("pending"), v.literal("used"));
+
 export default defineSchema({
   // -----------------------------
   // Reference tables
@@ -420,6 +422,28 @@ export default defineSchema({
     .index("by_pageType_discoveredAt", ["pageType", "discoveredAt"])
     .index("by_resolved_discoveredAt", ["resolved", "discoveredAt"])
     .index("by_assetKey", ["assetKey"]),
+
+  // -----------------------------
+  // Security state
+  // -----------------------------
+  securityNonces: defineTable({
+    nonce: v.string(),
+    status: NonceStatus,
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_nonce", ["nonce"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  securityRateBuckets: defineTable({
+    bucketKey: v.string(),
+    count: v.number(),
+    resetAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_bucketKey", ["bucketKey"])
+    .index("by_resetAt", ["resetAt"]),
 
   // -----------------------------
   // Valuation runs

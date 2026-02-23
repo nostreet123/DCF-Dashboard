@@ -42,6 +42,7 @@ Notes:
 | 2026-02-22 | When you request a PR switch, you want me to execute the checkout immediately and verify the PR metadata after switching. | I will use `gh pr checkout <number>` first, then confirm active branch and PR details (`head`, `base`, `URL`) in one quick pass. |
 | 2026-02-19 | When you invoke a security skill directly, you want a concrete security report artifact with prioritized findings. | I will produce a repo-local markdown report with severity, file/line evidence, and remediation order before proposing code fixes. |
 | 2026-02-19 | When you ask to continue, you want end-to-end completion of all open findings in one pass. | I will keep executing remaining scoped items until all are implemented and verified, then report final status. |
+| 2026-02-23 | For security hardening, you want remaining blockers fully resolved to real mergeability, not just CI-green status. | I will treat cross-instance bypasses and identity-trust gaps as required fixes, then re-run full verification before calling a PR mergeable. |
 
 ## Update Rule
 

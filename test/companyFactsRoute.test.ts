@@ -1,13 +1,40 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { GET, POST } from "../app/api/company/facts/route";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
+import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
+const originalConvexUrl = process.env.CONVEX_URL;
+const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+
+let restoreSecurityMock: (() => void) | null = null;
+
+beforeEach(() => {
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
+  const securityMock = installSecurityMutationsMock();
+  restoreSecurityMock = securityMock.restore;
+});
 
 afterEach(() => {
   resetRateLimitStateForTests();
+  if (restoreSecurityMock) {
+    restoreSecurityMock();
+  }
+  restoreSecurityMock = null;
+
+  if (originalConvexUrl === undefined) {
+    delete process.env.CONVEX_URL;
+  } else {
+    process.env.CONVEX_URL = originalConvexUrl;
+  }
+  if (originalSyncToken === undefined) {
+    delete process.env.DAMODARAN_SYNC_TOKEN;
+  } else {
+    process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
   if (originalInternalPersistenceKey === undefined) {
     delete process.env.INTERNAL_PERSISTENCE_KEY;
   } else {
@@ -17,7 +44,11 @@ afterEach(() => {
 
 describe("company facts route auth boundaries", () => {
   test("GET returns bad request when symbol is missing", async () => {
-    const response = await GET(new Request("http://localhost/api/company/facts"));
+    const response = await GET(
+      new Request("http://localhost/api/company/facts", {
+        headers: { "cf-connecting-ip": "203.0.113.40" },
+      }),
+    );
     expect(response.status).toBe(400);
   });
 
@@ -26,6 +57,7 @@ describe("company facts route auth boundaries", () => {
     const response = await POST(
       new Request("http://localhost/api/company/facts?symbol=AAPL", {
         method: "POST",
+        headers: { "cf-connecting-ip": "203.0.113.41" },
       }),
     );
     expect(response.status).toBe(401);
@@ -44,7 +76,10 @@ describe("company facts route auth boundaries", () => {
     const response = await POST(
       new Request("http://localhost/api/company/facts", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          ...authHeaders,
+          "cf-connecting-ip": "203.0.113.42",
+        },
       }),
     );
     expect(response.status).toBe(400);

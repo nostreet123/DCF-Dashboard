@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "crypto";
 
 import { DEFAULT_JSON_BODY_LIMIT_BYTES } from "@/app/api/_lib/body";
+import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 
 const INTERNAL_PERSISTENCE_SIGNATURE_HEADER = "x-dcf-internal-signature";
 const INTERNAL_PERSISTENCE_TIMESTAMP_HEADER = "x-dcf-internal-ts";
@@ -9,12 +10,18 @@ const INTERNAL_PERSISTENCE_MAX_SKEW_MS = 5 * 60 * 1000;
 const NONCE_TTL_MS = INTERNAL_PERSISTENCE_MAX_SKEW_MS;
 const INTERNAL_PERSISTENCE_MAX_BODY_BYTES = DEFAULT_JSON_BODY_LIMIT_BYTES;
 
-type NonceState = {
-  expiresAt: number;
-  status: "pending" | "used";
+type SecurityAuthMutationName =
+  | "securityAuth:reserveNonce"
+  | "securityAuth:markNonceUsed"
+  | "securityAuth:releasePendingNonce";
+
+type ReserveNonceResult = {
+  reserved: boolean;
 };
 
-const seenNonces = new Map<string, NonceState>();
+type MarkNonceUsedResult = {
+  marked: boolean;
+};
 
 const safeCompare = (provided: string, expected: string): boolean => {
   const providedBytes = Buffer.from(provided, "utf8");
@@ -52,49 +59,46 @@ const canonicalPayload = ({
   bodyHash: string;
 }) => `${method}\n${pathAndQuery}\n${timestampMs}\n${nonce}\n${bodyHash}`;
 
-const cleanExpiredNonces = (now: number) => {
-  if (seenNonces.size < 2_000) {
-    return;
-  }
-  for (const [nonce, state] of seenNonces) {
-    if (state.expiresAt <= now) {
-      seenNonces.delete(nonce);
-    }
-  }
-};
-
-const reserveNonce = (nonce: string, now: number): boolean => {
-  cleanExpiredNonces(now);
-  const state = seenNonces.get(nonce);
-  if (state && state.expiresAt > now) {
-    return false;
-  }
-  if (state && state.expiresAt <= now) {
-    seenNonces.delete(nonce);
-  }
-  seenNonces.set(nonce, {
-    expiresAt: now + NONCE_TTL_MS,
-    status: "pending",
-  });
-  return true;
-};
-
-const markNonceUsed = (nonce: string, now: number) => {
-  seenNonces.set(nonce, {
-    expiresAt: now + NONCE_TTL_MS,
-    status: "used",
-  });
-};
-
-const releasePendingNonce = (nonce: string) => {
-  const state = seenNonces.get(nonce);
-  if (state?.status === "pending") {
-    seenNonces.delete(nonce);
-  }
-};
-
 const isFreshTimestamp = (timestampMs: number, now: number): boolean => {
   return Math.abs(now - timestampMs) <= INTERNAL_PERSISTENCE_MAX_SKEW_MS;
+};
+
+const callSecurityAuthMutation = async <T>(
+  name: SecurityAuthMutationName,
+  args: Record<string, unknown>,
+): Promise<T | null> => {
+  const convexClient = getConvexClient();
+  const syncToken = getSyncTokenOptional();
+  if (!convexClient || !syncToken) {
+    return null;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    return await (convexClient as any).mutation(name as any, { syncToken, ...args });
+  } catch (error) {
+    console.warn("Internal auth mutation failed", error);
+    return null;
+  }
+};
+
+const reserveNonce = async (nonce: string, now: number) => {
+  const result = await callSecurityAuthMutation<ReserveNonceResult>(
+    "securityAuth:reserveNonce",
+    { nonce, ttlMs: NONCE_TTL_MS, nowMs: now },
+  );
+  return result?.reserved === true;
+};
+
+const markNonceUsed = async (nonce: string, now: number) => {
+  const result = await callSecurityAuthMutation<MarkNonceUsedResult>(
+    "securityAuth:markNonceUsed",
+    { nonce, ttlMs: NONCE_TTL_MS, nowMs: now },
+  );
+  return result?.marked === true;
+};
+
+const releasePendingNonce = async (nonce: string) => {
+  await callSecurityAuthMutation("securityAuth:releasePendingNonce", { nonce });
 };
 
 const hashBodyForSignature = async (
@@ -168,13 +172,13 @@ export const isInternalPersistenceRequest = async (request: Request): Promise<bo
   if (!isFreshTimestamp(parsedTimestamp, now)) {
     return false;
   }
-  if (!reserveNonce(nonce, now)) {
+  if (!(await reserveNonce(nonce, now))) {
     return false;
   }
 
   const bodyHash = await hashBodyForSignature(request, INTERNAL_PERSISTENCE_MAX_BODY_BYTES);
   if (!bodyHash) {
-    releasePendingNonce(nonce);
+    await releasePendingNonce(nonce);
     return false;
   }
 
@@ -187,11 +191,13 @@ export const isInternalPersistenceRequest = async (request: Request): Promise<bo
   });
   const expected = hmacHex(secret, payload);
   if (!safeCompare(signature, expected)) {
-    releasePendingNonce(nonce);
+    await releasePendingNonce(nonce);
     return false;
   }
 
-  markNonceUsed(nonce, now);
+  if (!(await markNonceUsed(nonce, now))) {
+    return false;
+  }
   return true;
 };
 
@@ -226,7 +232,7 @@ export const createInternalPersistenceHeaders = ({
 };
 
 export const resetInternalAuthStateForTests = () => {
-  seenNonces.clear();
+  // No-op: nonce replay state is stored in Convex.
 };
 
 export const internalPersistenceHeaderName = INTERNAL_PERSISTENCE_SIGNATURE_HEADER;
