@@ -10,12 +10,20 @@ import {
 } from "@/app/api/_lib/monteCarloPreset";
 
 export async function POST(request: Request) {
-  const rateLimit = enforceRateLimit(request, {
+  const rateLimit = await enforceRateLimit(request, {
     key: "api:dcf:preview",
     limit: getRateLimitPerMinute("API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE", 30),
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
+    if (rateLimit.reason === "UNTRUSTED_IDENTITY") {
+      return errorResponse("UNTRUSTED_IDENTITY", "Trusted client IP header required", 429, {
+        "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
+      });
+    }
+    if (rateLimit.reason === "BACKEND_UNAVAILABLE") {
+      return errorResponse("RATE_LIMIT_UNAVAILABLE", "Rate-limit backend unavailable", 503);
+    }
     return errorResponse("RATE_LIMITED", "Too many requests", 429, {
       "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
     });

@@ -1,18 +1,32 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { ConvexHttpClient } from "convex/browser";
 
 import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
 import { GET as companySearchGet } from "../app/api/company/search/route";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
+import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalPreviewLimit = process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
 const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
+const originalConvexUrl = process.env.CONVEX_URL;
+const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const originalIdentityMode = process.env.RATE_LIMIT_IDENTITY_MODE;
+const originalQuery = ConvexHttpClient.prototype.query;
+
+let restoreSecurityMock: (() => void) | null = null;
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
   process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = "1";
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
+  delete process.env.RATE_LIMIT_IDENTITY_MODE;
+  const securityMock = installSecurityMutationsMock();
+  restoreSecurityMock = securityMock.restore;
+  ConvexHttpClient.prototype.query = async () => [];
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ results: [] }), {
       status: 200,
@@ -23,6 +37,27 @@ beforeEach(() => {
 afterEach(() => {
   resetRateLimitStateForTests();
   globalThis.fetch = originalFetch;
+  ConvexHttpClient.prototype.query = originalQuery;
+  if (restoreSecurityMock) {
+    restoreSecurityMock();
+  }
+  restoreSecurityMock = null;
+
+  if (originalConvexUrl === undefined) {
+    delete process.env.CONVEX_URL;
+  } else {
+    process.env.CONVEX_URL = originalConvexUrl;
+  }
+  if (originalSyncToken === undefined) {
+    delete process.env.DAMODARAN_SYNC_TOKEN;
+  } else {
+    process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
+  if (originalIdentityMode === undefined) {
+    delete process.env.RATE_LIMIT_IDENTITY_MODE;
+  } else {
+    process.env.RATE_LIMIT_IDENTITY_MODE = originalIdentityMode;
+  }
   if (originalDcfEngineUrl === undefined) {
     delete process.env.DCF_ENGINE_URL;
   } else {
@@ -101,7 +136,7 @@ describe("route rate limiting", () => {
     expect(second.status).toBe(429);
   });
 
-  test("does not trust x-forwarded-for as a client identity source", async () => {
+  test("rejects requests that only provide x-forwarded-for in strict mode", async () => {
     const first = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL", {
         headers: { "x-forwarded-for": "203.0.113.30" },
@@ -112,8 +147,29 @@ describe("route rate limiting", () => {
         headers: { "x-forwarded-for": "203.0.113.31" },
       }),
     );
+    const firstJson = await first.json();
+    const secondJson = await second.json();
 
-    // With no trusted IP headers, both requests fall into the same untrusted bucket.
+    expect(first.status).toBe(429);
+    expect(firstJson.code).toBe("UNTRUSTED_IDENTITY");
+    expect(second.status).toBe(429);
+    expect(secondJson.code).toBe("UNTRUSTED_IDENTITY");
+  });
+
+  test("accepts x-forwarded-for in compat mode", async () => {
+    process.env.RATE_LIMIT_IDENTITY_MODE = "compat";
+    const headers = { "x-forwarded-for": "203.0.113.70" };
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers,
+      }),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers,
+      }),
+    );
+
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
   });

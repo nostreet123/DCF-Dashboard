@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   createInternalPersistenceHeaders,
@@ -8,11 +8,38 @@ import {
   isInternalPersistenceRequest,
   resetInternalAuthStateForTests,
 } from "../app/api/_lib/internalAuth";
+import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
+const originalConvexUrl = process.env.CONVEX_URL;
+const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+
+let restoreSecurityMock: (() => void) | null = null;
+
+beforeEach(() => {
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
+  const securityMock = installSecurityMutationsMock();
+  restoreSecurityMock = securityMock.restore;
+});
 
 afterEach(() => {
   resetInternalAuthStateForTests();
+  if (restoreSecurityMock) {
+    restoreSecurityMock();
+  }
+  restoreSecurityMock = null;
+
+  if (originalConvexUrl === undefined) {
+    delete process.env.CONVEX_URL;
+  } else {
+    process.env.CONVEX_URL = originalConvexUrl;
+  }
+  if (originalSyncToken === undefined) {
+    delete process.env.DAMODARAN_SYNC_TOKEN;
+  } else {
+    process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
   if (originalInternalPersistenceKey === undefined) {
     delete process.env.INTERNAL_PERSISTENCE_KEY;
   } else {

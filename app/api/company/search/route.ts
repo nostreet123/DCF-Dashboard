@@ -10,12 +10,20 @@ type EdgarSearchResponse = {
 };
 
 export async function GET(request: Request) {
-  const rateLimit = enforceRateLimit(request, {
+  const rateLimit = await enforceRateLimit(request, {
     key: "api:company:search",
     limit: getRateLimitPerMinute("API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE", 60),
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
+    if (rateLimit.reason === "UNTRUSTED_IDENTITY") {
+      return errorResponse("UNTRUSTED_IDENTITY", "Trusted client IP header required", 429, {
+        "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
+      });
+    }
+    if (rateLimit.reason === "BACKEND_UNAVAILABLE") {
+      return errorResponse("RATE_LIMIT_UNAVAILABLE", "Rate-limit backend unavailable", 503);
+    }
     return errorResponse("RATE_LIMITED", "Too many requests", 429, {
       "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
     });

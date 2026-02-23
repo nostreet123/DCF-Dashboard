@@ -1,10 +1,4 @@
-const REAL_IP_HEADER = "x-real-ip";
-const CF_CONNECTING_IP_HEADER = "cf-connecting-ip";
-
-type Bucket = {
-  count: number;
-  resetAt: number;
-};
+import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 
 type RateLimitRule = {
   key: string;
@@ -12,53 +6,108 @@ type RateLimitRule = {
   windowMs: number;
 };
 
-const buckets = new Map<string, Bucket>();
+type IdentityMode = "strict" | "compat";
 
-const clientIdentifier = (request: Request): string => {
-  // Only trust edge headers controlled by known infra layers.
+type HitBucketResult = {
+  allowed: boolean;
+  retryAfterSeconds?: number;
+};
+
+export type RateLimitReason =
+  | "RATE_LIMITED"
+  | "UNTRUSTED_IDENTITY"
+  | "BACKEND_UNAVAILABLE";
+
+const REAL_IP_HEADER = "x-real-ip";
+const CF_CONNECTING_IP_HEADER = "cf-connecting-ip";
+const FORWARDED_FOR_HEADER = "x-forwarded-for";
+
+const firstForwardedIp = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+  const first = value.split(",")[0]?.trim();
+  return first || null;
+};
+
+const getIdentityMode = (): IdentityMode =>
+  process.env.RATE_LIMIT_IDENTITY_MODE === "compat" ? "compat" : "strict";
+
+const trustedClientIdentifier = (request: Request): string | null => {
   const cfIp = request.headers.get(CF_CONNECTING_IP_HEADER)?.trim();
   if (cfIp) {
-    return `ip:${cfIp}`;
+    return cfIp;
   }
   const realIp = request.headers.get(REAL_IP_HEADER)?.trim();
   if (realIp) {
-    return `ip:${realIp}`;
+    return realIp;
   }
-  return "untrusted";
+  if (getIdentityMode() === "compat") {
+    return firstForwardedIp(request.headers.get(FORWARDED_FOR_HEADER));
+  }
+  return null;
 };
 
-const gcExpiredBuckets = (now: number) => {
-  if (buckets.size < 2_000) {
-    return;
+const hitRateLimitBucket = async (
+  bucketKey: string,
+  limit: number,
+  windowMs: number,
+): Promise<HitBucketResult | null> => {
+  const convexClient = getConvexClient();
+  const syncToken = getSyncTokenOptional();
+  if (!convexClient || !syncToken) {
+    return null;
   }
-  for (const [key, bucket] of buckets) {
-    if (bucket.resetAt <= now) {
-      buckets.delete(key);
-    }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    return await (convexClient as any).mutation("securityRateLimit:hitBucket" as any, {
+      syncToken,
+      bucketKey,
+      limit,
+      windowMs,
+      nowMs: Date.now(),
+    });
+  } catch (error) {
+    console.warn("Rate-limit mutation failed", error);
+    return null;
   }
 };
 
-export const enforceRateLimit = (
+export const enforceRateLimit = async (
   request: Request,
   rule: RateLimitRule,
-): { allowed: boolean; retryAfterSeconds?: number } => {
-  const now = Date.now();
-  gcExpiredBuckets(now);
-
-  const key = `${rule.key}:${clientIdentifier(request)}`;
-  const existing = buckets.get(key);
-  if (!existing || existing.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + rule.windowMs });
-    return { allowed: true };
+): Promise<{
+  allowed: boolean;
+  retryAfterSeconds?: number;
+  reason?: RateLimitReason;
+}> => {
+  const clientId = trustedClientIdentifier(request);
+  if (!clientId) {
+    return {
+      allowed: false,
+      retryAfterSeconds: 60,
+      reason: "UNTRUSTED_IDENTITY",
+    };
   }
 
-  if (existing.count >= rule.limit) {
-    const retryMs = Math.max(0, existing.resetAt - now);
-    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil(retryMs / 1000)) };
+  const bucketKey = `${rule.key}:ip:${clientId}`;
+  const result = await hitRateLimitBucket(bucketKey, rule.limit, rule.windowMs);
+  if (!result) {
+    return {
+      allowed: false,
+      retryAfterSeconds: 60,
+      reason: "BACKEND_UNAVAILABLE",
+    };
   }
 
-  existing.count += 1;
-  buckets.set(key, existing);
+  if (!result.allowed) {
+    return {
+      allowed: false,
+      retryAfterSeconds: result.retryAfterSeconds,
+      reason: "RATE_LIMITED",
+    };
+  }
+
   return { allowed: true };
 };
 
@@ -75,5 +124,5 @@ export const getRateLimitPerMinute = (envKey: string, defaultValue: number): num
 };
 
 export const resetRateLimitStateForTests = () => {
-  buckets.clear();
+  // No-op: rate-limit state is stored in Convex.
 };
