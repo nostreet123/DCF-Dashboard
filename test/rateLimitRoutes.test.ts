@@ -41,10 +41,10 @@ afterEach(() => {
 });
 
 describe("route rate limiting", () => {
-  test("limits dcf preview requests per client", async () => {
+  test("limits dcf preview requests per trusted client ip", async () => {
     const headers = {
       "Content-Type": "application/json",
-      "x-forwarded-for": "203.0.113.10",
+      "cf-connecting-ip": "203.0.113.10",
     };
     const first = await dcfPreviewPost(
       new Request("http://localhost/api/dcf/preview", {
@@ -65,8 +65,8 @@ describe("route rate limiting", () => {
     expect(second.status).toBe(429);
   });
 
-  test("limits company search requests per client", async () => {
-    const headers = { "x-forwarded-for": "203.0.113.11" };
+  test("limits company search requests per trusted client ip", async () => {
+    const headers = { "x-real-ip": "203.0.113.11" };
     const first = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL", {
         headers,
@@ -97,6 +97,23 @@ describe("route rate limiting", () => {
       }),
     );
 
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("does not trust x-forwarded-for as a client identity source", async () => {
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-forwarded-for": "203.0.113.30" },
+      }),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-forwarded-for": "203.0.113.31" },
+      }),
+    );
+
+    // With no trusted IP headers, both requests fall into the same untrusted bucket.
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
   });

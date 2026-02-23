@@ -127,4 +127,59 @@ describe("internal persistence auth", () => {
     expect(await isInternalPersistenceRequest(first)).toBeTrue();
     expect(await isInternalPersistenceRequest(second)).toBeFalse();
   });
+
+  test("rejects a concurrent replay attempt for the same nonce", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const body = JSON.stringify({ requestId: "req-concurrent" });
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "POST",
+      url: "http://localhost/api/dcf/run",
+      body,
+      nonce: "nonce-concurrent",
+      timestampMs: Date.now(),
+    });
+
+    const first = new Request("http://localhost/api/dcf/run", {
+      method: "POST",
+      headers,
+      body,
+    });
+    const second = new Request("http://localhost/api/dcf/run", {
+      method: "POST",
+      headers: {
+        [internalPersistenceHeaderName]: headers[internalPersistenceHeaderName],
+        [internalPersistenceTimestampHeaderName]: headers[internalPersistenceTimestampHeaderName],
+        [internalPersistenceNonceHeaderName]: headers[internalPersistenceNonceHeaderName],
+      },
+      body,
+    });
+
+    const [firstAllowed, secondAllowed] = await Promise.all([
+      isInternalPersistenceRequest(first),
+      isInternalPersistenceRequest(second),
+    ]);
+    const allowedCount = [firstAllowed, secondAllowed].filter(Boolean).length;
+    expect(allowedCount).toBe(1);
+  });
+
+  test("rejects oversized signed payloads during auth verification", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const body = "a".repeat(210 * 1024);
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "POST",
+      url: "http://localhost/api/dcf/run",
+      body,
+      nonce: "nonce-oversized",
+      timestampMs: Date.now(),
+    });
+    const request = new Request("http://localhost/api/dcf/run", {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    expect(await isInternalPersistenceRequest(request)).toBeFalse();
+  });
 });
