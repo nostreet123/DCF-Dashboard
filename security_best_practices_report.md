@@ -313,3 +313,25 @@ The remaining findings are lower-severity hygiene issues.
 2. **SBP-005** (30 min): Add filename validation and `resolve()`-inside-dir assertion in `download.py`. Write test.
 3. **SBP-007** (1 h): Document proxy assumption or switch to platform-trusted IP header.
 4. **SBP-008** (2–4 h): Implement nonce-based CSP in Next.js middleware; remove `unsafe-inline` from `script-src`.
+
+---
+
+## Remediation Status
+
+### Pass 1 (SBP-001..004) — all remediated (commit on `main` prior to 2026-02-23)
+
+| Finding | Status | Notes |
+|---|---|---|
+| SBP-001: Unauthenticated privileged writes | **Remediated** | HMAC auth guard added in `app/api/_lib/internalAuth.ts`; applied to all persistence routes. |
+| SBP-002: GET endpoint with write side-effects | **Remediated** | `GET /api/company/facts` made read-only; writes moved to authenticated POST. |
+| SBP-003: Verbose error messages leak internals | **Remediated** | FastAPI and Next.js API routes return sanitized error strings. |
+| SBP-004: Missing security headers / weak CSP | **Remediated** | Security headers added in `next.config.mjs`; later superseded by SBP-008 nonce CSP. |
+
+### Pass 2 (SBP-005..008) — all remediated (commit `052bd0e`, 2026-02-23)
+
+| Finding | Status | Notes |
+|---|---|---|
+| SBP-005: Path traversal via URL-derived filename | **Remediated** | `_file_name_from_url` now rejects empty/dot/dotdot names; `download_file` asserts `resolve()` stays inside cache dir. 3 new tests added in `test_download_conditional.py`. |
+| SBP-006: `.env.local` committed to repo | **Resolved** | `.env.local` was already untracked at time of remediation (not present in `git ls-files`). No action required. |
+| SBP-007: Rate limiter trusts spoofable `x-forwarded-for` | **Remediated** | `clientIdentifier` in `rateLimit.ts` now prefers `cf-connecting-ip` → `x-real-ip` → `x-forwarded-for`. Test added in `test/rateLimitRoutes.test.ts`. |
+| SBP-008: `unsafe-inline` in CSP `script-src` | **Remediated** | Per-request nonce CSP implemented in `middleware.ts`; `app/layout.tsx` reads nonce from request header and passes it to `<script nonce={nonce} />`; `next.config.mjs` static CSP block removed. `style-src 'unsafe-inline'` retained (inline React `style={{...}}` props). |
