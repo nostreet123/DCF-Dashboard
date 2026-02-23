@@ -81,4 +81,23 @@ describe("route rate limiting", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
   });
+
+  test("cf-connecting-ip takes precedence over x-forwarded-for for bucketing", async () => {
+    // Both requests carry the same cf-connecting-ip but different x-forwarded-for values.
+    // They must land in the same rate-limit bucket, so the second should be rejected.
+    const cfIp = "203.0.113.20";
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "cf-connecting-ip": cfIp, "x-forwarded-for": "1.2.3.4" },
+      }),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "cf-connecting-ip": cfIp, "x-forwarded-for": "5.6.7.8" },
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
 });

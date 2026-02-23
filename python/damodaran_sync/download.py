@@ -126,7 +126,10 @@ def _sha256_stream(write_chunk: Callable[[bytes], int], iterator) -> tuple[str, 
 
 def _file_name_from_url(url: str) -> str:
     decoded_path = unquote(urlparse(url).path)
-    return Path(decoded_path).name
+    name = Path(decoded_path).name
+    if not name or name in {".", ".."}:
+        raise ValueError(f"Could not derive a safe filename from URL: {url!r}")
+    return name
 
 
 def download_file(
@@ -144,6 +147,10 @@ def download_file(
 
     file_name = _file_name_from_url(url)
     target_path = raw_dir / file_name
+    resolved_target = target_path.resolve()
+    resolved_dir = raw_dir.resolve()
+    if not str(resolved_target).startswith(str(resolved_dir) + "/") and resolved_target != resolved_dir:
+        raise ValueError(f"Resolved path {resolved_target} escapes cache directory {resolved_dir}")
     use_conditional = allow_not_modified and bool(etag or last_modified)
 
     if target_path.exists() and not use_conditional:
