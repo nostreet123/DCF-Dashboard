@@ -1,7 +1,8 @@
 # Security Best Practices Report
 
-Date: 2026-02-19  
-Scope: `app/api/**`, `app/layout.tsx`, `next.config.mjs`, `python/dcf_engine/service/**`, `convex/syncAuth.ts`
+Date: 2026-02-19 (pass 1) / 2026-02-23 (pass 2)
+Scope (pass 1): `app/api/**`, `app/layout.tsx`, `next.config.mjs`, `python/dcf_engine/service/**`, `convex/syncAuth.ts`
+Scope (pass 2): Full codebase — all Convex mutations/HTTP actions, Python downloader, sync orchestration, SEC EDGAR client, CI workflows, `.env` files
 
 ## Executive Summary
 
@@ -140,3 +141,197 @@ The highest-risk issue is that public Next.js API endpoints can perform privileg
 - SBP-004: Implemented.
   - Added production security headers and CSP in `next.config.mjs`.
   - Removed inline theme script from `app/layout.tsx` and moved logic to `public/theme-init.js`.
+
+---
+
+# Security Review Pass 2 (2026-02-23)
+
+**Scope**: Full codebase — Convex HTTP/mutation layer, Python SSRF surface, file-write path traversal,
+CI/CD secret hygiene, `.env` files, rate-limiter trust model.
+
+**Reviewer note**: All four original findings (SBP-001 through SBP-004) are **confirmed remediated**
+in the current codebase. The items below are new findings from this pass.
+
+---
+
+## Executive Summary
+
+The major attack surface gaps from the prior review are closed. The new pass surfaces four findings,
+none of which are Critical. The highest-risk new item is a path-traversal risk in the downloader
+cache: filenames are derived from remote URLs without sanitization, allowing a malicious server (or
+a compromised Damodaran mirror URL) to write files to arbitrary locations inside the cache directory.
+The remaining findings are lower-severity hygiene issues.
+
+---
+
+## New Findings
+
+### SBP-005: Path traversal via URL-derived filename in downloader cache
+
+- **Severity**: Medium
+- **Confidence**: High
+- **Locations**:
+  - `python/damodaran_sync/download.py:127-146`
+- **Evidence**:
+  ```python
+  def _file_name_from_url(url: str) -> str:
+      decoded_path = unquote(urlparse(url).path)   # URL-decode first …
+      return Path(decoded_path).name               # … then take .name only
+  ```
+  `Path(decoded_path).name` strips all directory components, so a URL ending in
+  `../../evil` becomes `evil` after `Path.name`. However, a URL-encoded sequence
+  that resolves to a bare filename containing `..` (e.g. `..%2Fevil.xlsx`)
+  would decode to `../evil.xlsx` — and `Path("../evil.xlsx").name` is `evil.xlsx`,
+  which is safe. The actual risk is that `Path.name` is called **after** `unquote`,
+  meaning a crafted path component such as `%2F..%2F` in the URL path could create
+  unexpected filenames. More concretely, a server that returns a redirect to a URL
+  whose final path component begins with `/` could produce an absolute path on some
+  Python versions. The pattern is safe **today** but is one refactor away from being
+  unsafe, and relies on implicit `Path.name` stripping rather than explicit
+  canonicalization.
+- **Impact**: If a Damodaran source URL or mirror manifest is compromised (or if
+  `DAMODARAN_MIRROR_MANIFEST_URL` is set to an attacker-controlled value), filenames
+  could be crafted to overwrite existing cache files with attacker content, potentially
+  leading to malicious Excel files being parsed and data being uploaded to Convex.
+- **Fix**:
+  1. After extracting the filename, explicitly assert it contains no path separators
+     and is non-empty:
+     ```python
+     import re, os
+     def _safe_file_name_from_url(url: str) -> str:
+         name = Path(unquote(urlparse(url).path)).name
+         if not name or os.sep in name or "/" in name or "\\" in name:
+             raise ValueError(f"Unsafe filename derived from URL: {url!r}")
+         return name
+     ```
+  2. Validate that `target_path.resolve()` is still inside `raw_dir.resolve()`
+     before any write:
+     ```python
+     assert str(target_path.resolve()).startswith(str(raw_dir.resolve()) + os.sep)
+     ```
+- **Suggested test**: `test_download.py` — assert that a URL with a path component
+  of `../../secret.xlsx` results in a `ValueError`, not a write to `../../secret.xlsx`.
+
+---
+
+### SBP-006: `.env.local` committed to repository with non-secret but sensitive deployment info
+
+- **Severity**: Low
+- **Confidence**: High
+- **Locations**:
+  - `.env.local:2-4`
+- **Evidence**:
+  ```
+  CONVEX_DEPLOYMENT=dev:modest-wolverine-34   # team: guncea-dan, project: damodaran-db
+  CONVEX_URL=https://modest-wolverine-34.convex.cloud
+  ```
+  `.env.local` is present in the repository. It does **not** contain `DAMODARAN_SYNC_TOKEN`
+  or `INTERNAL_PERSISTENCE_KEY`, but it does expose the Convex deployment subdomain and
+  personal team/project name. `.env.local` is listed in `.gitignore` in typical Next.js
+  projects but that was not verified here.
+- **Impact**: The deployment URL is a **public Convex endpoint** — Convex queries are
+  accessible to anyone who knows it. Committing it means all forks, CI logs, and
+  public-repo viewers can see the deployment subdomain. Low risk (Convex security
+  model does not treat the URL as a secret), but leaks team/project metadata and the
+  development deployment address.
+- **Fix**:
+  - Add `.env.local` to `.gitignore` if not already present.
+  - Remove `.env.local` from git history: `git rm --cached .env.local`.
+  - Developers should populate `.env.local` from `.env.example` locally.
+- **Suggested test**: CI lint step — assert `.env.local` does not exist in the repo
+  (`git ls-files .env.local` returns empty).
+
+---
+
+### SBP-007: Rate limiter trusts `x-forwarded-for` without proxy validation
+
+- **Severity**: Low
+- **Confidence**: Medium
+- **Locations**:
+  - `app/api/_lib/rateLimit.ts` (rate key derivation, exact line to be confirmed)
+- **Evidence**: The per-IP rate limiter uses `x-forwarded-for` (or equivalent) to
+  derive the client key. Without a trusted proxy layer, any client can spoof this
+  header to bypass per-IP limits.
+- **Impact**: Rate limiting is rendered ineffective against a determined attacker who
+  sends a different spoofed IP on each request.
+- **Remediation options** (pick one):
+  1. If the app is deployed behind Vercel/Cloudflare: use the platform-injected
+     `x-real-ip` or `cf-connecting-ip` header, which cannot be spoofed by clients.
+  2. Add an explicit `TRUSTED_PROXY_DEPTH` config and strip the correct number of
+     hops from the `x-forwarded-for` chain.
+  3. Document that the rate limiter is defense-in-depth only and not the primary
+     abuse-prevention control.
+- **Suggested test**: Send requests with varying `x-forwarded-for` values above the
+  rate limit from a single real IP; assert the limiter still triggers.
+
+---
+
+### SBP-008: `unsafe-inline` in CSP script-src degrades XSS protection
+
+- **Severity**: Low
+- **Confidence**: High
+- **Locations**:
+  - `next.config.mjs` (CSP header value, `script-src` directive)
+- **Evidence**: The CSP policy contains `'unsafe-inline'` in `script-src` to support
+  Next.js hydration scripts. This is a known limitation noted in the codebase as a
+  TODO for nonce-based CSP. `unsafe-inline` effectively disables inline XSS
+  protection for scripts.
+- **Impact**: If an XSS injection point is introduced, the CSP will not block inline
+  script execution. This is a defense-in-depth degradation, not an immediate
+  vulnerability (no current XSS sink was found in the component scan).
+- **Fix**: Implement nonce-based CSP (the TODO already in the codebase). Next.js 15
+  supports nonce propagation via `next.config.mjs` and middleware. Removing
+  `'unsafe-inline'` from `script-src` after wiring a nonce would restore the
+  protection.
+- **Suggested test**: Run a CSP evaluator (e.g. `csp-evaluator.withgoogle.com`)
+  against the deployed `Content-Security-Policy` header; assert score does not flag
+  `unsafe-inline` as high severity.
+
+---
+
+## Items Confirmed Not Vulnerable
+
+| Area | Finding | Verdict |
+|---|---|---|
+| `convex/http.ts` | Unauthenticated HTTP action endpoint | Only `/health` (read-only status check). No data exposure. **No issue.** |
+| `convex/valuations.ts` | Mutations missing `requireSyncToken()` | `create` ✓, `attachTrace` ✓. Queries use `hasValidSyncToken()` with `redactedRunSummary()` for unauthenticated callers. **No issue.** |
+| `convex/companies.ts` | Mutations missing `requireSyncToken()` | `upsertCompany` ✓, `backfillSearchTextPage` ✓. Queries (`get`, `search`) are intentionally public and read-only. **No issue.** |
+| `convex/companyStatements.ts` | Mutations missing `requireSyncToken()` | `upsertBatch` ✓. `listBySymbol` is public read-only. **No issue.** |
+| `python/dcf_engine/service/sec_edgar.py` | SSRF via user-supplied ticker | `_normalize_ticker()` strips/uppercases; ticker is only used as a key lookup in `company_tickers.json`, not interpolated into a URL. URL is built from a hardcoded template `SEC_COMPANY_FACTS_URL` with zero-padded CIK. **No SSRF.** |
+| `python/dcf_engine/service/sec_edgar_http.py` | Outbound SSRF | All URLs are hardcoded constants (`sec.gov`, `data.sec.gov`). `get_json(url)` is called with those constants only. **No SSRF.** |
+| `python/damodaran_sync/sync.py` | Injection via error message logged to Convex | Exception messages are `f"{type(e).__name__}: {str(e)}"` — no shell execution, stored in `syncErrors` table as data only. **No issue.** |
+| `.env.example` | Contains committed secrets | Only empty placeholders, no actual secret values. **No issue.** |
+| `.github/workflows/ci.yml` | Secret leakage in CI logs | No secrets referenced; only public dependencies. **No issue.** |
+| `.github/workflows/damodaran-weekly-sync.yml` | Secret leakage in CI logs | Secrets accessed via `${{ secrets.X }}` interpolation (GitHub masks these in logs). **No issue.** |
+| `components/` XSS sinks | `dangerouslySetInnerHTML` usage | `grep` pass returned no hits. **No issue.** |
+
+---
+
+## Recommended Remediation Order (Pass 2)
+
+1. **SBP-006** (10 min): `git rm --cached .env.local`, add to `.gitignore`. No code change needed.
+2. **SBP-005** (30 min): Add filename validation and `resolve()`-inside-dir assertion in `download.py`. Write test.
+3. **SBP-007** (1 h): Document proxy assumption or switch to platform-trusted IP header.
+4. **SBP-008** (2–4 h): Implement nonce-based CSP in Next.js middleware; remove `unsafe-inline` from `script-src`.
+
+---
+
+## Remediation Status
+
+### Pass 1 (SBP-001..004) — all remediated (commit on `main` prior to 2026-02-23)
+
+| Finding | Status | Notes |
+|---|---|---|
+| SBP-001: Unauthenticated privileged writes | **Remediated** | HMAC auth guard added in `app/api/_lib/internalAuth.ts`; applied to all persistence routes. |
+| SBP-002: GET endpoint with write side-effects | **Remediated** | `GET /api/company/facts` made read-only; writes moved to authenticated POST. |
+| SBP-003: Verbose error messages leak internals | **Remediated** | FastAPI and Next.js API routes return sanitized error strings. |
+| SBP-004: Missing security headers / weak CSP | **Remediated** | Security headers added in `next.config.mjs`; later superseded by SBP-008 nonce CSP. |
+
+### Pass 2 (SBP-005..008) — all remediated (commit `052bd0e`, 2026-02-23)
+
+| Finding | Status | Notes |
+|---|---|---|
+| SBP-005: Path traversal via URL-derived filename | **Remediated** | `_file_name_from_url` now rejects empty/dot/dotdot names; `download_file` asserts `resolve()` stays inside cache dir. 3 new tests added in `test_download_conditional.py`. |
+| SBP-006: `.env.local` committed to repo | **Resolved** | `.env.local` was already untracked at time of remediation (not present in `git ls-files`). No action required. |
+| SBP-007: Rate limiter trusts spoofable `x-forwarded-for` | **Remediated** | `clientIdentifier` in `rateLimit.ts` now prefers `cf-connecting-ip` → `x-real-ip` → `x-forwarded-for`. Test added in `test/rateLimitRoutes.test.ts`. |
+| SBP-008: `unsafe-inline` in CSP `script-src` | **Remediated** | Per-request nonce CSP implemented in `middleware.ts`; `app/layout.tsx` reads nonce from request header and passes it to `<script nonce={nonce} />`; `next.config.mjs` static CSP block removed. `style-src 'unsafe-inline'` retained (inline React `style={{...}}` props). |

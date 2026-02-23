@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import "./globals.css";
 import { Providers } from "./providers";
@@ -9,11 +10,12 @@ export const metadata: Metadata = {
   description: "Prototype DCF dashboard with Convex + Python services.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -22,7 +24,7 @@ export default function RootLayout({
     >
       <head>
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- intentional: must block render to set theme before first paint */}
-        <script src="/theme-init.js" />
+        <script src="/theme-init.js" nonce={nonce} />
       </head>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}

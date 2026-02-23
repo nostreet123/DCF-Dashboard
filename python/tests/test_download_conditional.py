@@ -4,6 +4,7 @@ import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 import requests
 
 from damodaran_sync import download
@@ -290,3 +291,33 @@ def test_probe_remote_rate_limiter_threadsafe() -> None:
 
     assert all(result is not None for result in results)
     assert rate_limiter.calls == thread_count
+
+
+def test_file_name_from_url_trailing_slash_raises(tmp_path) -> None:
+    """URL with no filename component (trailing slash) must raise ValueError."""
+    with pytest.raises(ValueError, match="safe filename"):
+        download.download_file(
+            "https://example.com/",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_file_name_from_url_dot_raises(tmp_path) -> None:
+    """URL whose path resolves to '.' must raise ValueError."""
+    with pytest.raises(ValueError, match="safe filename"):
+        download.download_file(
+            "https://example.com/.",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_file_name_from_url_dotdot_raises(tmp_path) -> None:
+    """URL whose path resolves to '..' must raise ValueError."""
+    with pytest.raises(ValueError, match="safe filename"):
+        download.download_file(
+            "https://example.com/..",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
