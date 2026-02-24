@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { GET as companyFactsGet } from "../app/api/company/facts/route";
@@ -7,6 +8,13 @@ import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
 const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalConvexUrl = process.env.CONVEX_URL;
+const noopPreconnect: typeof fetch.preconnect = () => {};
+
+function createMockFetch(
+  impl: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): typeof fetch {
+  return Object.assign(impl, { preconnect: noopPreconnect });
+}
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
@@ -30,11 +38,11 @@ afterEach(() => {
 });
 
 const mockUpstreamError = (status = 500) => {
-  globalThis.fetch = async () =>
+  globalThis.fetch = createMockFetch(async () =>
     new Response(JSON.stringify({ message: "sensitive upstream detail" }), {
       status,
       headers: { "Content-Type": "application/json" },
-    });
+    }));
 };
 
 describe("API error sanitization", () => {
@@ -55,9 +63,9 @@ describe("API error sanitization", () => {
   });
 
   test("dcf preview route defaults to 502 for unknown errors", async () => {
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error("Network error");
-    };
+    });
 
     const response = await dcfPreviewPost(
       new Request("http://localhost/api/dcf/preview", {

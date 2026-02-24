@@ -42,9 +42,21 @@ Notes:
 | 2026-02-21 | When asking for prior conversation severity items, you want direct search in the local history file. | I will search `/root/.codex/history.jsonl` first and return exact matching sessions/snippets before using any broader interpretation. |
 | 2026-02-22 | You value proactive codebase audits that surface refactor candidates before implementation work starts. | I will run focused cross-module scans and return a prioritized shortlist with file/line anchors and concrete refactor directions. |
 | 2026-02-22 | You want me to avoid subagents when quota is constrained. | I will execute tasks directly in the main session unless you explicitly ask for subagents. |
+| 2026-02-24 | When requesting Claude review capabilities, you want them converted into local in-repo agent skills. | I will map detected Claude plugins/skills into repo-local `.agents/skills/*` entries so they can be reused as first-class local skills. |
+| 2026-02-24 | You want converted Claude-style skills to keep the same original names unless a namespaced plugin-style port is explicitly requested. | I will preserve exact names for direct skill conversions, and use explicit namespaces (for example `superpowers:*`) only when you request plugin-style namespacing. |
+| 2026-02-24 | For superpowers replication, you want a full plugin-style port (all skills), namespaced under `superpowers`, with executable parity and pinned snapshot sync. | I will maintain a namespaced `.agents/skills/superpowers/` port, keep version pin metadata, and use an explicit sync script for controlled updates. |
+| 2026-02-24 | When receiving code review feedback, you want technical verification first (no performative agreement), full clarification before implementation, and reasoned pushback when suggestions are unsound. | I will verify each review item against the codebase before changes, ask one targeted clarification when anything is ambiguous, and implement only validated fixes with follow-up checks. |
 
 ## Update Rule
 
 After each meaningful task:
 1. If I made an error, add one row in `Mistakes`.
 2. If you share a preference, add one row in `What You Like`.
+
+## Task Updates
+
+- 2026-02-24: Applied `superpowers:receiving-code-review` fixes for PR #16 feedback by adding targeted logic tests for dialog focus wrapping and dashboard compute-timer behavior, and by replacing shared `defaultAssumptions` usage with `createDefaultAssumptions()` in `RightPanel` to avoid shared mutable defaults.
+- 2026-02-24: Resolved repo `tsc --noEmit` breakage by adding Bun type support, enabling `.ts` import compatibility in TS config, and aligning strict test fixture types in Convex/unit tests; verified with passing typecheck and targeted Bun test runs.
+- 2026-02-24: Incorporated follow-up review feedback by moving Bun type references from global TS config to Bun test files and replacing `as unknown as typeof fetch` test mocks with typed `createMockFetch` helpers that preserve `fetch.preconnect`.
+- 2026-02-24: Applied second review pass feedback by removing global `allowImportingTsExtensions` from root TS config and replacing remaining Convex test `as any` expectations with explicit `Id<...>` helper casts for stronger test typing.
+- 2026-02-24: Ran full pre-PR DoD verification (`bun test`, `python/pytest`, `bunx convex typecheck`) and confirmed all checks pass in current workspace.

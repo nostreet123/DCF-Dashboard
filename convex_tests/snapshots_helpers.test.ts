@@ -1,8 +1,12 @@
+/// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
+import type { Id } from "../convex/_generated/dataModel";
 import {
   normalizeLimit,
   pickBestSnapshot,
 } from "../convex/snapshots_helpers";
+
+const snapshotId = (value: string) => value as unknown as Id<"snapshots">;
 
 describe("normalizeLimit", () => {
   test("returns default when undefined", () => {
@@ -23,7 +27,7 @@ describe("pickBestSnapshot", () => {
   test("prefers active build", () => {
     const best = pickBestSnapshot([
       {
-        _id: "s1" as any,
+        _id: snapshotId("s1"),
         activeBuildId: undefined,
         pendingBuildId: undefined,
         downloadedAt: 100,
@@ -31,7 +35,7 @@ describe("pickBestSnapshot", () => {
         _creationTime: 100,
       },
       {
-        _id: "s2" as any,
+        _id: snapshotId("s2"),
         activeBuildId: "b1",
         pendingBuildId: undefined,
         downloadedAt: 1,
@@ -39,13 +43,13 @@ describe("pickBestSnapshot", () => {
         _creationTime: 1,
       },
     ]);
-    expect(best?._id).toBe("s2");
+    expect(best?._id).toBe(snapshotId("s2"));
   });
 
   test("falls back to newest by parsed/downloaded/creation", () => {
     const best = pickBestSnapshot([
       {
-        _id: "s1" as any,
+        _id: snapshotId("s1"),
         activeBuildId: undefined,
         pendingBuildId: "p1",
         downloadedAt: 10,
@@ -53,7 +57,7 @@ describe("pickBestSnapshot", () => {
         _creationTime: 10,
       },
       {
-        _id: "s2" as any,
+        _id: snapshotId("s2"),
         activeBuildId: undefined,
         pendingBuildId: "p1",
         downloadedAt: 20,
@@ -61,6 +65,6 @@ describe("pickBestSnapshot", () => {
         _creationTime: 20,
       },
     ]);
-    expect(best?._id).toBe("s2");
+    expect(best?._id).toBe(snapshotId("s2"));
   });
 });

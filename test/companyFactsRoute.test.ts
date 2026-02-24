@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { GET, POST } from "../app/api/company/facts/route";

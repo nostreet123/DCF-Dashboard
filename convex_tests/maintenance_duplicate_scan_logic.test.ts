@@ -1,13 +1,18 @@
+/// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
+import type { Id } from "../convex/_generated/dataModel";
 import { buildAssetPhasePatch, buildSnapshotPhasePatch, shouldScheduleNextChunk } from "../convex/maintenance/duplicateScan.logic";
 import { groupAssetDuplicatesPage, groupSnapshotDuplicatesPage } from "../convex/maintenance/duplicateScan.page";
+
+const snapshotId = (value: string) => value as unknown as Id<"snapshots">;
+const assetId = (value: string) => value as unknown as Id<"assets">;
 
 describe("duplicateScan.page", () => {
   test("groups snapshot duplicates across page carry", () => {
     const page1 = [
-      { _id: "s1" as any, datasetKey: "d", regionCode: "us", asOfDate: "2024-01-01" },
-      { _id: "s2" as any, datasetKey: "d", regionCode: "us", asOfDate: "2024-01-01" },
-      { _id: "s3" as any, datasetKey: "d2", regionCode: "us", asOfDate: "2024-01-01" },
+      { _id: snapshotId("s1"), datasetKey: "d", regionCode: "us", asOfDate: "2024-01-01" },
+      { _id: snapshotId("s2"), datasetKey: "d", regionCode: "us", asOfDate: "2024-01-01" },
+      { _id: snapshotId("s3"), datasetKey: "d2", regionCode: "us", asOfDate: "2024-01-01" },
     ];
     const r1 = groupSnapshotDuplicatesPage(page1, null, true);
     expect(r1.duplicates.length).toBe(1);
@@ -15,8 +20,8 @@ describe("duplicateScan.page", () => {
     expect(r1.carry?.datasetKey).toBe("d2");
 
     const page2 = [
-      { _id: "s4" as any, datasetKey: "d2", regionCode: "us", asOfDate: "2024-01-01" },
-      { _id: "s5" as any, datasetKey: "d3", regionCode: "us", asOfDate: "2024-01-01" },
+      { _id: snapshotId("s4"), datasetKey: "d2", regionCode: "us", asOfDate: "2024-01-01" },
+      { _id: snapshotId("s5"), datasetKey: "d3", regionCode: "us", asOfDate: "2024-01-01" },
     ];
     const r2 = groupSnapshotDuplicatesPage(page2, r1.carry, false);
     expect(r2.duplicates.length).toBe(1);
@@ -27,10 +32,10 @@ describe("duplicateScan.page", () => {
 
   test("groups asset duplicates and ignores missing keys", () => {
     const page = [
-      { _id: "a1" as any, assetKey: "k1" },
-      { _id: "a2" as any, assetKey: "k1" },
-      { _id: "a3" as any, assetKey: undefined },
-      { _id: "a4" as any, assetKey: "k2" },
+      { _id: assetId("a1"), assetKey: "k1" },
+      { _id: assetId("a2"), assetKey: "k1" },
+      { _id: assetId("a3"), assetKey: undefined },
+      { _id: assetId("a4"), assetKey: "k2" },
     ];
     const r = groupAssetDuplicatesPage(page, null, false);
     expect(r.duplicates.length).toBe(1);
@@ -55,7 +60,7 @@ describe("duplicateScan.logic", () => {
           regionCode: "us",
           asOfDate: "2024-01-01",
           count: 2,
-          ids: ["s1", "s2"],
+          ids: [snapshotId("s1"), snapshotId("s2")],
         },
       ],
     });
@@ -74,7 +79,7 @@ describe("duplicateScan.logic", () => {
       },
       nextCursor: null,
       carry: null,
-      duplicates: [{ assetKey: "k1", count: 2, ids: ["a1", "a2"] }],
+      duplicates: [{ assetKey: "k1", count: 2, ids: [assetId("a1"), assetId("a2")] }],
       now: 1234,
     });
     expect(patch.status).toBe("complete");

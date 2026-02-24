@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ConvexHttpClient } from "convex/browser";
 
@@ -9,6 +10,13 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalInternalKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalMutation = ConvexHttpClient.prototype.mutation;
+const noopPreconnect: typeof fetch.preconnect = () => {};
+
+function createMockFetch(
+  impl: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): typeof fetch {
+  return Object.assign(impl, { preconnect: noopPreconnect });
+}
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
@@ -47,11 +55,11 @@ describe("dcf run persistence auth", () => {
       mutationCalls += 1;
       return { runId: "run-id" };
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(JSON.stringify({ base: {}, bull: {}, bear: {}, kpis: {} }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      });
+      }));
 
     const response = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
@@ -71,11 +79,11 @@ describe("dcf run persistence auth", () => {
       mutationCalls += 1;
       return { runId: "run-id" };
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(JSON.stringify({ base: {}, bull: {}, bear: {}, kpis: {} }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      });
+      }));
 
     const response = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
