@@ -1,6 +1,7 @@
+/// <reference types="bun-types" />
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
-import { parseMonteCarloPreset, sanitizePayload } from "../app/api/_lib/monteCarloPreset.ts";
+import { parseMonteCarloPreset, sanitizePayload } from "../app/api/_lib/monteCarloPreset";
 
 describe("monteCarloPreset", () => {
   test("returns off when mc param is missing", () => {

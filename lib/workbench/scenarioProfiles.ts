@@ -56,7 +56,9 @@ export const scenarioChipPresets: Record<Scenario, ScenarioChip[]> = {
 
 export const defaultScenario: Scenario = 'base';
 
-export const defaultAssumptions: Assumptions = scenarioAssumptionDefaults[defaultScenario];
+export function createDefaultAssumptions(): Assumptions {
+  return { ...scenarioAssumptionDefaults[defaultScenario] };
+}
 
 export function cloneScenarioAssumptions(): Record<Scenario, Assumptions> {
   return {

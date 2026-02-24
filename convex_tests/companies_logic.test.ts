@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import {
   buildSearchText,
@@ -43,7 +44,6 @@ describe("companies backfill patch", () => {
 
   test("returns patch when searchText is missing or stale", () => {
     const patch = getCompanyBackfillPatch({
-      _id: "c1",
       symbol: "AAPL",
       name: "Apple Inc.",
       cik: "0000320193",
@@ -53,7 +53,6 @@ describe("companies backfill patch", () => {
 
   test("returns null when row already has expected searchText", () => {
     const patch = getCompanyBackfillPatch({
-      _id: "c1",
       symbol: "AAPL",
       name: "Apple Inc.",
       cik: "0000320193",

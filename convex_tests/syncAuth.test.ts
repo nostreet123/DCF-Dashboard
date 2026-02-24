@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { hasValidSyncToken, requireSyncToken } from "../convex/syncAuth";
