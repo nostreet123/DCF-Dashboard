@@ -3,6 +3,22 @@
 export type ConvexApi = any;
 
 let cachedApi: ConvexApi;
+let didReportBootstrapFailure = false;
+
+function reportBootstrapFailure(error: unknown): void {
+  if (didReportBootstrapFailure) {
+    return;
+  }
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    return;
+  }
+
+  didReportBootstrapFailure = true;
+  console.error(
+    'Failed to load generated Convex API from "@/convex/_generated/api". Falling back to an empty API object.',
+    error,
+  );
+}
 
 export function getConvexApi(): ConvexApi {
   if (cachedApi) {
@@ -12,7 +28,8 @@ export function getConvexApi(): ConvexApi {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- avoids deep type instantiation from generated Convex API
     cachedApi = require('@/convex/_generated/api').api;
-  } catch {
+  } catch (error: unknown) {
+    reportBootstrapFailure(error);
     cachedApi = {};
   }
 
