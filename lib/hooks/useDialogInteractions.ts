@@ -21,6 +21,27 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 }
 
+export function getFocusWrapTarget(
+  activeElement: HTMLElement | null,
+  focusableElements: HTMLElement[],
+  shiftKey: boolean,
+): HTMLElement | null {
+  if (focusableElements.length === 0) {
+    return null;
+  }
+
+  const first = focusableElements[0];
+  const last = focusableElements[focusableElements.length - 1];
+
+  if (shiftKey && activeElement === first) {
+    return last;
+  }
+  if (!shiftKey && activeElement === last) {
+    return first;
+  }
+  return null;
+}
+
 export function useDialogInteractions({
   open,
   onEscape,
@@ -83,16 +104,11 @@ export function useDialogInteractions({
         return;
       }
 
-      const first = focusableElements[0];
-      const last = focusableElements[focusableElements.length - 1];
       const activeElement = document.activeElement as HTMLElement | null;
-
-      if (event.shiftKey && activeElement === first) {
+      const wrapTarget = getFocusWrapTarget(activeElement, focusableElements, event.shiftKey);
+      if (wrapTarget) {
         event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && activeElement === last) {
-        event.preventDefault();
-        first.focus();
+        wrapTarget.focus();
       }
     };
 
