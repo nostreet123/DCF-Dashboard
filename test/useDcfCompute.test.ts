@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 /**
  * Tests for useDcfCompute concurrency logic.
  *
