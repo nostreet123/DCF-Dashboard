@@ -94,50 +94,10 @@ export function useWorkbenchViewState() {
     dispatch({ type: 'select_run', source });
   }, []);
 
-  const onDockedCompanySelected = useCallback(() => {
-    dispatch({ type: 'select_company', source: 'docked' });
-  }, []);
-
-  const onDrawerCompanySelected = useCallback(() => {
-    dispatch({ type: 'select_company', source: 'drawer' });
-  }, []);
-
-  const onDockedRunSelected = useCallback(() => {
-    dispatch({ type: 'select_run', source: 'docked' });
-  }, []);
-
-  const onDrawerRunSelected = useCallback(() => {
-    dispatch({ type: 'select_run', source: 'drawer' });
-  }, []);
-
-  const getRailSelectionHandlers = useCallback(
-    (source: RailVariant) =>
-      source === 'drawer'
-        ? {
-            onCompanySelected: onDrawerCompanySelected,
-            onRunSelected: onDrawerRunSelected,
-          }
-        : {
-            onCompanySelected: onDockedCompanySelected,
-            onRunSelected: onDockedRunSelected,
-          },
-    [
-      onDockedCompanySelected,
-      onDockedRunSelected,
-      onDrawerCompanySelected,
-      onDrawerRunSelected,
-    ],
-  );
-
   return {
     ...state,
     closeDrawers,
-    getRailSelectionHandlers,
     onCompanySelected,
-    onDockedCompanySelected,
-    onDockedRunSelected,
-    onDrawerCompanySelected,
-    onDrawerRunSelected,
     onRunSelected,
     openAssumptionsDrawer,
     openLibraryDrawer,
