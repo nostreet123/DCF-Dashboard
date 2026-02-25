@@ -50,6 +50,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   width: 100%;
+  min-height: 2.75rem;
   padding: var(--spacing-sm) var(--spacing-md);
   text-align: left;
   border-radius: var(--radius-md);
@@ -96,6 +97,7 @@
 
 .regionBtn {
   flex: 1;
+  min-height: 2.75rem;
   padding: var(--spacing-sm);
   font-size: 0.86rem;
   font-weight: 500;
@@ -130,6 +132,7 @@
   flex-direction: column;
   gap: 2px;
   width: 100%;
+  min-height: 2.75rem;
   padding: var(--spacing-sm) var(--spacing-md);
   text-align: left;
   border-radius: var(--radius-md);

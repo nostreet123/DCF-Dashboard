@@ -3,8 +3,8 @@
   align-items: center;
   justify-content: space-between;
   min-height: var(--topbar-height);
-  padding: 0 var(--spacing-xl);
-  gap: var(--spacing-md);
+  padding: 0 var(--spacing-sm);
+  gap: var(--spacing-xs);
   background: var(--surface-raised);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px);
@@ -14,19 +14,21 @@
 .left {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-xs);
   min-width: 0;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
 }
 
 .logoText {
+  display: none;
   font-family: var(--font-serif);
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 400;
   color: var(--text-primary);
 }
@@ -34,33 +36,38 @@
 .tickerPill {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: 0.5rem 0.625rem;
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
 
+.tickerPill :global(svg) {
+  display: none;
+}
+
 .tickerSymbol {
   font-family: var(--font-mono);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--accent-gold);
 }
 
 .tickerPrice {
+  display: none;
   font-family: var(--font-mono);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
 }
 
 .center {
   flex: 1;
-  display: flex;
+  display: none;
   justify-content: center;
-  max-width: 460px;
-  min-width: 180px;
-  margin: 0 var(--spacing-xl);
+  max-width: 30rem;
+  min-width: 12rem;
+  margin: 0 var(--spacing-lg);
 }
 
 .searchForm {
@@ -79,9 +86,10 @@
 
 .searchInput {
   width: 100%;
+  min-height: 2.75rem;
   padding: var(--spacing-sm) var(--spacing-xl);
-  padding-left: 40px;
-  padding-right: 48px;
+  padding-left: 2.5rem;
+  padding-right: 3rem;
   background: var(--surface-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -117,16 +125,16 @@
 .right {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
   min-width: 0;
 }
 
 .mobileIconBtn {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   border: 1px solid var(--border);
@@ -141,95 +149,78 @@
 
 .modeToggle {
   max-width: 100%;
+  min-width: 0;
 }
 
 .themeToggle {
   flex-shrink: 0;
   border: 1px solid var(--border);
   background: var(--surface-elevated);
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 
 .libraryTrigger,
 .assumptionsTrigger,
 .searchTrigger {
-  display: none;
+  display: inline-flex;
 }
 
-@media (max-width: 900px) {
+@media (min-width: 640px) {
   .topbar {
     padding: 0 var(--spacing-md);
-    gap: var(--spacing-xs);
-  }
-
-  .center {
-    display: none;
-  }
-
-  .libraryTrigger,
-  .searchTrigger,
-  .assumptionsTrigger {
-    display: inline-flex;
-  }
-
-  .logo {
-    gap: var(--spacing-xs);
-  }
-
-  .logoText {
-    display: none;
+    gap: var(--spacing-sm);
   }
 
   .left {
-    gap: var(--spacing-xs);
-  }
-
-  .right {
-    gap: 6px;
+    gap: var(--spacing-sm);
   }
 
   .tickerPill {
-    padding: 7px 10px;
-    gap: 6px;
+    padding: var(--spacing-sm) var(--spacing-md);
   }
 
-  .tickerPrice {
-    font-size: 0.8rem;
-  }
-
-  .modeToggle {
-    transform: scale(0.92);
-    transform-origin: center;
-  }
-}
-
-@media (max-width: 1180px) {
-  .assumptionsTrigger {
-    display: inline-flex;
-  }
-}
-
-@media (max-width: 720px) {
   .tickerPill :global(svg) {
-    display: none;
+    display: block;
   }
-}
 
-@media (max-width: 620px) {
   .tickerPrice {
-    display: none;
-  }
-
-  .modeToggle {
-    transform: scale(0.84);
+    display: inline;
   }
 }
 
-@media (max-width: 480px) {
-  .tickerPill {
-    padding: 6px 9px;
+@media (min-width: 768px) {
+  .topbar {
+    padding: 0 var(--spacing-lg);
   }
 
-  .tickerSymbol {
-    font-size: 0.8rem;
+  .logoText {
+    display: inline;
+  }
+}
+
+@media (min-width: 1024px) {
+  .topbar {
+    padding: 0 var(--spacing-xl);
+    gap: var(--spacing-md);
+  }
+
+  .left {
+    gap: var(--spacing-md);
+  }
+
+  .center {
+    display: flex;
+  }
+
+  .libraryTrigger,
+  .searchTrigger {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .assumptionsTrigger {
+    display: none;
   }
 }
