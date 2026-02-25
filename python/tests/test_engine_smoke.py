@@ -4,6 +4,7 @@ import pytest
 
 from dcf_engine.engine import DCFEngine
 from dcf_engine.schema import InputAssumptions
+import dcf_engine.schema as schema
 
 
 def test_engine_smoke_constant_pv() -> None:
@@ -39,3 +40,7 @@ def test_engine_smoke_constant_pv() -> None:
     assert result.pv_terminal == pytest.approx(expected_pv_terminal)
     assert result.firm_value == pytest.approx(expected_pv_fcff + expected_pv_terminal)
     assert trace.discounting.terminal_value == pytest.approx(expected_terminal)
+
+
+def test_required_period_series_fields_alias_backwards_compatible() -> None:
+    assert schema.REQUIRED_PERIOD_SERIES_FIELDS == schema.PERIOD_SERIES_FIELDS

@@ -11,12 +11,7 @@ PERIOD_SERIES_FIELDS: tuple[str, ...] = (
     "wacc",
 )
 
-REQUIRED_PERIOD_SERIES_FIELDS: tuple[str, ...] = (
-    "ebit_margin",
-    "tax_rate",
-    "sales_to_capital",
-    "wacc",
-)
+REQUIRED_PERIOD_SERIES_FIELDS: tuple[str, ...] = PERIOD_SERIES_FIELDS
 
 
 class InputAssumptions(BaseModel):
