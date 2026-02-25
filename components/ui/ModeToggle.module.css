@@ -4,11 +4,16 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 2px;
+  min-height: 2.75rem;
 }
 
 .segment {
-  padding: 8px 12px;
-  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
@@ -26,9 +31,9 @@
   color: #0a0a0b;
 }
 
-@media (max-width: 620px) {
+@media (min-width: 768px) {
   .segment {
-    padding: 7px 9px;
-    font-size: 0.82rem;
+    padding: 0 0.875rem;
+    font-size: 0.9rem;
   }
 }
