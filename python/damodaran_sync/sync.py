@@ -328,6 +328,7 @@ def _should_skip_same_hash(
 def _run_download_stage(
     item: _ResolvedAsset,
     client: ConvexSyncClient,
+    *,
     force_rebuild: bool,
     additive_only: bool,
     conditional_get_enabled: bool,
@@ -336,7 +337,7 @@ def _run_download_stage(
     trust_archive_immutable: bool,
     timing: _TimingSummary | None,
     outcome: _AssetOutcome,
-) -> tuple[dict[str, Any] | None, download.DownloadResult, int] | None:
+) -> tuple[download.DownloadResult, int] | None:
     asset = item.asset
     snapshot = _resolve_snapshot_for_asset(
         item,
@@ -405,7 +406,7 @@ def _run_download_stage(
         outcome.skipped += 1
         return None
 
-    return snapshot, download_res, downloaded_at
+    return download_res, downloaded_at
 
 
 def _parse_downloaded_asset(
@@ -568,19 +569,19 @@ def _process_asset(
         download_stage = _run_download_stage(
             item,
             client,
-            force_rebuild,
-            additive_only,
-            conditional_get_enabled,
-            head_precheck_enabled,
-            bulk_failed,
-            trust_archive_immutable,
-            timing,
-            outcome,
+            force_rebuild=force_rebuild,
+            additive_only=additive_only,
+            conditional_get_enabled=conditional_get_enabled,
+            head_precheck_enabled=head_precheck_enabled,
+            bulk_failed=bulk_failed,
+            trust_archive_immutable=trust_archive_immutable,
+            timing=timing,
+            outcome=outcome,
         )
         if download_stage is None:
             return outcome
 
-        _snapshot, download_res, downloaded_at = download_stage
+        download_res, downloaded_at = download_stage
         stage = "parse"
         parsed, parsed_at = _parse_downloaded_asset(download_res, timing)
         stage = "transform"
