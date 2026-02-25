@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Prefer CLAUDE_PLUGIN_ROOT when provided, otherwise use local plugin root.
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/semgrep-version" ]]; then
+    REQUIRED_VERSION_FILE="${CLAUDE_PLUGIN_ROOT}/semgrep-version"
+else
+    REQUIRED_VERSION_FILE="${PLUGIN_ROOT}/semgrep-version"
+fi
+
+REQUIRED_VERSION="$(cat "$REQUIRED_VERSION_FILE" 2>/dev/null || echo "unknown")"
+
+# Get installed Semgrep version
+INSTALLED_VERSION="$(semgrep --version 2>/dev/null | head -n1 | awk '{print $1}')"
+
+if [[ -z "$INSTALLED_VERSION" ]]; then
+    echo "⚠️  Semgrep not found. Please install Semgrep to use this plugin." >&2
+    echo "   Visit: https://github.com/semgrep/mcp-marketplace" >&2
+    exit 1
+fi
+
+if [[ "$REQUIRED_VERSION" == "unknown" ]]; then
+    echo "⚠️  Required semgrep version file missing; skipping minimum version enforcement."
+    echo "✓ Semgrep $INSTALLED_VERSION (version gate skipped)"
+    exit 0
+fi
+
+# Simple version comparison (works for semantic versions)
+if [[ "$(printf '%s\n' "$REQUIRED_VERSION" "$INSTALLED_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]]; then
+    echo "⚠️  Semgrep version mismatch!" >&2
+    echo "   Required: >= $REQUIRED_VERSION" >&2
+    echo "   Installed: $INSTALLED_VERSION" >&2
+    echo "   Please update Semgrep to use this plugin!" >&2
+    exit 1
+fi
+
+echo "✓ Semgrep $INSTALLED_VERSION (compatible)"

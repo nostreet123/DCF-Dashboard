@@ -1,0 +1,8 @@
+{
+  "name": "circleback",
+  "description": "Circleback conversational context integration. Search and access meetings, emails, calendar events, and more.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Circleback"
+  }
+}
