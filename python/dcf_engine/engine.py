@@ -7,7 +7,7 @@ from dcf_engine.schedules import build_schedule
 from dcf_engine.schema import (
     InputAssumptions,
     NormalizedAssumptions,
-    REQUIRED_PERIOD_SERIES_FIELDS,
+    PERIOD_SERIES_FIELDS,
     Trace,
     ValuationResult,
 )
@@ -15,8 +15,7 @@ from dcf_engine.validation import ensure_list_length
 
 
 def _validate_required_period_series(inputs: InputAssumptions, periods: int) -> None:
-    ensure_list_length("revenue_growth", inputs.revenue_growth, periods)
-    for name in REQUIRED_PERIOD_SERIES_FIELDS:
+    for name in PERIOD_SERIES_FIELDS:
         ensure_list_length(name, getattr(inputs, name), periods)
 
 
