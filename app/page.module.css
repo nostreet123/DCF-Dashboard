@@ -1,7 +1,7 @@
 .layout {
   display: grid;
-  grid-template-columns: var(--left-rail-width) 1fr var(--right-panel-width);
-  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
   min-height: 100vh;
   background: var(--bg-base);
 }
@@ -12,29 +12,28 @@
 }
 
 .layout > aside:first-of-type {
-  grid-column: 1;
-  grid-row: 2;
+  display: none;
 }
 
 .workspace {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 2;
+  min-width: 0;
   overflow-y: auto;
   background: var(--bg-base);
 }
 
 .layout > aside:last-of-type {
-  grid-column: 3;
-  grid-row: 2;
+  display: none;
 }
 
 .workspaceContent {
-  max-width: 800px;
+  width: min(100%, 52rem);
   margin: 0 auto;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-lg);
 }
 
 .reveal {
@@ -71,14 +70,29 @@
   justify-content: center;
 }
 
-/* Responsive adjustments */
-@media (max-width: 1180px) {
+@media (min-width: 640px) {
+  .workspaceContent {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-xl);
+  }
+}
+
+@media (min-width: 768px) {
+  .workspaceContent {
+    padding: var(--spacing-xl);
+  }
+}
+
+@media (min-width: 1024px) {
   .layout {
-    grid-template-columns: var(--left-rail-width) 1fr;
+    grid-template-columns: var(--left-rail-width) minmax(0, 1fr);
   }
 
-  .layout > aside:last-of-type {
-    display: none;
+  .layout > aside:first-of-type {
+    display: block;
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
   }
 
   .workspace {
@@ -86,29 +100,16 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (min-width: 1280px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: var(--left-rail-width) minmax(0, 1fr) var(--right-panel-width);
   }
 
-  .layout > aside:first-of-type {
-    display: none;
-  }
-
-  .workspace {
-    grid-column: 1;
-  }
-
-  .workspaceContent {
-    padding: var(--spacing-lg);
-    gap: var(--spacing-lg);
-  }
-}
-
-@media (max-width: 600px) {
-  .workspaceContent {
-    padding: var(--spacing-md);
-    gap: var(--spacing-lg);
+  .layout > aside:last-of-type {
+    display: block;
+    grid-column: 3;
+    grid-row: 2;
+    min-height: 0;
   }
 }
 
