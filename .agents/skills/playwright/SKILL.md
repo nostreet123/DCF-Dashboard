@@ -145,3 +145,8 @@ Open only what you need:
 - Use `--headed` when a visual check will help.
 - When capturing artifacts in this repo, use `output/playwright/` and avoid introducing new top-level artifact folders.
 - Default to CLI commands and workflows, not Playwright test specs.
+
+
+## Claude Plugin Parity
+- Source plugin: `playwright@55b58ec6e564` from local Claude cache
+- Merge mode: non-destructive (conflicts in `claude_port/`)

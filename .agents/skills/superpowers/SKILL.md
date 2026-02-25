@@ -37,3 +37,8 @@ Run the sync utility to check or refresh parity from the local Claude cache:
 python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 --check
 python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 --apply
 ```
+
+
+## Claude Plugin Parity
+- Source plugin: `superpowers@4.3.1` from local Claude cache
+- Merge mode: non-destructive (conflicts in `claude_port/`)
