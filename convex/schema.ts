@@ -220,6 +220,14 @@ export default defineSchema({
     .index("by_symbol_and_periodEnd", ["symbol", "periodEnd"])
     .index("by_symbol_and_filingDate", ["symbol", "filingDate"]),
 
+  // Shared per-key fixed-window counters for cross-replica API rate limiting.
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStartMs: v.number(),
+    count: v.number(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
   // -----------------------------
   // Operational logs
   // -----------------------------
