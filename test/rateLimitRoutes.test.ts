@@ -16,6 +16,13 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalIdentityMode = process.env.RATE_LIMIT_IDENTITY_MODE;
 const originalQuery = ConvexHttpClient.prototype.query;
+const noopPreconnect: typeof fetch.preconnect = () => {};
+
+function createMockFetch(
+  impl: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): typeof fetch {
+  return Object.assign(impl, { preconnect: noopPreconnect });
+}
 
 let restoreSecurityMock: (() => void) | null = null;
 
@@ -30,11 +37,12 @@ beforeEach(() => {
   const securityMock = installSecurityMutationsMock();
   restoreSecurityMock = securityMock.restore;
   ConvexHttpClient.prototype.query = async () => [];
-  globalThis.fetch = async () =>
+  globalThis.fetch = createMockFetch(async () =>
     new Response(JSON.stringify({ results: [] }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
-    });
+    }),
+  );
 });
 
 afterEach(() => {
@@ -126,7 +134,7 @@ describe("route rate limiting", () => {
   });
 
   test("limits company facts requests per trusted client ip", async () => {
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(
         JSON.stringify({
           symbol: "AAPL",
@@ -138,7 +146,8 @@ describe("route rate limiting", () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         },
-      );
+      ),
+    );
     const headers = { "x-real-ip": "203.0.113.12" };
     const first = await companyFactsGet(
       new Request("http://localhost/api/company/facts?symbol=AAPL", {
@@ -168,6 +177,23 @@ describe("route rate limiting", () => {
 
     expect(response.status).toBe(503);
     expect(payload.code).toBe("RATE_LIMIT_UNAVAILABLE");
+  });
+
+  test("x-real-ip takes precedence over x-forwarded-for in strict mode", async () => {
+    const realIp = "203.0.113.14";
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-real-ip": realIp, "x-forwarded-for": "198.51.100.10" },
+      }),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-real-ip": realIp, "x-forwarded-for": "198.51.100.11" },
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
   });
 
   test("cf-connecting-ip takes precedence over x-forwarded-for for bucketing", async () => {
