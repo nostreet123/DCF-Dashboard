@@ -152,8 +152,8 @@ Users can edit settings files manually:
 vim .claude/my-plugin.local.md
 
 # Changes take effect after restart
-exit  # Exit Claude Code
-claude  # Restart
+exit  # Exit Codex CLI
+codex  # Restart
 ```
 
-Changes require Claude Code restart - hooks can't be hot-swapped.
+Changes require Codex CLI restart - hooks can't be hot-swapped.

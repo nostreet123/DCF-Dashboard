@@ -38,7 +38,7 @@ headers: {
 
 **Multi-model fallback:**
 ```
-Start → GPT-4 → On error: Claude → On error: Llama
+Start → GPT-4 → On error: Codex → On error: Llama
 ```
 
 **Tiered access:**

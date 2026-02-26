@@ -1,16 +1,16 @@
 ---
 name: plugin-dev
-description: Port of Claude plugin `plugin-dev` to Codex skill format.
+description: Port of Codex skill `plugin-dev` to Codex skill format.
 ---
 
 # plugin-dev
 
-Port of Claude plugin `plugin-dev` to Codex skill format.
+Port of Codex skill `plugin-dev` to Codex skill format.
 
 Use this skill when the user asks for `plugin-dev` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `plugin-dev@55b58ec6e564`
+- Codex skill: `plugin-dev@55b58ec6e564`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/plugin-dev/55b58ec6e564`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `plugin-dev` functionality, or requests wo
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

@@ -1,16 +1,16 @@
 ---
 name: pyright-lsp
-description: Port of Claude plugin `pyright-lsp` to Codex skill format.
+description: Port of Codex skill `pyright-lsp` to Codex skill format.
 ---
 
 # pyright-lsp
 
-Port of Claude plugin `pyright-lsp` to Codex skill format.
+Port of Codex skill `pyright-lsp` to Codex skill format.
 
 Use this skill when the user asks for `pyright-lsp` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `pyright-lsp@1.0.0`
+- Codex skill: `pyright-lsp@1.0.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/pyright-lsp/1.0.0`
 
 ## Available Components
@@ -25,6 +25,6 @@ Use this skill when the user asks for `pyright-lsp` functionality, or requests w
 - Run: `bash .agents/skills/pyright-lsp/scripts/smoke_pyright_lsp.sh`
 - The script validates that `pyright` (or `npx pyright`) produces expected type diagnostics.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

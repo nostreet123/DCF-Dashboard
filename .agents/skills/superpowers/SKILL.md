@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to use "superpowers", 
 
 # Superpowers Namespace
 
-This is the namespaced in-repo port of Claude's `superpowers` plugin.
+This is the namespaced in-repo port of Codex's `superpowers` plugin.
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Pinned upstream baseline and sync metadata are tracked in:
 
 ## Maintenance
 
-Run the sync utility to check or refresh parity from the local Claude cache:
+Run the sync utility to check or refresh parity from the local Codex cache:
 
 ```bash
 python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 --check
@@ -39,6 +39,6 @@ python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 -
 ```
 
 
-## Claude Plugin Parity
-- Source plugin: `superpowers@4.3.1` from local Claude cache
+## Codex Plugin Parity
+- Source plugin: `superpowers@4.3.1` from local Codex cache
 - Merge mode: non-destructive (conflicts in `claude_port/`)

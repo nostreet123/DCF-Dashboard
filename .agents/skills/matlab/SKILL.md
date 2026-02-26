@@ -4,7 +4,7 @@ description: MATLAB and GNU Octave numerical computing for matrix operations, da
 ---
 
 # MATLAB/Octave Scientific Computing
-> Note: Adapted from claude-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
+> Note: Adapted from codex-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
 > Codex CLI note: If this skill references Codex-specific setup commands, adapt them to your Codex CLI environment (install/configure the equivalent tooling outside Codex and provide required API keys), then proceed with the remaining steps.
 
 MATLAB is a numerical computing environment optimized for matrix operations and scientific computing. GNU Octave is a free, open-source alternative with high MATLAB compatibility.

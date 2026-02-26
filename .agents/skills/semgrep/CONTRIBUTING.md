@@ -1,5 +1,5 @@
 ## Local development
-- If you are in the directory of this repo, you can add the marketplace to your Claude Code instance by simply running
+- If you are in the directory of this repo, you can add the marketplace to your Codex CLI instance by simply running
 ```
 /plugin marketplace add ./
 ```
@@ -10,4 +10,4 @@
 - `main` should always work on all versions of `semgrep` greater than the version stored in `semgrep-version`
 
 ## Testing
-- In addition to the tests in CI, we should manually test that the plugin still works in Claude Code
+- In addition to the tests in CI, we should manually test that the plugin still works in Codex CLI

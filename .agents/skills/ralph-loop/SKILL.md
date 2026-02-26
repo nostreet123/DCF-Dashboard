@@ -68,6 +68,6 @@ Implement an autonomous Codex loop that re-runs a prompt until a completion prom
 - Trigger a loop with a completion promise that is output and confirm the loop exits early.
 
 
-## Claude Plugin Parity
-- Source plugin: `ralph-loop@55b58ec6e564` from local Claude cache
+## Codex Plugin Parity
+- Source plugin: `ralph-loop@55b58ec6e564` from local Codex cache
 - Merge mode: non-destructive (conflicts in `claude_port/`)

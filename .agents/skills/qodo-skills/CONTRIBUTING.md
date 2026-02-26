@@ -222,7 +222,7 @@ main "$@"
 
 **Cross-compatibility** (see AGENTS.md for detailed testing procedures):
 - [ ] Tested on macOS, Linux (Ubuntu/Debian), and Windows
-- [ ] Tested with multiple coding agents (Claude Code, Cursor, etc.)
+- [ ] Tested with multiple coding agents (Codex CLI, Cursor, etc.)
 - [ ] If applicable: Tested with multiple git providers (GitHub, GitLab, Bitbucket, Azure DevOps)
 
 ## Submitting Your Contribution
@@ -269,7 +269,7 @@ Detailed description of what the skill does and why it's useful.
 ## Testing
 
 **Agents:**
-- [ ] Tested with Claude Code
+- [ ] Tested with Codex CLI
 - [ ] Tested with Cursor
 - [ ] Tested with Windsurf/Cline (if applicable)
 

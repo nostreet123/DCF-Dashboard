@@ -22,7 +22,7 @@ event: bash|file|stop|prompt|all
 pattern: regex-pattern-here
 ---
 
-Message to show Claude when this rule triggers.
+Message to show Codex when this rule triggers.
 Can include markdown formatting, warnings, suggestions, etc.
 ```
 
@@ -99,7 +99,7 @@ You're adding an API key to a .env file. Ensure this file is in .gitignore!
 
 ## Message Body
 
-The markdown content after frontmatter is shown to Claude when the rule triggers.
+The markdown content after frontmatter is shown to Codex when the rule triggers.
 
 **Good messages:**
 - Explain what was detected

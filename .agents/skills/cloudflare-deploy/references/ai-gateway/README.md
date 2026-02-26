@@ -50,7 +50,7 @@ const { text } = await generateText({
 const { text } = await generateText({
   model: gateway([
     openai('gpt-4o'),              // Try first
-    anthropic('claude-sonnet-4-5'), // Fallback
+    anthropic('codex-sonnet-4-5'), // Fallback
   ]),
   prompt: 'Hello'
 });

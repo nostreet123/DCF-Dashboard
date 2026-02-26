@@ -1,10 +1,10 @@
-# Cross-Platform Polyglot Hooks for Claude Code
+# Cross-Platform Polyglot Hooks for Codex CLI
 
-Claude Code plugins need hooks that work on Windows, macOS, and Linux. This document explains the polyglot wrapper technique that makes this possible.
+Codex CLI plugins need hooks that work on Windows, macOS, and Linux. This document explains the polyglot wrapper technique that makes this possible.
 
 ## The Problem
 
-Claude Code runs hook commands through the system's default shell:
+Codex CLI runs hook commands through the system's default shell:
 - **Windows**: CMD.exe
 - **macOS/Linux**: bash or sh
 
@@ -199,7 +199,7 @@ Bash isn't running as a login shell. Ensure `-l` flag is used.
 The hooks.json is pointing directly to the `.sh` file. Point to the `.cmd` wrapper instead.
 
 ### Works in terminal but not as hook
-Claude Code may run hooks differently. Test by simulating the hook environment:
+Codex CLI may run hooks differently. Test by simulating the hook environment:
 ```powershell
 $env:CLAUDE_PLUGIN_ROOT = "C:\path\to\plugin"
 cmd /c "C:\path\to\plugin\hooks\session-start.cmd"

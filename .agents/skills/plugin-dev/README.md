@@ -1,10 +1,10 @@
 # Plugin Development Toolkit
 
-A comprehensive toolkit for developing Claude Code plugins with expert guidance on hooks, MCP integration, plugin structure, and marketplace publishing.
+A comprehensive toolkit for developing Codex CLI plugins with expert guidance on hooks, MCP integration, plugin structure, and marketplace publishing.
 
 ## Overview
 
-The plugin-dev toolkit provides seven specialized skills to help you build high-quality Claude Code plugins:
+The plugin-dev toolkit provides seven specialized skills to help you build high-quality Codex CLI plugins:
 
 1. **hook-development** - Advanced hooks API and event-driven automation
 2. **mcp-integration** - Model Context Protocol server integration
@@ -29,7 +29,7 @@ A comprehensive, end-to-end workflow command for creating plugins from scratch, 
 4. **Structure Creation** - Set up directories and manifest
 5. **Component Implementation** - Create each component using AI-assisted agents
 6. **Validation** - Run plugin-validator and component-specific checks
-7. **Testing** - Verify plugin works in Claude Code
+7. **Testing** - Verify plugin works in Codex CLI
 8. **Documentation** - Finalize README and prepare for distribution
 
 **Features:**
@@ -160,14 +160,14 @@ Use this workflow for structured, high-quality plugin development from concept t
 - All frontmatter fields (name, description, model, color, tools)
 - Description format with <example> blocks for reliable triggering
 - System prompt design patterns (analysis, generation, validation, orchestration)
-- AI-assisted agent generation using Claude Code's proven prompt
+- AI-assisted agent generation using Codex CLI's proven prompt
 - Validation rules and best practices
 - Complete production-ready agent examples
 
 **Resources:**
 - Core SKILL.md (1,438 words)
 - 2 examples: agent-creation-prompt (AI-assisted workflow), complete-agent-examples (4 full agents)
-- 3 reference docs: agent-creation-system-prompt (from Claude Code), system-prompt-design (~4,000w), triggering-examples (~2,500w)
+- 3 reference docs: agent-creation-system-prompt (from Codex CLI), system-prompt-design (~4,000w), triggering-examples (~2,500w)
 - 1 utility script: validate-agent.sh
 
 **Use when:** Creating autonomous agents, defining agent behavior, or implementing AI-assisted agent generation.
@@ -183,7 +183,7 @@ Use this workflow for structured, high-quality plugin development from concept t
 - Writing style (imperative/infinitive form, third person)
 - Bundled resources organization (references/, examples/, scripts/)
 - Skill creation workflow
-- Based on skill-creator methodology adapted for Claude Code plugins
+- Based on skill-creator methodology adapted for Codex CLI plugins
 
 **Resources:**
 - Core SKILL.md (1,232 words)
@@ -195,10 +195,10 @@ Use this workflow for structured, high-quality plugin development from concept t
 
 ## Installation
 
-Install from claude-code-marketplace:
+Install from codex-code-marketplace:
 
 ```bash
-/plugin install plugin-dev@claude-code-marketplace
+/plugin install plugin-dev@codex-code-marketplace
 ```
 
 Or for development, use directly:
@@ -266,7 +266,7 @@ Each skill uses a three-level disclosure system:
 2. **Core SKILL.md** (when triggered): Essential API reference (~1,500-2,000 words)
 3. **References/Examples** (as needed): Detailed guides, patterns, and working code
 
-This keeps Claude Code's context focused while providing deep knowledge when needed.
+This keeps Codex CLI's context focused while providing deep knowledge when needed.
 
 ### Utility Scripts
 
@@ -298,7 +298,7 @@ All skills follow consistent standards:
 - Third-person descriptions ("This skill should be used when...")
 - Strong trigger phrases for reliable loading
 - Imperative/infinitive form throughout
-- Based on official Claude Code documentation
+- Based on official Codex CLI documentation
 - Security-first approach with best practices
 
 ## Total Content
@@ -369,7 +369,7 @@ All skills emphasize:
 ✅ **Testing**
 - Validate configurations before deployment
 - Test hooks with sample inputs
-- Use debug mode (`claude --debug`)
+- Use debug mode (`codex --debug`)
 
 ✅ **Documentation**
 - Clear README files
@@ -378,7 +378,7 @@ All skills emphasize:
 
 ## Contributing
 
-This plugin is part of the claude-code-marketplace. To contribute improvements:
+This plugin is part of the codex-code-marketplace. To contribute improvements:
 
 1. Fork the marketplace repository
 2. Make changes to plugin-dev/

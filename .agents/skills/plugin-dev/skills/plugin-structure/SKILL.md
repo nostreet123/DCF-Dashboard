@@ -1,14 +1,14 @@
 ---
 name: plugin-structure
-description: This skill should be used when the user asks to "create a plugin", "scaffold a plugin", "understand plugin structure", "organize plugin components", "set up plugin.json", "use ${CLAUDE_PLUGIN_ROOT}", "add commands/agents/skills/hooks", "configure auto-discovery", or needs guidance on plugin directory layout, manifest configuration, component organization, file naming conventions, or Claude Code plugin architecture best practices.
+description: This skill should be used when the user asks to "create a plugin", "scaffold a plugin", "understand plugin structure", "organize plugin components", "set up plugin.json", "use ${CLAUDE_PLUGIN_ROOT}", "add commands/agents/skills/hooks", "configure auto-discovery", or needs guidance on plugin directory layout, manifest configuration, component organization, file naming conventions, or Codex CLI plugin architecture best practices.
 version: 0.1.0
 ---
 
-# Plugin Structure for Claude Code
+# Plugin Structure for Codex CLI
 
 ## Overview
 
-Claude Code plugins follow a standardized directory structure with automatic component discovery. Understanding this structure enables creating well-organized, maintainable plugins that integrate seamlessly with Claude Code.
+Codex CLI plugins follow a standardized directory structure with automatic component discovery. Understanding this structure enables creating well-organized, maintainable plugins that integrate seamlessly with Codex CLI.
 
 **Key concepts:**
 - Conventional directory layout for automatic discovery
@@ -19,7 +19,7 @@ Claude Code plugins follow a standardized directory structure with automatic com
 
 ## Directory Structure
 
-Every Claude Code plugin follows this organizational pattern:
+Every Codex CLI plugin follows this organizational pattern:
 
 ```
 plugin-name/
@@ -131,7 +131,7 @@ description: Command description
 Command implementation instructions...
 ```
 
-**Usage**: Commands integrate as native slash commands in Claude Code
+**Usage**: Commands integrate as native slash commands in Codex CLI
 
 ### Agents
 
@@ -159,7 +159,7 @@ capabilities:
 Detailed agent instructions and knowledge...
 ```
 
-**Usage**: Users can invoke agents manually, or Claude Code selects them automatically based on task context
+**Usage**: Users can invoke agents manually, or Codex CLI selects them automatically based on task context
 
 ### Skills
 
@@ -195,7 +195,7 @@ Skill instructions and guidance...
 
 **Supporting files**: Skills can include scripts, references, examples, or assets in subdirectories
 
-**Usage**: Claude Code autonomously activates skills based on task context matching the description
+**Usage**: Codex CLI autonomously activates skills based on task context matching the description
 
 ### Hooks
 
@@ -228,7 +228,7 @@ hooks/
 
 **Available events**: PreToolUse, PostToolUse, Stop, SubagentStop, SessionStart, SessionEnd, UserPromptSubmit, PreCompact, Notification
 
-**Usage**: Hooks execute automatically in response to Claude Code events
+**Usage**: Hooks execute automatically in response to Codex CLI events
 
 ### MCP Servers
 
@@ -251,7 +251,7 @@ hooks/
 }
 ```
 
-**Usage**: MCP servers integrate seamlessly with Claude Code's tool system
+**Usage**: MCP servers integrate seamlessly with Codex CLI's tool system
 
 ## Portable Path References
 
@@ -338,7 +338,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/common.sh"
 
 ## Auto-Discovery Mechanism
 
-Claude Code automatically discovers and loads components:
+Codex CLI automatically discovers and loads components:
 
 1. **Plugin manifest**: Reads `.claude-plugin/plugin.json` when plugin enables
 2. **Commands**: Scans `commands/` directory for `.md` files
@@ -348,9 +348,9 @@ Claude Code automatically discovers and loads components:
 6. **MCP servers**: Loads configuration from `.mcp.json` or manifest
 
 **Discovery timing**:
-- Plugin installation: Components register with Claude Code
+- Plugin installation: Components register with Codex CLI
 - Plugin enable: Components become available for use
-- No restart required: Changes take effect on next Claude Code session
+- No restart required: Changes take effect on next Codex CLI session
 
 **Override behavior**: Custom paths in `plugin.json` supplement (not replace) default directories
 
@@ -451,7 +451,7 @@ my-plugin/
 - Verify file is in correct directory with correct extension
 - Check YAML frontmatter syntax (commands, agents, skills)
 - Ensure skill has `SKILL.md` (not `README.md` or other name)
-- Confirm plugin is enabled in Claude Code settings
+- Confirm plugin is enabled in Codex CLI settings
 
 **Path resolution errors**:
 - Replace all hardcoded paths with `${CLAUDE_PLUGIN_ROOT}`
@@ -463,7 +463,7 @@ my-plugin/
 - Confirm directories are at plugin root (not in `.claude-plugin/`)
 - Check file naming follows conventions (kebab-case, correct extensions)
 - Verify custom paths in manifest are correct
-- Restart Claude Code to reload plugin configuration
+- Restart Codex CLI to reload plugin configuration
 
 **Conflicts between plugins**:
 - Use unique, descriptive component names

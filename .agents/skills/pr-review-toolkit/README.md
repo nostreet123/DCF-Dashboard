@@ -141,7 +141,7 @@ This plugin bundles 6 expert review agents that each focus on a specific aspect 
 
 ### Individual Agent Usage
 
-Simply ask questions that match an agent's focus area, and Claude will automatically trigger the appropriate agent:
+Simply ask questions that match an agent's focus area, and Codex will automatically trigger the appropriate agent:
 
 ```
 "Can you check if the tests cover all edge cases?"
@@ -171,7 +171,7 @@ This will trigger all relevant agents to analyze different aspects of your PR.
 
 ### Proactive Review
 
-Claude may proactively use these agents based on context:
+Codex may proactively use these agents based on context:
 
 - **After writing code** → code-reviewer
 - **After adding docs** → comment-analyzer

@@ -1,7 +1,7 @@
 ---
 name: llm-council
 description: >
-  Orchestrate a configurable, multi-member CLI planning council (Codex, Claude Code, Gemini, OpenCode, or custom)
+  Orchestrate a configurable, multi-member CLI planning council (Codex, Codex CLI, Gemini, OpenCode, or custom)
   to produce independent implementation plans, anonymize and randomize them, then judge and merge into one final plan.
   Use when you need a robust, bias-resistant planning workflow, structured JSON outputs, retries,
   and failure handling across multiple CLI agents.
@@ -58,7 +58,7 @@ See `references/task-spec.example.json` for a full copy/paste example.
 - Architecture and data flow: `references/architecture.md`
 - Prompt templates: `references/prompts.md`
 - Plan templates: `references/templates/*.md`
-- CLI notes (Codex/Claude/Gemini): `references/cli-notes.md`
+- CLI notes (Codex/Codex/Gemini): `references/cli-notes.md`
 
 ## Constraints
 - Keep planners independent: do not share intermediate outputs between them.

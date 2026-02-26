@@ -1,16 +1,16 @@
 ---
 name: typescript-lsp
-description: Port of Claude plugin `typescript-lsp` to Codex skill format.
+description: Port of Codex skill `typescript-lsp` to Codex skill format.
 ---
 
 # typescript-lsp
 
-Port of Claude plugin `typescript-lsp` to Codex skill format.
+Port of Codex skill `typescript-lsp` to Codex skill format.
 
 Use this skill when the user asks for `typescript-lsp` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `typescript-lsp@1.0.0`
+- Codex skill: `typescript-lsp@1.0.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0`
 
 ## Available Components
@@ -25,6 +25,6 @@ Use this skill when the user asks for `typescript-lsp` functionality, or request
 - Run: `bash .agents/skills/typescript-lsp/scripts/smoke_typescript_lsp.sh`
 - The script validates `typescript-language-server` availability and `tsc` diagnostics on a failing sample.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

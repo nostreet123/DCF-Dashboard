@@ -4,13 +4,13 @@ This document describes how to test Superpowers skills, particularly the integra
 
 ## Overview
 
-Testing skills that involve subagents, workflows, and complex interactions requires running actual Claude Code sessions in headless mode and verifying their behavior through session transcripts.
+Testing skills that involve subagents, workflows, and complex interactions requires running actual Codex CLI sessions in headless mode and verifying their behavior through session transcripts.
 
 ## Test Structure
 
 ```
 tests/
-├── claude-code/
+├── codex-code/
 │   ├── test-helpers.sh                    # Shared test utilities
 │   ├── test-subagent-driven-development-integration.sh
 │   ├── analyze-token-usage.py             # Token analysis tool
@@ -21,11 +21,11 @@ tests/
 
 ### Integration Tests
 
-Integration tests execute real Claude Code sessions with actual skills:
+Integration tests execute real Codex CLI sessions with actual skills:
 
 ```bash
 # Run the subagent-driven-development integration test
-cd tests/claude-code
+cd tests/codex-code
 ./test-subagent-driven-development-integration.sh
 ```
 
@@ -34,7 +34,7 @@ cd tests/claude-code
 ### Requirements
 
 - Must run from the **superpowers plugin directory** (not from temp directories)
-- Claude Code must be installed and available as `claude` command
+- Codex CLI must be installed and available as `codex` command
 - Local dev marketplace must be enabled: `"superpowers@superpowers-dev": true` in `~/.claude/settings.json`
 
 ## Integration Test: subagent-driven-development
@@ -53,7 +53,7 @@ The integration test verifies the `subagent-driven-development` skill correctly:
 ### How It Works
 
 1. **Setup**: Creates a temporary Node.js project with a minimal implementation plan
-2. **Execution**: Runs Claude Code in headless mode with the skill
+2. **Execution**: Runs Codex CLI in headless mode with the skill
 3. **Verification**: Parses the session transcript (`.jsonl` file) to verify:
    - Skill tool was invoked
    - Subagents were dispatched (Task tool)
@@ -138,7 +138,7 @@ STATUS: PASSED
 
 ### Usage
 
-Analyze token usage from any Claude Code session:
+Analyze token usage from any Codex CLI session:
 
 ```bash
 python3 tests/claude-code/analyze-token-usage.py ~/.claude/projects/<project-dir>/<session-id>.jsonl
@@ -158,7 +158,7 @@ ls -lt "$SESSION_DIR"/*.jsonl | head -5
 
 ### What It Shows
 
-- **Main session usage**: Token usage by the coordinator (you or main Claude instance)
+- **Main session usage**: Token usage by the coordinator (you or main Codex instance)
 - **Per-subagent breakdown**: Each Task invocation with:
   - Agent ID
   - Description (extracted from prompt)
@@ -188,7 +188,7 @@ ls -lt "$SESSION_DIR"/*.jsonl | head -5
 
 ### Permission Errors
 
-**Problem**: Claude blocked from writing files or accessing directories
+**Problem**: Codex blocked from writing files or accessing directories
 
 **Solutions**:
 1. Use `--permission-mode bypassPermissions` flag
@@ -200,7 +200,7 @@ ls -lt "$SESSION_DIR"/*.jsonl | head -5
 **Problem**: Test takes too long and times out
 
 **Solutions**:
-1. Increase timeout: `timeout 1800 claude ...` (30 minutes)
+1. Increase timeout: `timeout 1800 codex ...` (30 minutes)
 2. Check for infinite loops in skill logic
 3. Review subagent task complexity
 
@@ -231,9 +231,9 @@ trap "cleanup_test_project $TEST_PROJECT" EXIT
 # Set up test files...
 cd "$TEST_PROJECT"
 
-# Run Claude with skill
+# Run Codex with skill
 PROMPT="Your test prompt here"
-cd "$SCRIPT_DIR/../.." && timeout 1800 claude -p "$PROMPT" \
+cd "$SCRIPT_DIR/../.." && timeout 1800 codex -p "$PROMPT" \
   --allowed-tools=all \
   --add-dir "$TEST_PROJECT" \
   --permission-mode bypassPermissions \

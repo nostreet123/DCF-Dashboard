@@ -7,7 +7,7 @@ Review this session for learnings about working with Claude Code in this codebas
 
 ## Step 1: Reflect
 
-What context was missing that would have helped Claude work more effectively?
+What context was missing that would have helped Codex work more effectively?
 - Bash commands that were used or discovered
 - Code style patterns followed
 - Testing approaches that worked

@@ -18,7 +18,7 @@ The hookify plugin makes it easy to create custom hooks that prevent unwanted be
 Hookify installs generic hooks that run on these events:
 - **PreToolUse**: Before any tool executes (Bash, Edit, Write, etc.)
 - **PostToolUse**: After a tool executes
-- **Stop**: When Claude wants to stop working
+- **Stop**: When Codex wants to stop working
 - **UserPromptSubmit**: When user submits a prompt
 
 These hooks read configuration files from `.claude/hookify.*.local.md` and check if any rules match the current operation.
@@ -46,7 +46,7 @@ This command could delete important files. Please verify the path.
 - `event`: bash, file, stop, prompt, or all
 - `pattern`: Regex pattern to match
 
-The message body is what Claude sees when the rule triggers.
+The message body is what Codex sees when the rule triggers.
 
 ### 3. Creating Rules
 
@@ -165,7 +165,7 @@ Use Python regex syntax:
    ```
 
 2. Try to trigger it:
-   - Ask Claude to run `rm -rf /tmp/test`
+   - Ask Codex to run `rm -rf /tmp/test`
    - You should see the warning
 
 4. Refine the rule by editing `.claude/hookify.warn-rm.local.md`

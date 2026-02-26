@@ -147,6 +147,6 @@ Open only what you need:
 - Default to CLI commands and workflows, not Playwright test specs.
 
 
-## Claude Plugin Parity
-- Source plugin: `playwright@55b58ec6e564` from local Claude cache
+## Codex Plugin Parity
+- Source plugin: `playwright@55b58ec6e564` from local Codex cache
 - Merge mode: non-destructive (conflicts in `claude_port/`)

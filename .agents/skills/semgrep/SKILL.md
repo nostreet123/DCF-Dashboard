@@ -1,16 +1,16 @@
 ---
 name: semgrep
-description: Plugin by Semgrep. Allows Claude to use Semgrep via the MCP, hooks, and commands.
+description: Plugin by Semgrep. Allows Codex to use Semgrep via the MCP, hooks, and commands.
 ---
 
 # semgrep
 
-Plugin by Semgrep. Allows Claude to use Semgrep via the MCP, hooks, and commands.
+Plugin by Semgrep. Allows Codex to use Semgrep via the MCP, hooks, and commands.
 
 Use this skill when the user asks for `semgrep` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `semgrep@15596f4def42`
+- Codex skill: `semgrep@15596f4def42`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/semgrep/15596f4def42/plugin`
 
 ## Available Components
@@ -25,6 +25,6 @@ Use this skill when the user asks for `semgrep` functionality, or requests workf
 - Run compatibility check only: `bash .agents/skills/semgrep/scripts/check_version.sh`
 - Run full smoke (version + real finding): `bash .agents/skills/semgrep/scripts/smoke_semgrep.sh`
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

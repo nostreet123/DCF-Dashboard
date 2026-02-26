@@ -12,7 +12,7 @@ Superpowers now works with Cursor's plugin system. Includes a `.cursor-plugin/pl
 
 **Windows: Restored polyglot wrapper for reliable hook execution (#518, #504, #491, #487, #466, #440)**
 
-Claude Code's `.sh` auto-detection on Windows was prepending `bash` to the hook command, breaking execution. The fix:
+Codex CLI's `.sh` auto-detection on Windows was prepending `bash` to the hook command, breaking execution. The fix:
 
 - Renamed `session-start.sh` to `session-start` (extensionless) so auto-detection doesn't interfere
 - Restored `run-hook.cmd` polyglot wrapper with multi-location bash discovery (standard Git for Windows paths, then PATH fallback)
@@ -24,7 +24,7 @@ This fixes SessionStart failures on Windows with spaces in paths, missing WSL, `
 
 ## v4.3.0 (2026-02-12)
 
-This fix should dramatically improve superpowers skills compliance and should reduce the chances of Claude entering its native plan mode unintentionally.
+This fix should dramatically improve superpowers skills compliance and should reduce the chances of Codex entering its native plan mode unintentionally.
 
 ### Changed
 
@@ -40,7 +40,7 @@ Models were skipping the design phase and jumping straight to implementation ski
 
 **Using-superpowers workflow graph intercepts EnterPlanMode**
 
-Added an `EnterPlanMode` intercept to the skill flow graph. When the model is about to enter Claude's native plan mode, it checks whether brainstorming has happened and routes through the brainstorming skill instead. Plan mode is never entered.
+Added an `EnterPlanMode` intercept to the skill flow graph. When the model is about to enter Codex's native plan mode, it checks whether brainstorming has happened and routes through the brainstorming skill instead. Plan mode is never entered.
 
 ### Fixed
 
@@ -60,11 +60,11 @@ Installation is now just clone + symlink (documented in INSTALL.md). No Node.js 
 
 ### Fixes
 
-**Windows: Fixed Claude Code 2.1.x hook execution (#331)**
+**Windows: Fixed Codex CLI 2.1.x hook execution (#331)**
 
-Claude Code 2.1.x changed how hooks execute on Windows: it now auto-detects `.sh` files in commands and prepends `bash`. This broke the polyglot wrapper pattern because `bash "run-hook.cmd" session-start.sh` tries to execute the `.cmd` file as a bash script.
+Codex CLI 2.1.x changed how hooks execute on Windows: it now auto-detects `.sh` files in commands and prepends `bash`. This broke the polyglot wrapper pattern because `bash "run-hook.cmd" session-start.sh` tries to execute the `.cmd` file as a bash script.
 
-Fix: hooks.json now calls session-start.sh directly. Claude Code 2.1.x handles the bash invocation automatically. Also added .gitattributes to enforce LF line endings for shell scripts (fixes CRLF issues on Windows checkout).
+Fix: hooks.json now calls session-start.sh directly. Codex CLI 2.1.x handles the bash invocation automatically. Also added .gitattributes to enforce LF line endings for shell scripts (fixes CRLF issues on Windows checkout).
 
 **Windows: SessionStart hook runs async to prevent terminal freeze (#404, #413, #414, #419)**
 
@@ -103,7 +103,7 @@ Removed `/help` command check and specific slash command list from verification 
 
 **Codex: Clarified subagent tool mapping in bootstrap**
 
-Improved documentation of how Codex tools map to Claude Code equivalents for subagent workflows.
+Improved documentation of how Codex tools map to Codex CLI equivalents for subagent workflows.
 
 ### Tests
 
@@ -156,11 +156,11 @@ The previous bootstrap injection method using `session.prompt({ noReply: true })
 - Added comprehensive Windows installation docs for cmd.exe, PowerShell, and Git Bash
 - Documented proper symlink vs junction usage for each platform
 
-**Claude Code: Fixed Windows hook execution for Claude Code 2.1.x**
+**Codex CLI: Fixed Windows hook execution for Codex CLI 2.1.x**
 
-Claude Code 2.1.x changed how hooks execute on Windows: it now auto-detects `.sh` files in commands and prepends `bash `. This broke the polyglot wrapper pattern because `bash "run-hook.cmd" session-start.sh` tries to execute the .cmd file as a bash script.
+Codex CLI 2.1.x changed how hooks execute on Windows: it now auto-detects `.sh` files in commands and prepends `bash `. This broke the polyglot wrapper pattern because `bash "run-hook.cmd" session-start.sh` tries to execute the .cmd file as a bash script.
 
-Fix: hooks.json now calls session-start.sh directly. Claude Code 2.1.x handles the bash invocation automatically. Also added .gitattributes to enforce LF line endings for shell scripts (fixes CRLF issues on Windows checkout).
+Fix: hooks.json now calls session-start.sh directly. Codex CLI 2.1.x handles the bash invocation automatically. Also added .gitattributes to enforce LF line endings for shell scripts (fixes CRLF issues on Windows checkout).
 
 ---
 
@@ -170,17 +170,17 @@ Fix: hooks.json now calls session-start.sh directly. Claude Code 2.1.x handles t
 
 **Strengthened using-superpowers skill for explicit skill requests**
 
-Addressed a failure mode where Claude would skip invoking a skill even when the user explicitly requested it by name (e.g., "subagent-driven-development, please"). Claude would think "I know what that means" and start working directly instead of loading the skill.
+Addressed a failure mode where Codex would skip invoking a skill even when the user explicitly requested it by name (e.g., "subagent-driven-development, please"). Codex would think "I know what that means" and start working directly instead of loading the skill.
 
 Changes:
 - Updated "The Rule" to say "Invoke relevant or requested skills" instead of "Check for skills" - emphasizing active invocation over passive checking
-- Added "BEFORE any response or action" - the original wording only mentioned "response" but Claude would sometimes take action without responding first
+- Added "BEFORE any response or action" - the original wording only mentioned "response" but Codex would sometimes take action without responding first
 - Added reassurance that invoking a wrong skill is okay - reduces hesitation
 - Added new red flag: "I know what that means" → Knowing the concept ≠ using the skill
 
 **Added explicit skill request tests**
 
-New test suite in `tests/explicit-skill-requests/` that verifies Claude correctly invokes skills when users request them by name. Includes single-turn and multi-turn test scenarios.
+New test suite in `tests/explicit-skill-requests/` that verifies Codex correctly invokes skills when users request them by name. Includes single-turn and multi-turn test scenarios.
 
 ## v4.0.2 (2025-12-23)
 
@@ -188,17 +188,17 @@ New test suite in `tests/explicit-skill-requests/` that verifies Claude correctl
 
 **Slash commands now user-only**
 
-Added `disable-model-invocation: true` to all three slash commands (`/brainstorm`, `/execute-plan`, `/write-plan`). Claude can no longer invoke these commands via the Skill tool—they're restricted to manual user invocation only.
+Added `disable-model-invocation: true` to all three slash commands (`/brainstorm`, `/execute-plan`, `/write-plan`). Codex can no longer invoke these commands via the Skill tool—they're restricted to manual user invocation only.
 
-The underlying skills (`superpowers:brainstorming`, `superpowers:executing-plans`, `superpowers:writing-plans`) remain available for Claude to invoke autonomously. This change prevents confusion when Claude would invoke a command that just redirects to a skill anyway.
+The underlying skills (`superpowers:brainstorming`, `superpowers:executing-plans`, `superpowers:writing-plans`) remain available for Codex to invoke autonomously. This change prevents confusion when Codex would invoke a command that just redirects to a skill anyway.
 
 ## v4.0.1 (2025-12-23)
 
 ### Fixes
 
-**Clarified how to access skills in Claude Code**
+**Clarified how to access skills in Codex CLI**
 
-Fixed a confusing pattern where Claude would invoke a skill via the Skill tool, then try to Read the skill file separately. The `using-superpowers` skill now explicitly states that the Skill tool loads skill content directly—no need to read files.
+Fixed a confusing pattern where Codex would invoke a skill via the Skill tool, then try to Read the skill file separately. The `using-superpowers` skill now explicitly states that the Skill tool loads skill content directly—no need to read files.
 
 - Added "How to Access Skills" section to `using-superpowers`
 - Changed "read the skill" → "invoke the skill" in instructions
@@ -260,7 +260,7 @@ Three new test frameworks for validating skill behavior:
 
 `tests/skill-triggering/` - Validates skills trigger from naive prompts without explicit naming. Tests 6 skills to ensure descriptions alone are sufficient.
 
-`tests/claude-code/` - Integration tests using `claude -p` for headless testing. Verifies skill usage via session transcript (JSONL) analysis. Includes `analyze-token-usage.py` for cost tracking.
+`tests/codex-code/` - Integration tests using `codex -p` for headless testing. Verifies skill usage via session transcript (JSONL) analysis. Includes `analyze-token-usage.py` for cost tracking.
 
 `tests/subagent-driven-dev/` - End-to-end workflow validation with two complete test projects:
 - `go-fractals/` - CLI tool with Sierpinski/Mandelbrot (10 tasks)
@@ -272,7 +272,7 @@ Three new test frameworks for validating skill behavior:
 
 Rewrote key skills using DOT/GraphViz flowcharts as the authoritative process definition. Prose becomes supporting content.
 
-**The Description Trap** (documented in `writing-skills`): Discovered that skill descriptions override flowchart content when descriptions contain workflow summaries. Claude follows the short description instead of reading the detailed flowchart. Fix: descriptions must be trigger-only ("Use when X") with no process details.
+**The Description Trap** (documented in `writing-skills`): Discovered that skill descriptions override flowchart content when descriptions contain workflow summaries. Codex follows the short description instead of reading the detailed flowchart. Fix: descriptions must be trigger-only ("Use when X") with no process details.
 
 **Skill priority in using-superpowers**
 
@@ -294,7 +294,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 
 - **render-graphs.js** - Tool to extract DOT diagrams from skills and render to SVG
 - **Rationalizations table** in using-superpowers - Scannable format including new entries: "I need more context first", "Let me explore first", "This feels productive"
-- **docs/testing.md** - Guide to testing skills with Claude Code integration tests
+- **docs/testing.md** - Guide to testing skills with Codex CLI integration tests
 
 ---
 
@@ -389,7 +389,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 - Bootstrap integration with minimal AGENTS.md for automatic startup
 - Complete installation guide and bootstrap instructions specific to Codex
 
-**Key differences from Claude Code integration:**
+**Key differences from Codex CLI integration:**
 - Single unified script instead of separate tools
 - Tool substitution system for Codex-specific equivalents
 - Simplified subagent handling (manual work instead of delegation)
@@ -412,7 +412,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 - Updated step 3: "Use the Read tool" → "Use the Skill tool to read and run"
 - Updated rationalization list: "Read the current version" → "Run the current version"
 
-The Skill tool is the proper mechanism for invoking skills in Claude Code. This update corrects the bootstrap instructions to guide agents toward the correct tool.
+The Skill tool is the proper mechanism for invoking skills in Codex CLI. This update corrects the bootstrap instructions to guide agents toward the correct tool.
 
 ### Files Changed
 - Updated: `skills/using-superpowers/SKILL.md` - Changed tool references from Read to Skill
@@ -486,7 +486,7 @@ These changes address observed agent behavior where they rationalize around skil
 
 ### Bug Fixes
 
-- **Fixed command syntax in README** (#44) - Updated all command references to use correct namespaced syntax (`/superpowers:brainstorm` instead of `/brainstorm`). Plugin-provided commands are automatically namespaced by Claude Code to avoid conflicts between plugins.
+- **Fixed command syntax in README** (#44) - Updated all command references to use correct namespaced syntax (`/superpowers:brainstorm` instead of `/brainstorm`). Plugin-provided commands are automatically namespaced by Codex CLI to avoid conflicts between plugins.
 
 ## v3.1.0 (2025-10-17)
 
@@ -527,7 +527,7 @@ These changes address observed agent behavior where they rationalize around skil
 **Alignment with Anthropic best practices**
 - Fixed description grammar and voice (fully third-person)
 - Added Quick Reference tables for scanning
-- Added workflow checklists Claude can copy and track
+- Added workflow checklists Codex can copy and track
 - Appropriate use of flowcharts for non-obvious decision points
 - Improved scannable table formats
 - All skills well under 500-line recommendation
@@ -564,7 +564,7 @@ We now use Anthropic's first-party skills system!
 ### Bug Fixes
 
 - **Fixed session-start hook execution in plugin context** (#8, PR #9) - The hook was failing silently with "Plugin hook error" preventing skills context from loading. Fixed by:
-  - Using `${BASH_SOURCE[0]:-$0}` fallback when BASH_SOURCE is unbound in Claude Code's execution context
+  - Using `${BASH_SOURCE[0]:-$0}` fallback when BASH_SOURCE is unbound in Codex CLI's execution context
   - Adding `|| true` to handle empty grep results gracefully when filtering status flags
 
 ---
@@ -577,7 +577,7 @@ Superpowers v2.0 makes skills more accessible, maintainable, and community-drive
 
 The headline change is **skills repository separation**: all skills, scripts, and documentation have moved from the plugin into a dedicated repository ([obra/superpowers-skills](https://github.com/obra/superpowers-skills)). This transforms superpowers from a monolithic plugin into a lightweight shim that manages a local clone of the skills repository. Skills auto-update on session start. Users fork and contribute improvements via standard git workflows. The skills library versions independently from the plugin.
 
-Beyond infrastructure, this release adds nine new skills focused on problem-solving, research, and architecture. We rewrote the core **using-skills** documentation with imperative tone and clearer structure, making it easier for Claude to understand when and how to use skills. **find-skills** now outputs paths you can paste directly into the Read tool, eliminating friction in the skills discovery workflow.
+Beyond infrastructure, this release adds nine new skills focused on problem-solving, research, and architecture. We rewrote the core **using-skills** documentation with imperative tone and clearer structure, making it easier for Codex to understand when and how to use skills. **find-skills** now outputs paths you can paste directly into the Read tool, eliminating friction in the skills discovery workflow.
 
 Users experience seamless operation: the plugin handles cloning, forking, and updating automatically. Contributors find the new architecture makes improving and sharing skills trivial. This release lays the foundation for skills to evolve rapidly as a community resource.
 
@@ -652,7 +652,7 @@ If you have an existing installation:
 **writing-skills**
 - Cross-referencing guidance moved from using-skills
 - Added token efficiency section (word count targets)
-- Improved CSO (Claude Search Optimization) guidance
+- Improved CSO (Codex Search Optimization) guidance
 
 **sharing-skills**
 - Updated for new branch-and-PR workflow (v2.0.0)
@@ -741,7 +741,7 @@ This release includes:
 ### Fresh Install
 
 ```bash
-# In Claude Code
+# In Codex CLI
 /plugin marketplace add obra/superpowers-marketplace
 /plugin install superpowers@superpowers-marketplace
 ```
