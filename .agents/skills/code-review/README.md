@@ -34,7 +34,7 @@ Performs automated code review on a pull request using multiple specialized agen
 # On a PR branch, run:
 /code-review
 
-# Claude will:
+# Codex will:
 # - Launch 4 review agents in parallel
 # - Score each issue for confidence
 # - Post comment with issues ≥80 confidence
@@ -86,7 +86,7 @@ https://github.com/owner/repo/blob/abc123.../src/utils.ts#L23-L28
 
 ## Installation
 
-This plugin is included in the Claude Code repository. The command is automatically available when using Claude Code.
+This plugin is included in the Codex CLI repository. The command is automatically available when using Codex CLI.
 
 ## Best Practices
 

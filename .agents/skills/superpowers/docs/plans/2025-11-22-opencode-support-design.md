@@ -10,11 +10,11 @@ Add full superpowers support for OpenCode.ai using a native OpenCode plugin arch
 
 ## Background
 
-OpenCode.ai is a coding agent similar to Claude Code and Codex. Previous attempts to port superpowers to OpenCode (PR #93, PR #116) used file-copying approaches. This design takes a different approach: building a native OpenCode plugin using their JavaScript/TypeScript plugin system while sharing code with the Codex implementation.
+OpenCode.ai is a coding agent similar to Codex CLI and Codex. Previous attempts to port superpowers to OpenCode (PR #93, PR #116) used file-copying approaches. This design takes a different approach: building a native OpenCode plugin using their JavaScript/TypeScript plugin system while sharing code with the Codex implementation.
 
 ### Key Differences Between Platforms
 
-- **Claude Code**: Native Anthropic plugin system + file-based skills
+- **Codex CLI**: Native Anthropic plugin system + file-based skills
 - **Codex**: No plugin system → bootstrap markdown + CLI script
 - **OpenCode**: JavaScript/TypeScript plugins with event hooks and custom tools API
 
@@ -73,7 +73,7 @@ description: Use when [condition] - [what it does]; [additional context]
 
 **Tool 1: `use_skill`**
 
-Loads a specific skill's content into the conversation (equivalent to Claude's Skill tool).
+Loads a specific skill's content into the conversation (equivalent to Codex's Skill tool).
 
 ```javascript
 {

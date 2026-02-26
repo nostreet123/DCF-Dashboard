@@ -173,4 +173,4 @@ Validate with: `scripts/validate-agent.sh agents/[identifier].md`
 - First agent in plugin: Create agents/ directory first
 ```
 
-This agent automates agent creation using the proven patterns from Claude Code's internal implementation, making it easy for users to create high-quality autonomous agents.
+This agent automates agent creation using the proven patterns from Codex CLI's internal implementation, making it easy for users to create high-quality autonomous agents.

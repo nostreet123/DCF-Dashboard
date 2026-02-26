@@ -5,12 +5,12 @@ description: Official GitHub MCP server for repository management. Create issues
 
 # github
 
-Official GitHub MCP server for repository management. Create issues, manage pull requests, review code, search repositories, and interact with GitHub's full API directly from Claude Code.
+Official GitHub MCP server for repository management. Create issues, manage pull requests, review code, search repositories, and interact with GitHub's full API directly from Codex CLI.
 
 Use this skill when the user asks for `github` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `github@55b58ec6e564`
+- Codex skill: `github@55b58ec6e564`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/github/55b58ec6e564`
 
 ## Available Components
@@ -25,6 +25,6 @@ Use this skill when the user asks for `github` functionality, or requests workfl
 - Run: `bash .agents/skills/github/scripts/smoke_github.sh`
 - Optional strict mode (requires authenticated `gh`): `STRICT_MODE=1 bash .agents/skills/github/scripts/smoke_github.sh`
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

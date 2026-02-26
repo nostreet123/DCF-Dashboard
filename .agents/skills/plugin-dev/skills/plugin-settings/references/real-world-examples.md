@@ -149,7 +149,7 @@ Document any changes needed in CLAUDE.md.
 
 **File:** `hooks/stop-hook.sh`
 
-**Purpose:** Prevent session exit and loop Claude's output back as input
+**Purpose:** Prevent session exit and loop Codex's output back as input
 
 **Implementation:**
 

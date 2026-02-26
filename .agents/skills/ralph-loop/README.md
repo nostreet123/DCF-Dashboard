@@ -1,6 +1,6 @@
 # Ralph Loop Plugin
 
-Implementation of the Ralph Wiggum technique for iterative, self-referential AI development loops in Claude Code.
+Implementation of the Ralph Wiggum technique for iterative, self-referential AI development loops in Codex CLI.
 
 ## What is Ralph Loop?
 
@@ -10,13 +10,13 @@ This technique is inspired by the Ralph Wiggum coding technique (named after the
 
 ### Core Concept
 
-This plugin implements Ralph using a **Stop hook** that intercepts Claude's exit attempts:
+This plugin implements Ralph using a **Stop hook** that intercepts Codex's exit attempts:
 
 ```bash
 # You run ONCE:
 /ralph-loop "Your task description" --completion-promise "DONE"
 
-# Then Claude Code automatically:
+# Then Codex CLI automatically:
 # 1. Works on the task
 # 2. Tries to exit
 # 3. Stop hook blocks exit
@@ -28,9 +28,9 @@ The loop happens **inside your current session** - you don't need external bash 
 
 This creates a **self-referential feedback loop** where:
 - The prompt never changes between iterations
-- Claude's previous work persists in files
+- Codex's previous work persists in files
 - Each iteration sees modified files and git history
-- Claude autonomously improves by reading its own past work in files
+- Codex autonomously improves by reading its own past work in files
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ This creates a **self-referential feedback loop** where:
 /ralph-loop "Build a REST API for todos. Requirements: CRUD operations, input validation, tests. Output <promise>COMPLETE</promise> when done." --completion-promise "COMPLETE" --max-iterations 50
 ```
 
-Claude will:
+Codex will:
 - Implement the API iteratively
 - Run tests and see failures
 - Fix bugs based on test output
@@ -176,4 +176,4 @@ Keep trying until success. The loop handles retry logic automatically.
 
 ## For Help
 
-Run `/help` in Claude Code for detailed command reference and examples.
+Run `/help` in Codex CLI for detailed command reference and examples.

@@ -1,6 +1,6 @@
 # Prompt Templates
 
-## Planner Prompt (Codex/Claude/Gemini)
+## Planner Prompt (Codex/Codex/Gemini)
 
 ```text
 You are Council Planner. You must produce a high-quality implementation plan.

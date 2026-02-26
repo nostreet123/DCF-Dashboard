@@ -37,7 +37,7 @@ session_context="<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n**Below is the 
 # Output context injection as JSON.
 # Keep both shapes for compatibility:
 # - Cursor hooks expect additional_context.
-# - Claude hooks expect hookSpecificOutput.additionalContext.
+# - Codex hooks expect hookSpecificOutput.additionalContext.
 cat <<EOF
 {
   "additional_context": "${session_context}",

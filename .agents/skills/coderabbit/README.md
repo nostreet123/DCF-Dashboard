@@ -1,6 +1,6 @@
-# CodeRabbit Plugin for Claude Code
+# CodeRabbit Plugin for Codex CLI
 
-AI-powered code review in Claude Code, powered by [CodeRabbit](https://coderabbit.ai).
+AI-powered code review in Codex CLI, powered by [CodeRabbit](https://coderabbit.ai).
 
 Available on the [Claude Code Plugin Marketplace](https://code.claude.com/docs/en/discover-plugins).
 Also available for [35+ coding agents](https://github.com/coderabbitai/skills).
@@ -18,9 +18,9 @@ coderabbit auth login
 
 ### 2. Install Plugin
 
-This plugin is live on the official Claude Code Plugin Marketplace. Find it in Claude Code under **Plugins → Discover**, search `coderabbit` directly:
+This plugin is live on the official Codex CLI Plugin Marketplace. Find it in Codex CLI under **Plugins → Discover**, search `coderabbit` directly:
 
-In Claude Code:
+In Codex CLI:
 
 ```bash
 /plugin marketplace update  #refresh marketplace
@@ -30,8 +30,8 @@ In Claude Code:
 Or via CLI:
 
 ```bash
-claude plugin marketplace update    # refresh marketplace
-claude plugin install coderabbit
+codex plugin marketplace update    # refresh marketplace
+codex plugin install coderabbit
 ```
 
 ## Usage
@@ -57,7 +57,7 @@ The command will:
 
 ### Natural Language
 
-You can also just ask Claude:
+You can also just ask Codex:
 
 - "Review my code"
 - "Check for security issues"

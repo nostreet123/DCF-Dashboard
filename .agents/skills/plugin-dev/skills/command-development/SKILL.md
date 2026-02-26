@@ -1,14 +1,14 @@
 ---
 name: command-development
-description: This skill should be used when the user asks to "create a slash command", "add a command", "write a custom command", "define command arguments", "use command frontmatter", "organize commands", "create command with file references", "interactive command", "use AskUserQuestion in command", or needs guidance on slash command structure, YAML frontmatter fields, dynamic arguments, bash execution in commands, user interaction patterns, or command development best practices for Claude Code.
+description: This skill should be used when the user asks to "create a slash command", "add a command", "write a custom command", "define command arguments", "use command frontmatter", "organize commands", "create command with file references", "interactive command", "use AskUserQuestion in command", or needs guidance on slash command structure, YAML frontmatter fields, dynamic arguments, bash execution in commands, user interaction patterns, or command development best practices for Codex CLI.
 version: 0.2.0
 ---
 
-# Command Development for Claude Code
+# Command Development for Codex CLI
 
 ## Overview
 
-Slash commands are frequently-used prompts defined as Markdown files that Claude executes during interactive sessions. Understanding command structure, frontmatter options, and dynamic features enables creating powerful, reusable workflows.
+Slash commands are frequently-used prompts defined as Markdown files that Codex executes during interactive sessions. Understanding command structure, frontmatter options, and dynamic features enables creating powerful, reusable workflows.
 
 **Key concepts:**
 - Markdown file format for commands
@@ -21,19 +21,19 @@ Slash commands are frequently-used prompts defined as Markdown files that Claude
 
 ### What is a Slash Command?
 
-A slash command is a Markdown file containing a prompt that Claude executes when invoked. Commands provide:
+A slash command is a Markdown file containing a prompt that Codex executes when invoked. Commands provide:
 - **Reusability**: Define once, use repeatedly
 - **Consistency**: Standardize common workflows
 - **Sharing**: Distribute across team or projects
 - **Efficiency**: Quick access to complex prompts
 
-### Critical: Commands are Instructions FOR Claude
+### Critical: Commands are Instructions FOR Codex
 
 **Commands are written for agent consumption, not human consumption.**
 
-When a user invokes `/command-name`, the command content becomes Claude's instructions. Write commands as directives TO Claude about what to do, not as messages TO the user.
+When a user invokes `/command-name`, the command content becomes Codex's instructions. Write commands as directives TO Codex about what to do, not as messages TO the user.
 
-**Correct approach (instructions for Claude):**
+**Correct approach (instructions for Codex):**
 ```markdown
 Review this code for security vulnerabilities including:
 - SQL injection
@@ -49,7 +49,7 @@ This command will review your code for security issues.
 You'll receive a report with vulnerability details.
 ```
 
-The first example tells Claude what to do. The second tells the user what will happen but doesn't instruct Claude. Always use the first approach.
+The first example tells Codex what to do. The second tells the user what will happen but doesn't instruct Codex. Always use the first approach.
 
 ### Command Locations
 
@@ -285,7 +285,7 @@ Review @$1 for:
 > /review-file src/api/users.ts
 ```
 
-**Effect:** Claude reads `src/api/users.ts` before processing command
+**Effect:** Codex reads `src/api/users.ts` before processing command
 
 ### Multiple File References
 
@@ -315,7 +315,7 @@ Ensure:
 
 ## Bash Execution in Commands
 
-Commands can execute bash commands inline to dynamically gather context before Claude processes the command. This is useful for including repository state, environment information, or project-specific context.
+Commands can execute bash commands inline to dynamically gather context before Codex processes the command. This is useful for including repository state, environment information, or project-specific context.
 
 **When to use:**
 - Include dynamic context (git status, environment vars, etc.)
@@ -505,7 +505,7 @@ PR #$1 Workflow:
 - Check file is in correct directory
 - Verify `.md` extension present
 - Ensure valid Markdown format
-- Restart Claude Code
+- Restart Codex CLI
 
 **Arguments not working:**
 - Verify `$1`, `$2` syntax correct
@@ -673,7 +673,7 @@ Agent uses plugin resources:
 
 **Key points:**
 - Agent must exist in `plugin/agents/` directory
-- Claude uses Task tool to launch agent
+- Codex uses Task tool to launch agent
 - Document agent capabilities
 - Reference plugin resources agent uses
 
@@ -710,7 +710,7 @@ Design commands that work with plugin hooks:
 - Commands can prepare state for hooks to process
 - Hooks execute automatically on tool events
 - Commands should document expected hook behavior
-- Guide Claude on interpreting hook output
+- Guide Codex on interpreting hook output
 
 See `references/plugin-features-reference.md` for examples of commands that coordinate with hooks
 

@@ -10,7 +10,7 @@ Circleback conversational context integration. Search and access meetings, email
 Use this skill when the user asks for `circleback` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `circleback@1.0.0`
+- Codex skill: `circleback@1.0.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/circleback/1.0.0`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `circleback` functionality, or requests wo
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

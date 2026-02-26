@@ -508,7 +508,7 @@ exit 0
 ### Running Commands
 
 ```
-$ claude
+$ codex
 > /lint
 Running linter checks...
 

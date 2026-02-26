@@ -134,7 +134,7 @@ allowed-tools: "*"
 **Default:** Inherits from conversation
 **Values:** `sonnet`, `opus`, `haiku`
 
-**Purpose:** Specify which Claude model executes the command
+**Purpose:** Specify which Codex model executes the command
 
 **Examples:**
 ```yaml
@@ -308,7 +308,7 @@ disable-model-invocation: true
 
 **Default behavior (false):**
 - Command available to SlashCommand tool
-- Claude can invoke programmatically
+- Codex can invoke programmatically
 - Still available for manual invocation
 
 **When true:**
@@ -317,7 +317,7 @@ disable-model-invocation: true
 - Safer for sensitive operations
 
 **Best practices:**
-- Use sparingly (limits Claude's autonomy)
+- Use sparingly (limits Codex's autonomy)
 - Document why in command comments
 - Consider if command should exist if always manual
 
@@ -437,7 +437,7 @@ allowed-tools: Bash  # ❌ Missing command filter
 
 **Invalid model name:**
 ```yaml
-model: gpt4  # ❌ Not a valid Claude model
+model: gpt4  # ❌ Not a valid Codex model
 ```
 
 **Fix:** Use `sonnet`, `opus`, or `haiku`

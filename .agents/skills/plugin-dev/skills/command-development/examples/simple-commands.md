@@ -2,7 +2,7 @@
 
 Basic slash command patterns for common use cases.
 
-**Important:** All examples below are written as instructions FOR Claude (agent consumption), not messages TO users. Commands tell Claude what to do, not tell users what will happen.
+**Important:** All examples below are written as instructions FOR Codex (agent consumption), not messages TO users. Commands tell Codex what to do, not tell users what will happen.
 
 ## Example 1: Code Review Command
 

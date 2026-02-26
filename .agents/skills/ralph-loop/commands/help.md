@@ -13,18 +13,18 @@ Ralph Loop implements the Ralph Wiggum technique - an iterative development meth
 **Core concept:**
 ```bash
 while :; do
-  cat PROMPT.md | claude-code --continue
+  cat PROMPT.md | codex-code --continue
 done
 ```
 
-The same prompt is fed to Claude repeatedly. The "self-referential" aspect comes from Claude seeing its own previous work in the files and git history, not from feeding output back as input.
+The same prompt is fed to Codex repeatedly. The "self-referential" aspect comes from Codex seeing its own previous work in the files and git history, not from feeding output back as input.
 
 **Each iteration:**
-1. Claude receives the SAME prompt
+1. Codex receives the SAME prompt
 2. Works on the task, modifying files
 3. Tries to exit
 4. Stop hook intercepts and feeds the same prompt again
-5. Claude sees its previous work in the files
+5. Codex sees its previous work in the files
 6. Iteratively improves until completion
 
 The technique is described as "deterministically bad in an undeterministic world" - failures are predictable, enabling systematic improvement through prompt tuning.
@@ -75,7 +75,7 @@ Cancel an active Ralph loop (removes the loop state file).
 
 ### Completion Promises
 
-To signal completion, Claude must output a `<promise>` tag:
+To signal completion, Codex must output a `<promise>` tag:
 
 ```
 <promise>TASK COMPLETE</promise>
@@ -85,9 +85,9 @@ The stop hook looks for this specific tag. Without it (or `--max-iterations`), R
 
 ### Self-Reference Mechanism
 
-The "loop" doesn't mean Claude talks to itself. It means:
+The "loop" doesn't mean Codex talks to itself. It means:
 - Same prompt repeated
-- Claude's work persists in files
+- Codex's work persists in files
 - Each iteration sees previous attempts
 - Builds incrementally toward goal
 

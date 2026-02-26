@@ -1,6 +1,6 @@
 # pyright-lsp
 
-Python language server (Pyright) for Claude Code, providing static type checking and code intelligence.
+Python language server (Pyright) for Codex CLI, providing static type checking and code intelligence.
 
 ## Supported Extensions
 `.py`, `.pyi`

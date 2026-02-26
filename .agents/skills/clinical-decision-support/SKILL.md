@@ -4,7 +4,7 @@ description: Generate professional clinical decision support (CDS) documents for
 ---
 
 # Clinical Decision Support Documents
-> Note: Adapted from claude-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
+> Note: Adapted from codex-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
 > Codex CLI note: If this skill references Codex-specific setup commands, adapt them to your Codex CLI environment (install/configure the equivalent tooling outside Codex and provide required API keys), then proceed with the remaining steps.
 
 ## Description

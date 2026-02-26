@@ -137,7 +137,7 @@ Action: Block
 
 | Category | String Value | Example |
 |----------|--------------|---------|
-| AI Crawler | `AI Crawler` | GPTBot, Claude-Web |
+| AI Crawler | `AI Crawler` | GPTBot, Codex-Web |
 | AI Assistant | `AI Assistant` | Perplexity-User, DuckAssistBot |
 | AI Search | `AI Search` | OAI-SearchBot |
 | Accessibility | `Accessibility` | Accessible Web Bot |

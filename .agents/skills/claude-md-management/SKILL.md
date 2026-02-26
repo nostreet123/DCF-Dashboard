@@ -1,16 +1,16 @@
 ---
-name: claude-md-management
+name: codex-md-management
 description: Tools to maintain and improve CLAUDE.md files - audit quality, capture session learnings, and keep project memory current.
 ---
 
-# claude-md-management
+# codex-md-management
 
 Tools to maintain and improve CLAUDE.md files - audit quality, capture session learnings, and keep project memory current.
 
-Use this skill when the user asks for `claude-md-management` functionality, or requests workflows covered by this plugin.
+Use this skill when the user asks for `codex-md-management` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `claude-md-management@1.0.0`
+- Codex skill: `codex-md-management@1.0.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `claude-md-management` functionality, or r
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

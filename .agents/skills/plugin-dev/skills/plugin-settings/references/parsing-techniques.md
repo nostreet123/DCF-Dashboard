@@ -124,7 +124,7 @@ BODY=$(awk '/^---$/{i++; next} i>=2' "$FILE")
 # Extract body
 PROMPT=$(awk '/^---$/{i++; next} i>=2' "$RALPH_STATE_FILE")
 
-# Feed back to Claude
+# Feed back to Codex
 echo '{"decision": "block", "reason": "'"$PROMPT"'"}' | jq .
 ```
 

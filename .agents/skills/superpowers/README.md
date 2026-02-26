@@ -1,6 +1,6 @@
 # Superpowers In-Repo Port
 
-This directory contains a pinned, namespaced port of Claude's `superpowers` plugin.
+This directory contains a pinned, namespaced port of Codex's `superpowers` plugin.
 
 ## Scope
 
@@ -27,7 +27,7 @@ Check parity without writing files:
 python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 --check
 ```
 
-Apply import/sync from local Claude cache:
+Apply import/sync from local Codex cache:
 
 ```bash
 python3 .agents/skills/superpowers/scripts/sync_superpowers.py --version 4.3.0 --apply

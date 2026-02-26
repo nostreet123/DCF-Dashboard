@@ -6,7 +6,7 @@ allowed-tools: ["Read", "Write", "Grep", "Glob", "Bash", "TodoWrite", "AskUserQu
 
 # Plugin Creation Workflow
 
-Guide the user through creating a complete, high-quality Claude Code plugin from initial concept to tested implementation. Follow a systematic approach: understand requirements, design components, clarify details, implement following best practices, validate, and test.
+Guide the user through creating a complete, high-quality Codex CLI plugin from initial concept to tested implementation. Follow a systematic approach: understand requirements, design components, clarify details, implement following best practices, validate, and test.
 
 ## Core Principles
 
@@ -185,7 +185,7 @@ Guide the user through creating a complete, high-quality Claude Code plugin from
    - Write command markdown with frontmatter
    - Include clear description and argument-hint
    - Specify allowed-tools (minimal necessary)
-   - Write instructions FOR Claude (not TO user)
+   - Write instructions FOR Codex (not TO user)
    - Provide usage examples and tips
    - Reference relevant skills if applicable
 
@@ -272,7 +272,7 @@ Guide the user through creating a complete, high-quality Claude Code plugin from
 
 ## Phase 7: Testing & Verification
 
-**Goal**: Test that plugin works correctly in Claude Code
+**Goal**: Test that plugin works correctly in Codex CLI
 
 **Actions**:
 1. **Installation instructions**:
@@ -294,7 +294,7 @@ Guide the user through creating a complete, high-quality Claude Code plugin from
    - For skills: Ask questions using trigger phrases from descriptions
    - For commands: Run `/plugin-name:command-name` with various arguments
    - For agents: Create scenarios matching agent examples
-   - For hooks: Use `claude --debug` to see hook execution
+   - For hooks: Use `codex --debug` to see hook execution
    - For MCP: Use `/mcp` to verify servers and tools
 
 4. **Ask user**: "I've prepared the plugin for testing. Would you like me to guide you through testing each component, or do you want to test it yourself?"
@@ -354,7 +354,7 @@ Guide the user through creating a complete, high-quality Claude Code plugin from
 - **Apply best practices**:
   - Third-person descriptions for skills
   - Imperative form in skill bodies
-  - Commands written FOR Claude
+  - Commands written FOR Codex
   - Strong trigger phrases
   - ${CLAUDE_PLUGIN_ROOT} for portability
   - Progressive disclosure
@@ -383,7 +383,7 @@ Every component must meet these standards:
 - ✅ Includes working examples
 - ✅ Properly documented
 - ✅ Validated with utilities
-- ✅ Tested in Claude Code
+- ✅ Tested in Codex CLI
 
 ---
 

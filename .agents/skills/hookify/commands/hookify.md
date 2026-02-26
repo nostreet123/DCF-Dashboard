@@ -32,11 +32,11 @@ Use the Task tool to launch conversation-analyzer agent:
 {
   "subagent_type": "general-purpose",
   "description": "Analyze conversation for unwanted behaviors",
-  "prompt": "You are analyzing a Claude Code conversation to find behaviors the user wants to prevent.
+  "prompt": "You are analyzing a Codex CLI conversation to find behaviors the user wants to prevent.
 
 Read user messages in the current conversation and identify:
 1. Explicit requests to avoid something (\"don't do X\", \"stop doing Y\")
-2. Corrections or reversions (user fixing Claude's actions)
+2. Corrections or reversions (user fixing Codex's actions)
 3. Frustrated reactions (\"why did you do X?\", \"I didn't ask for that\")
 4. Repeated issues (same problem multiple times)
 
@@ -98,7 +98,7 @@ pattern: {regex pattern}
 action: {warn|block}
 ---
 
-{Message to show Claude when rule triggers}
+{Message to show Codex when rule triggers}
 ```
 
 **Action values:**
@@ -127,7 +127,7 @@ conditions:
 
 **IMPORTANT**: Rule files must be created in the current working directory's `.claude/` folder, NOT the plugin directory.
 
-Use the current working directory (where Claude Code was started) as the base path.
+Use the current working directory (where Codex CLI was started) as the base path.
 
 1. Check if `.claude/` directory exists in current working directory
    - If not, create it first with: `mkdir -p .claude`

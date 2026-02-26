@@ -1,6 +1,6 @@
 # Plugin-Specific Command Features Reference
 
-This reference covers features and patterns specific to commands bundled in Claude Code plugins.
+This reference covers features and patterns specific to commands bundled in Codex CLI plugins.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This reference covers features and patterns specific to commands bundled in Clau
 
 ### Auto-Discovery
 
-Claude Code automatically discovers commands in plugins using the following locations:
+Codex CLI automatically discovers commands in plugins using the following locations:
 
 ```
 plugin-name/
@@ -352,7 +352,7 @@ Note: This uses the Task tool to launch the plugin's code-analyzer agent.
 
 **Key points:**
 - Agent must be defined in plugin's `agents/` directory
-- Claude will automatically use Task tool to launch agent
+- Codex will automatically use Task tool to launch agent
 - Agent has access to same plugin resources
 
 ### Invoking Plugin Skills
@@ -379,7 +379,7 @@ Note: This leverages the plugin's api-docs-standards skill for consistency.
 
 **Key points:**
 - Skill must be defined in plugin's `skills/` directory
-- Mention skill by name to hint Claude should invoke it
+- Mention skill by name to hint Codex should invoke it
 - Skills provide specialized domain knowledge
 
 ### Coordinating with Plugin Hooks

@@ -10,7 +10,7 @@ Automated code review for pull requests using multiple specialized agents with c
 Use this skill when the user asks for `code-review` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `code-review@55b58ec6e564`
+- Codex skill: `code-review@55b58ec6e564`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/code-review/55b58ec6e564`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `code-review` functionality, or requests w
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.
