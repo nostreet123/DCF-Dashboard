@@ -44,6 +44,6 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 
 Remember: Codex is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
 
-## Claude Plugin Parity
-- Source plugin: `frontend-design@55b58ec6e564` from local Claude cache
+## Codex Plugin Parity
+- Source plugin: `frontend-design@55b58ec6e564` from local Codex cache
 - Merge mode: non-destructive (conflicts in `claude_port/`)

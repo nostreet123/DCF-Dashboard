@@ -133,8 +133,8 @@ echo "✓ Frontmatter fields valid"
 **Test procedure:**
 
 ```bash
-# 1. Start Claude Code
-claude --debug
+# 1. Start Codex CLI
+codex --debug
 
 # 2. Check command appears in help
 > /help
@@ -267,7 +267,7 @@ Test output: !`echo "Hello from bash"`
 Analysis of output above...
 EOF
 
-# Test in Claude Code
+# Test in Codex CLI
 > /test-bash
 # Verify:
 # 1. Date appears correctly
@@ -529,12 +529,12 @@ echo "  - Acceptable threshold: < 3 seconds for fast commands"
 ### Resource Usage Testing
 
 ```bash
-# Monitor Claude Code during command execution
+# Monitor Codex CLI during command execution
 # In terminal 1:
-claude --debug
+codex --debug
 
 # In terminal 2:
-watch -n 1 'ps aux | grep claude'
+watch -n 1 'ps aux | grep codex'
 
 # Execute command and observe:
 # - Memory usage
@@ -649,8 +649,8 @@ chmod 644 .claude/commands/my-command.md
 # Check syntax
 head -n 20 .claude/commands/my-command.md
 
-# Restart Claude Code
-claude --debug
+# Restart Codex CLI
+codex --debug
 ```
 
 **Issue: Arguments not substituting**

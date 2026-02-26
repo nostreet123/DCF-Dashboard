@@ -9,7 +9,7 @@ A playground is a self-contained HTML file with:
 - A live preview on the other
 - A prompt output at the bottom with a copy button
 
-The user adjusts controls, explores visually, then copies the generated prompt back into Claude.
+The user adjusts controls, explores visually, then copies the generated prompt back into Codex.
 
 ## When to Use
 
@@ -25,4 +25,4 @@ The skill includes templates for common playground types:
 
 ## Installation
 
-Add this plugin to your Claude Code configuration to enable the playground skill.
+Add this plugin to your Codex CLI configuration to enable the playground skill.

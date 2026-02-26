@@ -1,8 +1,8 @@
 ---
-description: setup Claude Code for the Semgrep plugin (semgrep-plugin)
+description: setup Codex CLI for the Semgrep plugin (semgrep-plugin)
 ---
 
-You are setting up Semgrep for Claude Code. Do the following in order and confirm each step:
+You are setting up Semgrep for Codex CLI. Do the following in order and confirm each step:
 
 1) Install Semgrep:
 - Check if Semgrep is already installed by running: `which semgrep`

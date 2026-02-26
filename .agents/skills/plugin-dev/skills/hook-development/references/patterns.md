@@ -1,6 +1,6 @@
 # Common Hook Patterns
 
-This reference provides common, proven patterns for implementing Claude Code hooks. Use these patterns as starting points for typical hook use cases.
+This reference provides common, proven patterns for implementing Codex CLI hooks. Use these patterns as starting points for typical hook use cases.
 
 ## Pattern 1: Security Validation
 
@@ -295,7 +295,7 @@ rm .enable-security-scan
 - Project-specific validation that's opt-in
 - Performance-intensive checks only when needed
 
-**Note:** Must restart Claude Code after creating/removing flag files for hooks to recognize changes.
+**Note:** Must restart Codex CLI after creating/removing flag files for hooks to recognize changes.
 
 ## Pattern 10: Configuration-Driven Hooks
 

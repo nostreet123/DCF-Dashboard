@@ -1,15 +1,15 @@
-# Qodo Skills - Claude Code Directives
+# Qodo Skills - Codex CLI Directives
 
-> Claude Code-specific guidelines and directives for working on this project.
+> Codex CLI-specific guidelines and directives for working on this project.
 
-**Important**: Read AGENTS.md first for universal guidelines. This file contains Claude Code-specific workflows and preferences.
+**Important**: Read AGENTS.md first for universal guidelines. This file contains Codex CLI-specific workflows and preferences.
 
 ## File Size Discipline (CRITICAL)
 
 **Maximum file size: 500 lines. Ideal: ~300 lines.**
 
 **Why this matters:**
-- Claude's instruction-following capacity is ~150-200 instructions
+- Codex's instruction-following capacity is ~150-200 instructions
 - Large files overwhelm context and reduce instruction compliance
 - Smaller files = better agent performance
 
@@ -35,11 +35,11 @@ find . -name "*.md" -exec wc -l {} + | sort -rn | head -10
 
 ## Skill Collection
 
-This is a **skill collection** compatible with Claude Code and other agents:
+This is a **skill collection** compatible with Codex CLI and other agents:
 
 **Installation:**
 - Individual skills: `npx skills add qodo-ai/qodo-skills/skills/get-qodo-rules`
-- Claude Code Marketplace: Coming soon
+- Codex CLI Marketplace: Coming soon
 
 **Skill invocation:**
 - `/get-qodo-rules` - Fetch and load coding rules
@@ -119,7 +119,7 @@ Brief description (50 chars)
 - Key change 2
 - Key change 3
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+Co-Authored-By: Codex Sonnet 4.5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -203,9 +203,9 @@ skills/get-qodo-rules/
 - Root AGENTS.md approaching 400 lines
 
 **When to create skill-specific CLAUDE.md:**
-- Skill uses Claude-specific features (tool patterns)
+- Skill uses Codex-specific features (tool patterns)
 - Skill requires specific commit conventions
-- Skill has unique workflow in Claude Code
+- Skill has unique workflow in Codex CLI
 - Root CLAUDE.md approaching 400 lines
 
 **Template for skill-specific AGENTS.md:**
@@ -265,7 +265,7 @@ triggers:
 **For user documentation:** See README.md
 **For skill instructions:** See skills/*/SKILL.md
 
-## Claude Code-Specific Features
+## Codex CLI-Specific Features
 
 **Settings:**
 - `.claude/settings.local.json` for local development overrides
@@ -273,4 +273,4 @@ triggers:
 
 ---
 
-**Note**: This file is Claude Code-specific. For universal agent guidelines, see AGENTS.md.
+**Note**: This file is Codex CLI-specific. For universal agent guidelines, see AGENTS.md.

@@ -25,7 +25,7 @@ const { text } = await generateText({
 const { text } = await generateText({
   model: gateway([
     openai('gpt-4o'),
-    anthropic('claude-sonnet-4-5'),
+    anthropic('codex-sonnet-4-5'),
     openai('gpt-4o-mini')
   ]),
   prompt: 'Complex task'

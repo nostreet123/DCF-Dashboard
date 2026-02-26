@@ -2,7 +2,7 @@
 
 Shift-left code review skills for AI coding agents. Bring Qodo's quality standards and code review capabilities into your local development workflow.
 
-**Compatible with:** Claude Code, Cursor, Windsurf, Cline, and any agent supporting the [Agent Skills](https://agentskills.io) standard.
+**Compatible with:** Codex CLI, Cursor, Windsurf, Cline, and any agent supporting the [Agent Skills](https://agentskills.io) standard.
 
 ## Available Skills
 
@@ -44,10 +44,10 @@ npx skills add qodo-ai/qodo-skills/skills/get-qodo-rules
 npx skills add qodo-ai/qodo-skills/skills/qodo-pr-resolver
 ```
 
-**Claude Code Marketplace:** Coming soon - one-click installation
+**Codex CLI Marketplace:** Coming soon - one-click installation
 
 **Works with:**
-- **Claude Code** - Skills available as `/get-qodo-rules`, `/qodo-pr-resolver`
+- **Codex CLI** - Skills available as `/get-qodo-rules`, `/qodo-pr-resolver`
 - **Cursor** - Skills available in command palette
 - **Windsurf** - Skills available in flow menu
 - **Cline** - Skills available via skill invocation
@@ -139,7 +139,7 @@ Requires CLI tools for your git provider:
 
 After installation, invoke skills directly in your agent:
 
-**Claude Code:**
+**Codex CLI:**
 ```bash
 /get-qodo-rules      # Fetch coding rules
 /qodo-pr-resolver    # Fix PR review issues
@@ -274,7 +274,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for de
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make your changes
-4. Test thoroughly with your preferred agent (Claude Code, Cursor, etc.)
+4. Test thoroughly with your preferred agent (Codex CLI, Cursor, etc.)
 5. Submit a pull request
 
 ## Resources
@@ -294,4 +294,4 @@ For issues with:
 - **Skills themselves**: [Open an issue](https://github.com/qodo-ai/qodo-skills/issues) in this repository
 - **Qodo Platform**: Contact [Qodo Support](https://qodo.ai/support)
 - **npx skills tool**: See [vercel-labs/skills](https://github.com/vercel-labs/skills)
-- **Your agent**: Refer to your agent's documentation (Claude Code, Cursor, Windsurf, etc.)
+- **Your agent**: Refer to your agent's documentation (Codex CLI, Cursor, Windsurf, etc.)

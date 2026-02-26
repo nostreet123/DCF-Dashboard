@@ -1,5 +1,5 @@
 ---
-name: claude-md-improver
+name: codex-md-improver
 description: Audit and improve CLAUDE.md files in repositories. Use when user asks to check, audit, update, improve, or fix CLAUDE.md files. Scans for all CLAUDE.md files, evaluates quality against templates, outputs quality report, then makes targeted updates. Also use when the user mentions "CLAUDE.md maintenance" or "project memory optimization".
 tools: Read, Glob, Grep, Bash, Edit
 ---
@@ -41,7 +41,7 @@ For each CLAUDE.md file, evaluate against quality criteria. See [references/qual
 | Criterion | Weight | Check |
 |-----------|--------|-------|
 | Commands/workflows documented | High | Are build/test/deploy commands present? |
-| Architecture clarity | High | Can Claude understand the codebase structure? |
+| Architecture clarity | High | Can Codex understand the codebase structure? |
 | Non-obvious patterns | Medium | Are gotchas and quirks documented? |
 | Conciseness | Medium | No verbose explanations or obvious info? |
 | Currency | High | Does it reflect current codebase state? |

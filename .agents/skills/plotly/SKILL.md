@@ -4,7 +4,7 @@ description: Interactive visualization library. Use when you need hover info, zo
 ---
 
 # Plotly
-> Note: Adapted from claude-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
+> Note: Adapted from codex-scientific-skills. Treat upstream assistant/CLI references as Codex/Codex CLI equivalents or adapt to your environment.
 > Codex CLI note: If this skill references Codex-specific setup commands, adapt them to your Codex CLI environment (install/configure the equivalent tooling outside Codex and provide required API keys), then proceed with the remaining steps.
 
 Python graphing library for creating interactive, publication-quality visualizations with 40+ chart types.

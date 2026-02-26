@@ -1,16 +1,16 @@
 ---
 name: stripe
-description: Stripe development plugin for Claude
+description: Stripe development plugin for Codex
 ---
 
 # stripe
 
-Stripe development plugin for Claude
+Stripe development plugin for Codex
 
 Use this skill when the user asks for `stripe` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `stripe@0.1.0`
+- Codex skill: `stripe@0.1.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/stripe/0.1.0`
 
 ## Available Components
@@ -25,6 +25,6 @@ Use this skill when the user asks for `stripe` functionality, or requests workfl
 - Run: `bash .agents/skills/stripe/scripts/smoke_stripe.sh`
 - Optional strict mode (fails if endpoint not reachable): `STRICT_MODE=1 bash .agents/skills/stripe/scripts/smoke_stripe.sh`
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

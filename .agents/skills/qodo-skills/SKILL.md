@@ -10,7 +10,7 @@ Shift-left code review skills that bring Qodo's quality standards and code revie
 Use this skill when the user asks for `qodo-skills` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `qodo-skills@0.3.0`
+- Codex skill: `qodo-skills@0.3.0`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/qodo-skills/0.3.0`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `qodo-skills` functionality, or requests w
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

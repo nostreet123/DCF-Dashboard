@@ -10,7 +10,7 @@ Streamline your git workflow with simple commands for committing, pushing, and c
 Use this skill when the user asks for `commit-commands` functionality, or requests workflows covered by this plugin.
 
 ## Source
-- Claude plugin: `commit-commands@55b58ec6e564`
+- Codex skill: `commit-commands@55b58ec6e564`
 - Local cache path: `/root/.claude/plugins/cache/claude-plugins-official/commit-commands/55b58ec6e564`
 
 ## Available Components
@@ -21,6 +21,6 @@ Use this skill when the user asks for `commit-commands` functionality, or reques
 - If a behavior is not directly executable in Codex runtime, use the nearest equivalent toolchain and preserve intent.
 - Source snapshots and manifests are stored under `references/claude-plugin-source/`.
 
-## Claude Plugin Parity
+## Codex Plugin Parity
 - Port mode: functional parity adapted for Codex workflows.
 - Merge mode: non-destructive; conflicting files are preserved under `claude_port/`.

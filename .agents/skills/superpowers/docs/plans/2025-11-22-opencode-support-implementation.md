@@ -1,6 +1,6 @@
 # OpenCode Support Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Codex:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add full superpowers support for OpenCode.ai with a native JavaScript plugin that shares core functionality with the existing Codex implementation.
 
@@ -558,7 +558,7 @@ export const SuperpowersPlugin = async ({ project, client, $, directory, worktre
           const content = contentLines.join('\n').trim();
           const skillDirectory = path.dirname(resolved.skillFile);
 
-          // Format output similar to Claude Code's Skill tool
+          // Format output similar to Codex CLI's Skill tool
           return `# ${name || skill_name}
 # ${description || ''}
 # Supporting tools and docs are in ${skillDirectory}
@@ -870,7 +870,7 @@ git pull
 
 ### Tool mapping issues
 
-When a skill references a Claude Code tool you don't have:
+When a skill references a Codex CLI tool you don't have:
 - `TodoWrite` → use `update_plan`
 - `Task` with subagents → use `@mention` syntax to invoke OpenCode subagents
 - `Skill` → use `use_skill` tool

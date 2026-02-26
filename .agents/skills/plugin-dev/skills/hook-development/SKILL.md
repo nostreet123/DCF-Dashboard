@@ -1,14 +1,14 @@
 ---
 name: hook-development
-description: This skill should be used when the user asks to "create a hook", "add a PreToolUse/PostToolUse/Stop hook", "validate tool use", "implement prompt-based hooks", "use ${CLAUDE_PLUGIN_ROOT}", "set up event-driven automation", "block dangerous commands", or mentions hook events (PreToolUse, PostToolUse, Stop, SubagentStop, SessionStart, SessionEnd, UserPromptSubmit, PreCompact, Notification). Provides comprehensive guidance for creating and implementing Claude Code plugin hooks with focus on advanced prompt-based hooks API.
+description: This skill should be used when the user asks to "create a hook", "add a PreToolUse/PostToolUse/Stop hook", "validate tool use", "implement prompt-based hooks", "use ${CLAUDE_PLUGIN_ROOT}", "set up event-driven automation", "block dangerous commands", or mentions hook events (PreToolUse, PostToolUse, Stop, SubagentStop, SessionStart, SessionEnd, UserPromptSubmit, PreCompact, Notification). Provides comprehensive guidance for creating and implementing Codex CLI plugin hooks with focus on advanced prompt-based hooks API.
 version: 0.1.0
 ---
 
-# Hook Development for Claude Code Plugins
+# Hook Development for Codex CLI Plugins
 
 ## Overview
 
-Hooks are event-driven automation scripts that execute in response to Claude Code events. Use hooks to validate operations, enforce policies, add context, and integrate external tools into workflows.
+Hooks are event-driven automation scripts that execute in response to Codex CLI events. Use hooks to validate operations, enforce policies, add context, and integrate external tools into workflows.
 
 **Key capabilities:**
 - Validate tool calls before execution (PreToolUse)
@@ -148,7 +148,7 @@ Execute before any tool runs. Use to approve, deny, or modify tool calls.
     "permissionDecision": "allow|deny|ask",
     "updatedInput": {"field": "modified_value"}
   },
-  "systemMessage": "Explanation for Claude"
+  "systemMessage": "Explanation for Codex"
 }
 ```
 
@@ -175,7 +175,7 @@ Execute after tool completes. Use to react to results, provide feedback, or log.
 
 **Output behavior:**
 - Exit 0: stdout shown in transcript
-- Exit 2: stderr fed back to Claude
+- Exit 2: stderr fed back to Codex
 - systemMessage included in context
 
 ### Stop
@@ -237,7 +237,7 @@ Execute when user submits a prompt. Use to add context, validate, or block promp
 
 ### SessionStart
 
-Execute when Claude Code session begins. Use to load context and set environment.
+Execute when Codex CLI session begins. Use to load context and set environment.
 
 **Example:**
 ```json
@@ -273,7 +273,7 @@ Execute before context compaction. Use to add critical information to preserve.
 
 ### Notification
 
-Execute when Claude sends notifications. Use to react to user notifications.
+Execute when Codex sends notifications. Use to react to user notifications.
 
 ## Hook Output Format
 
@@ -283,18 +283,18 @@ Execute when Claude sends notifications. Use to react to user notifications.
 {
   "continue": true,
   "suppressOutput": false,
-  "systemMessage": "Message for Claude"
+  "systemMessage": "Message for Codex"
 }
 ```
 
 - `continue`: If false, halt processing (default true)
 - `suppressOutput`: Hide output from transcript (default false)
-- `systemMessage`: Message shown to Claude
+- `systemMessage`: Message shown to Codex
 
 ### Exit Codes
 
 - `0` - Success (stdout shown in transcript)
-- `2` - Blocking error (stderr fed back to Claude)
+- `2` - Blocking error (stderr fed back to Codex)
 - Other - Non-blocking error
 
 ## Hook Input Format
@@ -573,24 +573,24 @@ input=$(cat)
 
 ### Hooks Load at Session Start
 
-**Important:** Hooks are loaded when Claude Code session starts. Changes to hook configuration require restarting Claude Code.
+**Important:** Hooks are loaded when Codex CLI session starts. Changes to hook configuration require restarting Codex CLI.
 
 **Cannot hot-swap hooks:**
 - Editing `hooks/hooks.json` won't affect current session
 - Adding new hook scripts won't be recognized
 - Changing hook commands/prompts won't update
-- Must restart Claude Code: exit and run `claude` again
+- Must restart Codex CLI: exit and run `codex` again
 
 **To test hook changes:**
 1. Edit hook configuration or scripts
-2. Exit Claude Code session
-3. Restart: `claude` or `cc`
+2. Exit Codex CLI session
+3. Restart: `codex` or `cc`
 4. New hook configuration loads
-5. Test hooks with `claude --debug`
+5. Test hooks with `codex --debug`
 
 ### Hook Validation at Startup
 
-Hooks are validated when Claude Code starts:
+Hooks are validated when Codex CLI starts:
 - Invalid JSON in hooks.json causes loading failure
 - Missing scripts cause warnings
 - Syntax errors reported in debug mode
@@ -602,7 +602,7 @@ Use `/hooks` command to review loaded hooks in current session.
 ### Enable Debug Mode
 
 ```bash
-claude --debug
+codex --debug
 ```
 
 Look for hook registration, execution logs, input/output JSON, and timing information.
@@ -692,7 +692,7 @@ Development tools in `scripts/`:
 
 - **Official Docs**: https://docs.claude.com/en/docs/claude-code/hooks
 - **Examples**: See security-guidance plugin in marketplace
-- **Testing**: Use `claude --debug` for detailed logs
+- **Testing**: Use `codex --debug` for detailed logs
 - **Validation**: Use `jq` to validate hook JSON output
 
 ## Implementation Workflow
@@ -706,7 +706,7 @@ To implement hooks in a plugin:
 5. Use ${CLAUDE_PLUGIN_ROOT} for all file references
 6. Validate configuration with `scripts/validate-hook-schema.sh hooks/hooks.json`
 7. Test hooks with `scripts/test-hook.sh` before deployment
-8. Test in Claude Code with `claude --debug`
+8. Test in Codex CLI with `codex --debug`
 9. Document hooks in plugin README
 
 Focus on prompt-based hooks for most use cases. Reserve command hooks for performance-critical or deterministic checks.

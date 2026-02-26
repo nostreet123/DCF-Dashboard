@@ -27,7 +27,7 @@ This analyzes your request and creates `.claude/hookify.warn-rm.local.md`.
 
 **No restart needed!** Rules take effect on the very next tool use.
 
-Ask Claude to run a command that should trigger the rule:
+Ask Codex to run a command that should trigger the rule:
 ```
 Run rm -rf /tmp/test
 ```
@@ -123,7 +123,7 @@ Ensure credentials are not hardcoded and file is in .gitignore.
 
 - **`bash`**: Triggers on Bash tool commands
 - **`file`**: Triggers on Edit, Write, MultiEdit tools
-- **`stop`**: Triggers when Claude wants to stop (for completion checks)
+- **`stop`**: Triggers when Codex wants to stop (for completion checks)
 - **`prompt`**: Triggers on user prompt submission
 - **`all`**: Triggers on all events
 
@@ -166,7 +166,7 @@ This command can cause data loss. Operation blocked for safety.
 Please verify the exact path and use a safer approach.
 ```
 
-**This rule blocks the operation** - Claude will not be allowed to execute these commands.
+**This rule blocks the operation** - Codex will not be allowed to execute these commands.
 
 ### Example 2: Warn About Debug Code
 
@@ -184,7 +184,7 @@ action: warn
 Remember to remove debugging statements before committing.
 ```
 
-**This rule warns but allows** - Claude sees the message but can still proceed.
+**This rule warns but allows** - Codex sees the message but can still proceed.
 
 ### Example 3: Require Tests Before Stopping
 
@@ -205,7 +205,7 @@ conditions:
 Before stopping, please run tests to verify your changes work correctly.
 ```
 
-**This blocks Claude from stopping** if no test commands appear in the session transcript. Enable only when you want strict enforcement.
+**This blocks Codex from stopping** if no test commands appear in the session transcript. Enable only when you want strict enforcement.
 
 ## Advanced Usage
 
@@ -288,7 +288,7 @@ rm .claude/hookify.my-rule.local.md
 
 ## Installation
 
-This plugin is part of the Claude Code Marketplace. It should be auto-discovered when the marketplace is installed.
+This plugin is part of the Codex CLI Marketplace. It should be auto-discovered when the marketplace is installed.
 
 **Manual testing:**
 ```bash
