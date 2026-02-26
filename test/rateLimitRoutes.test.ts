@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ConvexHttpClient } from "convex/browser";
 
+import { GET as companyFactsGet } from "../app/api/company/facts/route";
 import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
 import { GET as companySearchGet } from "../app/api/company/search/route";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
@@ -8,6 +9,7 @@ import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
+const originalFactsLimit = process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE;
 const originalPreviewLimit = process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
 const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
 const originalConvexUrl = process.env.CONVEX_URL;
@@ -19,6 +21,7 @@ let restoreSecurityMock: (() => void) | null = null;
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
+  process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = "1";
   process.env.CONVEX_URL = "https://example.convex.cloud";
@@ -62,6 +65,11 @@ afterEach(() => {
     delete process.env.DCF_ENGINE_URL;
   } else {
     process.env.DCF_ENGINE_URL = originalDcfEngineUrl;
+  }
+  if (originalFactsLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE;
+  } else {
+    process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE = originalFactsLimit;
   }
   if (originalPreviewLimit === undefined) {
     delete process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
@@ -115,6 +123,51 @@ describe("route rate limiting", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
+  });
+
+  test("limits company facts requests per trusted client ip", async () => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          symbol: "AAPL",
+          cik: "0000320193",
+          updated_at: Date.now(),
+          statements: [],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    const headers = { "x-real-ip": "203.0.113.12" };
+    const first = await companyFactsGet(
+      new Request("http://localhost/api/company/facts?symbol=AAPL", {
+        headers,
+      }),
+    );
+    const second = await companyFactsGet(
+      new Request("http://localhost/api/company/facts?symbol=AAPL", {
+        headers,
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("returns RATE_LIMIT_UNAVAILABLE when rate-limit backend is unavailable", async () => {
+    delete process.env.CONVEX_URL;
+    delete process.env.DAMODARAN_SYNC_TOKEN;
+
+    const response = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-real-ip": "203.0.113.13" },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.code).toBe("RATE_LIMIT_UNAVAILABLE");
   });
 
   test("cf-connecting-ip takes precedence over x-forwarded-for for bucketing", async () => {
