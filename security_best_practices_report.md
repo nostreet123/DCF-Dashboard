@@ -335,3 +335,7 @@ The remaining findings are lower-severity hygiene issues.
 | SBP-006: `.env.local` committed to repo | **Resolved** | `.env.local` was already untracked at time of remediation (not present in `git ls-files`). No action required. |
 | SBP-007: Rate limiter trusts spoofable `x-forwarded-for` | **Remediated** | `clientIdentifier` in `rateLimit.ts` now prefers `cf-connecting-ip` → `x-real-ip` → `x-forwarded-for`. Test added in `test/rateLimitRoutes.test.ts`. |
 | SBP-008: `unsafe-inline` in CSP `script-src` | **Remediated** | Per-request nonce CSP implemented in `middleware.ts`; `app/layout.tsx` reads nonce from request header and passes it to `<script nonce={nonce} />`; `next.config.mjs` static CSP block removed. `style-src 'unsafe-inline'` retained (inline React `style={{...}}` props). |
+
+### Merge Reconciliation Note (2026-02-26)
+
+- During PR #19 rebase conflict resolution, security-critical auth/rate-limit files were aligned to the latest `main` implementations to avoid regressions.
