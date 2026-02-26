@@ -226,7 +226,9 @@ export default defineSchema({
     windowStartMs: v.number(),
     count: v.number(),
     updatedAt: v.number(),
-  }).index("by_key", ["key"]),
+  })
+    .index("by_key", ["key"])
+    .index("by_updatedAt", ["updatedAt"]),
 
   // -----------------------------
   // Operational logs
