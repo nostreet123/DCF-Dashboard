@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
-from dcf_engine.reference.provider import ReferenceProvider
-from dcf_engine.reference.provider import RowRef
+from dcf_engine.reference.provider import ReferenceProvider, RowRef
 from dcf_engine.reference.profiles.base import MetricResolution
 from dcf_engine.reference.profiles import wacc as wacc_profile
 from dcf_engine.reference.profiles import taxrate as taxrate_profile
