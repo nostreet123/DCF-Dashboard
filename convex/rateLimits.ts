@@ -9,7 +9,6 @@ export const check = mutation({
     key: v.string(),
     windowMs: v.number(),
     maxRequests: v.number(),
-    nowMs: v.optional(v.number()),
   },
   returns: v.object({
     limited: v.boolean(),
@@ -21,7 +20,20 @@ export const check = mutation({
 
     const maxRequests = Math.max(1, Math.floor(args.maxRequests));
     const windowMs = Math.max(1, Math.floor(args.windowMs));
-    const nowMs = args.nowMs ?? Date.now();
+    const nowMs = Date.now();
+    const staleAfterMs = Math.max(windowMs * 10, 15 * 60_000);
+    const staleCutoffMs = nowMs - staleAfterMs;
+
+    if (staleCutoffMs > 0) {
+      const staleRows = await ctx.db
+        .query("rateLimits")
+        .withIndex("by_updatedAt", (q) => q.lt("updatedAt", staleCutoffMs))
+        .take(25);
+
+      for (const staleRow of staleRows) {
+        await ctx.db.delete(staleRow._id);
+      }
+    }
 
     const existing = await ctx.db
       .query("rateLimits")
