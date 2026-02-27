@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import time
@@ -70,13 +71,65 @@ _compute_rate_limiter = _WindowRateLimiter(
 )
 
 
+def _trusted_proxy_mode() -> str:
+    mode = os.getenv("DCF_TRUSTED_PROXY_MODE", "off").strip().lower()
+    if mode in {"off", "allowlist"}:
+        return mode
+    return "off"
+
+
+def _trusted_proxy_networks() -> list[ipaddress._BaseNetwork]:
+    raw = os.getenv("DCF_TRUSTED_PROXY_CIDRS", "")
+    networks: list[ipaddress._BaseNetwork] = []
+    for token in raw.split(","):
+        candidate = token.strip()
+        if not candidate:
+            continue
+        try:
+            network = ipaddress.ip_network(candidate, strict=False)
+        except ValueError:
+            logger.warning("Ignoring invalid trusted proxy CIDR: %s", candidate)
+            continue
+        networks.append(network)
+    return networks
+
+
+def _normalize_ip(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = ipaddress.ip_address(stripped)
+    except ValueError:
+        return None
+    if isinstance(parsed, ipaddress.IPv6Address) and parsed.ipv4_mapped is not None:
+        return str(parsed.ipv4_mapped)
+    return str(parsed)
+
+
+def _is_trusted_proxy(remote_ip: str | None) -> bool:
+    if _trusted_proxy_mode() != "allowlist":
+        return False
+    normalized_remote = _normalize_ip(remote_ip)
+    if not normalized_remote:
+        return False
+    parsed_remote = ipaddress.ip_address(normalized_remote)
+    return any(parsed_remote in network for network in _trusted_proxy_networks())
+
+
 def _client_id(request: Request) -> str:
+    remote = _normalize_ip(request.client.host if request.client else None)
+    fallback = remote or "unknown"
+    if not _is_trusted_proxy(remote):
+        return fallback
+
     forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        ip = forwarded_for.split(",")[0].strip()
-        if ip:
-            return ip
-    return request.client.host if request.client else "unknown"
+    if not forwarded_for:
+        return fallback
+    forwarded = _normalize_ip(forwarded_for.split(",")[0])
+    return forwarded or fallback
 
 
 def _enforce_dcf_rate_limit(request: Request) -> None:

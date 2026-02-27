@@ -81,7 +81,7 @@ describe("dcf run persistence auth", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "cf-connecting-ip": "203.0.113.60",
+          "x-vercel-forwarded-for": "203.0.113.60",
         },
         body: JSON.stringify({ requestId: "req-1" }),
       }),
@@ -120,7 +120,7 @@ describe("dcf run persistence auth", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "cf-connecting-ip": "203.0.113.61",
+          "x-vercel-forwarded-for": "203.0.113.61",
           ...authHeaders,
         },
         body,

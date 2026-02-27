@@ -68,7 +68,7 @@ describe("API error sanitization", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "cf-connecting-ip": "203.0.113.50",
+          "x-vercel-forwarded-for": "203.0.113.50",
         },
         body: JSON.stringify({}),
       }),
@@ -90,7 +90,7 @@ describe("API error sanitization", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "cf-connecting-ip": "203.0.113.51",
+          "x-vercel-forwarded-for": "203.0.113.51",
         },
         body: JSON.stringify({}),
       }),
@@ -104,7 +104,7 @@ describe("API error sanitization", () => {
 
     const response = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL", {
-        headers: { "cf-connecting-ip": "203.0.113.52" },
+        headers: { "x-vercel-forwarded-for": "203.0.113.52" },
       }),
     );
     const json = await response.json();
@@ -119,7 +119,7 @@ describe("API error sanitization", () => {
 
     const response = await companyFactsGet(
       new Request("http://localhost/api/company/facts?symbol=AAPL", {
-        headers: { "cf-connecting-ip": "203.0.113.53" },
+        headers: { "x-vercel-forwarded-for": "203.0.113.53" },
       }),
     );
     const json = await response.json();
