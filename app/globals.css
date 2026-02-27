@@ -76,14 +76,14 @@
   color-scheme: light;
 
   /* Base colors */
-  --bg-base: #ece9e2;
-  --bg-canvas: #e6e1d8;
+  --bg-base: #dcd7ce;
+  --bg-canvas: #d4cfc5;
   --surface: #faf8f3;
   --surface-raised: #ffffff;
   --surface-elevated: #f2eee5;
   --surface-hover: #f4f0e8;
-  --border: rgba(36, 29, 20, 0.14);
-  --border-strong: rgba(36, 29, 20, 0.24);
+  --border: rgba(36, 29, 20, 0.18);
+  --border-strong: rgba(36, 29, 20, 0.28);
 
   /* Text colors */
   --text-primary: #201a13;
