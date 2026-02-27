@@ -28,6 +28,7 @@
 }
 
 .yAxisLabel {
+  flex-shrink: 0;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   display: flex;
@@ -42,6 +43,7 @@
 
 .heatmapContainer {
   flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: center;
   overflow-x: auto;

@@ -24,7 +24,7 @@ export default async function RootLayout({
     >
       <head>
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- intentional: must block render to set theme before first paint */}
-        <script src="/theme-init.js" nonce={nonce} />
+        <script src="/theme-init.js" nonce={nonce} suppressHydrationWarning />
       </head>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
