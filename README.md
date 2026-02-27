@@ -16,6 +16,11 @@ DCF compute routes (Next.js → FastAPI):
 - `POST /api/dcf/preview` (compute only)
 - `POST /api/dcf/run` (compute + persist run to Convex)
 
+Rate-limit identity defaults:
+- Next.js API routes trust `x-vercel-forwarded-for` by default (`RATE_LIMIT_IDENTITY_SOURCE=vercel`).
+- FastAPI `/dcf/compute` uses socket client IP by default (`DCF_TRUSTED_PROXY_MODE=off`).
+- Enable compatibility/proxy modes explicitly via `.env.example` settings when running outside default deployment assumptions.
+
 Monte Carlo (optional):
 - Add `?mc=fast|default|high|off` to either endpoint.
   - `fast`: 1,000 sims

@@ -105,3 +105,123 @@ def test_dcf_compute_serializes_scenario_assumptions_with_camel_case_keys() -> N
     assumptions = response.json()["base"]["assumptions"]
     assert "revenueGrowth" in assumptions
     assert "revenue_growth" not in assumptions
+
+
+def _install_single_request_limiter(monkeypatch: pytest.MonkeyPatch) -> None:
+    limiter = service_app._WindowRateLimiter(max_requests=1, window_seconds=60.0)
+    monkeypatch.setattr(service_app, "_compute_rate_limiter", limiter)
+
+
+def test_dcf_compute_rate_limit_ignores_xff_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_single_request_limiter(monkeypatch)
+    monkeypatch.delenv("DCF_TRUSTED_PROXY_MODE", raising=False)
+    monkeypatch.delenv("DCF_TRUSTED_PROXY_CIDRS", raising=False)
+    direct_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
+
+    first = direct_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.1"},
+    )
+    second = direct_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.2"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_dcf_compute_rate_limit_uses_xff_for_trusted_proxy_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_single_request_limiter(monkeypatch)
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
+    proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
+
+    first = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.1"},
+    )
+    second = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.2"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+
+def test_dcf_compute_rate_limit_rejects_xff_from_untrusted_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_single_request_limiter(monkeypatch)
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.99/32")
+    untrusted_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
+
+    first = untrusted_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.1"},
+    )
+    second = untrusted_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.2"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_dcf_compute_rate_limit_uses_leftmost_ip_for_multi_hop_xff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_single_request_limiter(monkeypatch)
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
+    proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
+
+    first = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.10, 198.51.100.70"},
+    )
+    second = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "203.0.113.10, 198.51.100.71"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_dcf_compute_rate_limit_falls_back_on_malformed_xff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_single_request_limiter(monkeypatch)
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
+    monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
+    proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
+
+    first = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "not-an-ip"},
+    )
+    second = proxy_client.post(
+        "/dcf/compute",
+        json=_valid_dcf_payload(),
+        headers={"x-forwarded-for": "still-not-an-ip"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
