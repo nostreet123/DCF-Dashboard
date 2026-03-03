@@ -65,6 +65,9 @@ After each meaningful task:
 
 ## Task Updates
 
+- 2026-03-02: Performed a follow-up consistency pass on `DATA_MODEL.md` and `documentation/CODEBASE_MAP.md` to align tone, cross-references, and section framing after the source-backed rewrite, while keeping the newly corrected technical content intact.
+- 2026-03-02: Rewrote `DATA_MODEL.md` and `documentation/CODEBASE_MAP.md` to match the current repo: corrected the Convex schema/table grouping, replaced stale frontend/Python inventories and API descriptions with code-backed summaries, updated Next.js route behavior (`/api/dcf/preview`, internal persistence auth, `GET`/`POST` company facts), and aligned docs locations to `documentation/` plus `docs/`.
+- 2026-03-02: Inspected `DATA_MODEL.md` and `documentation/CODEBASE_MAP.md` to summarize the current architecture and data model; noted documentation drift where the codebase map lists `docs/` as the documentation directory even though active repo docs also live under `documentation/` and the inspected map itself is stored there.
 - 2026-02-24: Applied `superpowers:receiving-code-review` fixes for PR #16 feedback by adding targeted logic tests for dialog focus wrapping and dashboard compute-timer behavior, and by replacing shared `defaultAssumptions` usage with `createDefaultAssumptions()` in `RightPanel` to avoid shared mutable defaults.
 - 2026-02-24: Resolved repo `tsc --noEmit` breakage by adding Bun type support, enabling `.ts` import compatibility in TS config, and aligning strict test fixture types in Convex/unit tests; verified with passing typecheck and targeted Bun test runs.
 - 2026-02-24: Incorporated follow-up review feedback by moving Bun type references from global TS config to Bun test files and replacing `as unknown as typeof fetch` test mocks with typed `createMockFetch` helpers that preserve `fetch.preconnect`.
