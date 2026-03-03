@@ -1,3 +1,5 @@
+import { createInternalPersistenceHeaders } from "@/app/api/_lib/internalAuth";
+
 export class DcfEngineHttpError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -88,8 +90,26 @@ export const fetchDcfEngine = async <T>(
 ): Promise<T> => {
   const baseUrl = resolveBaseUrl();
   const headers = new Headers(init?.headers);
+  const secret = process.env.DCF_ENGINE_INTERNAL_KEY;
+  const body =
+    typeof init?.body === "string"
+      ? init.body
+      : init?.body === undefined || init?.body === null
+        ? ""
+        : String(init.body);
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+  if (secret) {
+    const authHeaders = createInternalPersistenceHeaders({
+      secret,
+      method: init?.method ?? "GET",
+      url: `${baseUrl}${path}`,
+      body,
+    });
+    for (const [name, value] of Object.entries(authHeaders)) {
+      headers.set(name, value);
+    }
   }
   const response = await fetch(`${baseUrl}${path}`, {
     cache: "no-store",

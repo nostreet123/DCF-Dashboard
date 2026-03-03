@@ -3,7 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import { normalizeOptionalSymbol, normalizePositiveIntegerLimit } from "./normalization";
 import { findExistingByRequestId } from "./requestIdDedupe";
-import { hasValidSyncToken, requireSyncToken } from "./syncAuth";
+import { requireSyncToken } from "./syncAuth";
 
 const TraceStorage = v.union(
   v.literal("none"),
@@ -90,33 +90,12 @@ const runSummary = (run: any) => {
   return summary;
 };
 
-const redactedRunSummary = (run: any) => {
-  const summary = runSummary(run);
-  summary.inputs = {};
-  summary.traceStorage = "none";
-  if ("normalizedInputs" in summary) {
-    delete summary.normalizedInputs;
-  }
-  if ("provenance" in summary) {
-    delete summary.provenance;
-  }
-  if ("requestId" in summary) {
-    delete summary.requestId;
-  }
-  if ("error" in summary) {
-    delete summary.error;
-  }
-  if ("traceId" in summary) {
-    delete summary.traceId;
-  }
-  if ("traceByteSize" in summary) {
-    delete summary.traceByteSize;
-  }
-  return summary;
-};
-
 const normalizeLimit = (requested: number | undefined) =>
   normalizePositiveIntegerLimit(requested, 50, 200);
+
+export const requireValuationReadAccess = (syncToken: string | undefined) => {
+  requireSyncToken(syncToken);
+};
 
 export const create = mutation({
   args: {
@@ -265,19 +244,13 @@ export const get = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const isAuthorized = hasValidSyncToken(args.syncToken);
+    requireValuationReadAccess(args.syncToken);
     const run = await ctx.db.get(args.runId);
     if (!run) {
       return null;
     }
     if (!args.includeTrace) {
-      return { run: isAuthorized ? runSummary(run) : redactedRunSummary(run) };
-    }
-    if (!isAuthorized) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid sync token",
-      });
+      return { run: runSummary(run) };
     }
     if (run.traceStorage === "inline") {
       return { run };
@@ -301,7 +274,7 @@ export const listBySymbol = query({
   },
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
-    const isAuthorized = hasValidSyncToken(args.syncToken);
+    requireValuationReadAccess(args.syncToken);
     const limit = normalizeLimit(args.limit);
     if (args.regionCode) {
       const runs = await ctx.db
@@ -313,9 +286,7 @@ export const listBySymbol = query({
         )
         .order("desc")
         .take(limit);
-      return runs.map((run) =>
-        isAuthorized ? runSummary(run) : redactedRunSummary(run),
-      );
+      return runs.map((run) => runSummary(run));
     }
     const runs = await ctx.db
       .query("valuationRuns")
@@ -324,9 +295,7 @@ export const listBySymbol = query({
       )
       .order("desc")
       .take(limit);
-    return runs.map((run) =>
-      isAuthorized ? runSummary(run) : redactedRunSummary(run),
-    );
+    return runs.map((run) => runSummary(run));
   },
 });
 
@@ -338,7 +307,7 @@ export const listByTicker = query({
   },
   returns: v.array(valuationRunValidator),
   handler: async (ctx, args) => {
-    const isAuthorized = hasValidSyncToken(args.syncToken);
+    requireValuationReadAccess(args.syncToken);
     const symbol = normalizeOptionalSymbol(args.symbol);
     if (!symbol) {
       throw new ConvexError({
@@ -352,8 +321,6 @@ export const listByTicker = query({
       .withIndex("by_symbol_createdAt", (q: any) => q.eq("symbol", symbol))
       .order("desc")
       .take(limit);
-    return runs.map((run) =>
-      isAuthorized ? runSummary(run) : redactedRunSummary(run),
-    );
+    return runs.map((run) => runSummary(run));
   },
 });
