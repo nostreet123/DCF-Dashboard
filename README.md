@@ -16,6 +16,11 @@ DCF compute routes (Next.js → FastAPI):
 - `POST /api/dcf/preview` (compute only)
 - `POST /api/dcf/run` (compute + persist run to Convex)
 
+Internal service auth:
+- Next.js signs all FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured.
+- FastAPI rejects unsigned direct requests when `DCF_ENGINE_INTERNAL_KEY` is set.
+- FastAPI docs are disabled by default; set `DCF_ENGINE_EXPOSE_DOCS=1` only for local/dev use.
+
 Rate-limit identity defaults:
 - Next.js API routes trust `x-vercel-forwarded-for` by default (`RATE_LIMIT_IDENTITY_SOURCE=vercel`).
 - FastAPI `/dcf/compute` uses socket client IP by default (`DCF_TRUSTED_PROXY_MODE=off`).
@@ -61,3 +66,13 @@ If enabled, responses include `monteCarlo` with summary percentiles and a small 
   - **Library** button opens Dataset Library + Run History.
   - **Assumptions** button opens slider controls + sensitivity drivers.
   - **Search** button opens mobile search overlay.
+
+## Public Repo Hardening
+
+If this repository is made public, keep these GitHub settings in place:
+
+- Require approval for workflow runs from public forks before untrusted PR code executes in Actions.
+- Protect `main` with required status checks, at least one approval, and code owner review for sensitive paths in `.github/CODEOWNERS`.
+- Keep GitHub Actions default workflow permissions read-only unless a specific workflow needs more.
+- Do not use `pull_request_target` to check out or run code from untrusted pull requests.
+- Keep `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` scoped to scheduled or manually triggered workflows, never PR workflows.
