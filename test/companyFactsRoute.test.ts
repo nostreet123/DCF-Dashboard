@@ -46,7 +46,7 @@ describe("company facts route auth boundaries", () => {
   test("GET returns bad request when symbol is missing", async () => {
     const response = await GET(
       new Request("http://localhost/api/company/facts", {
-        headers: { "cf-connecting-ip": "203.0.113.40" },
+        headers: { "x-vercel-forwarded-for": "203.0.113.40" },
       }),
     );
     expect(response.status).toBe(400);
@@ -57,7 +57,7 @@ describe("company facts route auth boundaries", () => {
     const response = await POST(
       new Request("http://localhost/api/company/facts?symbol=AAPL", {
         method: "POST",
-        headers: { "cf-connecting-ip": "203.0.113.41" },
+        headers: { "x-vercel-forwarded-for": "203.0.113.41" },
       }),
     );
     expect(response.status).toBe(401);
@@ -78,7 +78,7 @@ describe("company facts route auth boundaries", () => {
         method: "POST",
         headers: {
           ...authHeaders,
-          "cf-connecting-ip": "203.0.113.42",
+          "x-vercel-forwarded-for": "203.0.113.42",
         },
       }),
     );

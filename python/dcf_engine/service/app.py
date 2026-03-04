@@ -1,19 +1,29 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import time
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 import requests
 
+from dcf_engine.service.internal_auth import require_internal_request
 from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
 from dcf_engine.workbench.run import run_workbench
 from dcf_engine.workbench.schema import WorkbenchRequest, WorkbenchResponse
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="DCF Engine Service", version="0.1.0")
+_DOCS_ENABLED = os.getenv("DCF_ENGINE_EXPOSE_DOCS") == "1"
+
+app = FastAPI(
+    title="DCF Engine Service",
+    version="0.1.0",
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
+)
 
 SEC_SEARCH_FAILURE_DETAIL = "SEC search failed"
 SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
@@ -70,13 +80,65 @@ _compute_rate_limiter = _WindowRateLimiter(
 )
 
 
+def _trusted_proxy_mode() -> str:
+    mode = os.getenv("DCF_TRUSTED_PROXY_MODE", "off").strip().lower()
+    if mode in {"off", "allowlist"}:
+        return mode
+    return "off"
+
+
+def _trusted_proxy_networks() -> list[ipaddress._BaseNetwork]:
+    raw = os.getenv("DCF_TRUSTED_PROXY_CIDRS", "")
+    networks: list[ipaddress._BaseNetwork] = []
+    for token in raw.split(","):
+        candidate = token.strip()
+        if not candidate:
+            continue
+        try:
+            network = ipaddress.ip_network(candidate, strict=False)
+        except ValueError:
+            logger.warning("Ignoring invalid trusted proxy CIDR: %s", candidate)
+            continue
+        networks.append(network)
+    return networks
+
+
+def _normalize_ip(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = ipaddress.ip_address(stripped)
+    except ValueError:
+        return None
+    if isinstance(parsed, ipaddress.IPv6Address) and parsed.ipv4_mapped is not None:
+        return str(parsed.ipv4_mapped)
+    return str(parsed)
+
+
+def _is_trusted_proxy(remote_ip: str | None) -> bool:
+    if _trusted_proxy_mode() != "allowlist":
+        return False
+    normalized_remote = _normalize_ip(remote_ip)
+    if not normalized_remote:
+        return False
+    parsed_remote = ipaddress.ip_address(normalized_remote)
+    return any(parsed_remote in network for network in _trusted_proxy_networks())
+
+
 def _client_id(request: Request) -> str:
+    remote = _normalize_ip(request.client.host if request.client else None)
+    fallback = remote or "unknown"
+    if not _is_trusted_proxy(remote):
+        return fallback
+
     forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        ip = forwarded_for.split(",")[0].strip()
-        if ip:
-            return ip
-    return request.client.host if request.client else "unknown"
+    if not forwarded_for:
+        return fallback
+    forwarded = _normalize_ip(forwarded_for.split(",")[0])
+    return forwarded or fallback
 
 
 def _enforce_dcf_rate_limit(request: Request) -> None:
@@ -93,6 +155,7 @@ def _reset_rate_limiter_for_tests() -> None:
 def sec_search(
     q: str = Query(..., min_length=1),
     limit: int = Query(10, ge=1, le=50),
+    _: None = Depends(require_internal_request),
 ) -> dict[str, object]:
     try:
         results = search_companies(q, limit=limit)
@@ -103,7 +166,10 @@ def sec_search(
 
 
 @app.get("/sec/facts")
-def sec_facts(symbol: str = Query(..., min_length=1)) -> object:
+def sec_facts(
+    symbol: str = Query(..., min_length=1),
+    _: None = Depends(require_internal_request),
+) -> object:
     try:
         return fetch_company_facts(symbol)
     except ValueError as exc:
@@ -119,7 +185,11 @@ def sec_facts(symbol: str = Query(..., min_length=1)) -> object:
     response_model=WorkbenchResponse,
     response_model_by_alias=True,
 )
-def dcf_compute(payload: WorkbenchRequest, request: Request) -> WorkbenchResponse:
+def dcf_compute(
+    payload: WorkbenchRequest,
+    request: Request,
+    _: None = Depends(require_internal_request),
+) -> WorkbenchResponse:
     _enforce_dcf_rate_limit(request)
     try:
         return run_workbench(payload)
