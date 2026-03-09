@@ -43,7 +43,7 @@ export function RightPanel({
     <aside className={panelClass}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Assumptions</h3>
-        <div className={styles.sliders}>
+        <div className={styles.sliders} aria-live="polite">
           <Slider
             label="Revenue Growth"
             value={assumptions.revenueGrowth}
@@ -137,12 +137,7 @@ export function RightPanel({
         )}
       </div>
 
-      {isCalculating && (
-        <div className={styles.calculating}>
-          <div className={styles.spinner} />
-          <span>Recalculating...</span>
-        </div>
-      )}
+      {isCalculating ? <div className={styles.calculatingLabel}>Recalculating assumptions...</div> : null}
     </aside>
   );
 }
