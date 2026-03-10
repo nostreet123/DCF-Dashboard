@@ -63,6 +63,7 @@ function DashboardShell() {
         onSearch={handleSearch}
         onOpenLibrary={openLibraryDrawer}
         onOpenAssumptions={openAssumptionsDrawer}
+        disableSearchShortcut={activeDrawer !== null}
       />
 
       <LeftRail
