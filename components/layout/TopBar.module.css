@@ -23,13 +23,15 @@
   align-items: center;
   gap: var(--spacing-xs);
   flex-shrink: 0;
+  color: var(--text-tertiary);
 }
 
 .logoText {
   display: none;
-  font-family: var(--font-serif);
-  font-size: 1.125rem;
-  font-weight: 400;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
 }
 
@@ -39,7 +41,7 @@
   gap: var(--spacing-sm);
   padding: 0.5rem 0.625rem;
   background: var(--surface-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 26%, var(--border));
   border-radius: var(--radius-lg);
 }
 
@@ -104,8 +106,8 @@
 
 .searchInput:focus {
   outline: none;
-  border-color: var(--accent-teal);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 25%, transparent);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-gold) 18%, transparent);
 }
 
 .searchKbd {
@@ -140,6 +142,11 @@
   border: 1px solid var(--border);
   background: var(--surface-elevated);
   box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .mobileIconBtn:hover {
@@ -147,7 +154,12 @@
   background: var(--surface-hover);
 }
 
+.mobileIconBtn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
 .modeToggle {
+  display: none;
   max-width: 100%;
   min-width: 0;
 }
@@ -211,6 +223,10 @@
 
   .center {
     display: flex;
+  }
+
+  .modeToggle {
+    display: inline-flex;
   }
 
   .libraryTrigger,

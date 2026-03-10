@@ -1,9 +1,6 @@
 .section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-xl);
-  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-xl) 0 0;
+  border-top: 1px solid var(--border);
 }
 
 .header {
@@ -11,8 +8,10 @@
 }
 
 .title {
-  font-family: var(--font-serif);
-  font-size: 18px;
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   margin-bottom: var(--spacing-xs);
 }
@@ -47,6 +46,10 @@
   display: flex;
   justify-content: center;
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-xl) + 2px);
+  padding: var(--spacing-lg);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
 }
 
 .xAxisLabel {
