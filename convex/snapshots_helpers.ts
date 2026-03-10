@@ -1,5 +1,6 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import type { DatabaseReader } from "./_generated/server";
 
 export const MAX_IDENTITY_BATCH = 100;
 export const DEFAULT_REBUILD_LIMIT = 200;
@@ -44,7 +45,7 @@ export const normalizeLimit = (
   return Math.min(parsed, maxLimit);
 };
 
-export const pickBestSnapshot = (snapshots: SnapshotPick[]) => {
+export const pickBestSnapshot = <T extends SnapshotPick>(snapshots: T[]): T | null => {
   if (snapshots.length === 0) {
     return null;
   }
@@ -75,14 +76,14 @@ export const pickBestSnapshot = (snapshots: SnapshotPick[]) => {
 };
 
 export const findSnapshotByIdentity = async (
-  ctx: { db: any },
+  ctx: { db: DatabaseReader },
   datasetKey: string,
   regionCode: string,
   asOfDate: string,
 ) => {
   const matches = await ctx.db
     .query("snapshots")
-    .withIndex("by_identity", (q: any) =>
+    .withIndex("by_identity", (q) =>
       q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
     )
     .take(3);
@@ -97,7 +98,7 @@ export const findSnapshotByIdentity = async (
   }
   const allMatches = await ctx.db
     .query("snapshots")
-    .withIndex("by_identity", (q: any) =>
+    .withIndex("by_identity", (q) =>
       q.eq("datasetKey", datasetKey).eq("regionCode", regionCode).eq("asOfDate", asOfDate),
     )
     .collect();

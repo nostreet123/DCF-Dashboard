@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
+import { pickBestSnapshot, type SnapshotPick } from "../snapshots_helpers";
 
 export const RetentionDays = v.object({
   syncLogs: v.optional(v.number()),
@@ -98,42 +99,10 @@ export const DuplicateCleanupGroupLimit = 1;
 export const DuplicateCleanupDeleteLimit = 500;
 
 export const pickSnapshotKeepId = (
-  snapshots: Array<{
-    _id: Id<"snapshots">;
-    activeBuildId?: string;
-    pendingBuildId?: string;
-    downloadedAt?: number;
-    parsedAt?: number;
-    _creationTime: number;
-  }>,
-) => {
-  if (snapshots.length === 0) {
-    return null;
-  }
-  const score = (snapshot: typeof snapshots[number]) => [
-    snapshot.activeBuildId ? 1 : 0,
-    snapshot.pendingBuildId ? 1 : 0,
-    snapshot.downloadedAt ?? 0,
-    snapshot.parsedAt ?? 0,
-    snapshot._creationTime,
-  ];
-  let best = snapshots[0];
-  let bestScore = score(best);
-  for (let i = 1; i < snapshots.length; i += 1) {
-    const candidate = snapshots[i];
-    const candidateScore = score(candidate);
-    for (let j = 0; j < candidateScore.length; j += 1) {
-      if (candidateScore[j] > bestScore[j]) {
-        best = candidate;
-        bestScore = candidateScore;
-        break;
-      }
-      if (candidateScore[j] < bestScore[j]) {
-        break;
-      }
-    }
-  }
-  return best._id;
+  snapshots: SnapshotPick[],
+): Id<"snapshots"> | null => {
+  const best = pickBestSnapshot(snapshots);
+  return best?._id ?? null;
 };
 
 export const pickAssetKeepId = (

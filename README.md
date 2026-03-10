@@ -40,13 +40,14 @@ If enabled, responses include `monteCarlo` with summary percentiles and a small 
 - Next/Node: `bun test`
 - E2E (Playwright):
   - one-time: `bun run test:e2e:install`
-  - run: `bun run test:e2e`
+  - run: `bun run test:e2e` (stable default: production-style `build + start`)
   - mobile (emulated): `bun run test:e2e:mobile`
   - iPhone 15 Pro Max (emulated): `bun run test:e2e:iphone`
   - refresh iPhone visual baseline: `bun run test:e2e:iphone:update-visual`
-  - realtime QA (headed): `bun run test:e2e:ui`
-  - realtime QA (slower): `bun run test:e2e:qa`
+  - realtime QA (headed/dev server): `bun run test:e2e:ui`
+  - realtime QA (slower/dev server): `bun run test:e2e:qa`
   - note: `bun run test:e2e:ui` serves Playwright UI on `http://localhost:9323`.
+  - note: the bundled npm scripts pin `PLAYWRIGHT_PORT=3101` so local e2e runs do not collide with a dev app already using `3000`.
   - note: on Linux without `$DISPLAY`, headed runs auto-fallback to Xvfb (not visually observable).
 - Convex: `bunx convex typecheck`
 - Python: `cd python && pytest`
