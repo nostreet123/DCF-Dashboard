@@ -1,10 +1,19 @@
 import { defineConfig, devices } from '@playwright/test';
+import {
+  resolvePlaywrightPort,
+  resolvePlaywrightWebServer,
+} from './lib/utils/playwrightWebServer';
 
-const port = Number(process.env.PLAYWRIGHT_PORT || process.env.PORT || 3000);
+const port = resolvePlaywrightPort(process.env);
 const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const baseURL = externalBaseUrl ?? `http://localhost:${port}`;
-const startWebServer = !externalBaseUrl;
 const slowMo = Number(process.env.PLAYWRIGHT_SLOWMO || 0);
+const webServer = resolvePlaywrightWebServer({
+  port,
+  externalBaseUrl,
+  mode: process.env.PLAYWRIGHT_WEB_SERVER_MODE,
+  env: process.env,
+});
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,18 +30,7 @@ export default defineConfig({
       slowMo,
     },
   },
-  webServer: startWebServer
-    ? {
-        command: `bun run dev -- -p ${port}`,
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-        env: {
-          ...process.env,
-          NEXT_TELEMETRY_DISABLED: '1',
-        },
-      }
-    : undefined,
+  webServer: webServer ?? undefined,
   projects: [
     {
       name: 'chromium',

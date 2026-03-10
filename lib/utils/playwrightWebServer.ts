@@ -13,20 +13,21 @@ interface PlaywrightWebServerConfig {
   url: string;
 }
 
-export const DEFAULT_PLAYWRIGHT_PORT = 3101;
+export const DEFAULT_PLAYWRIGHT_PORT = 3000;
 
 export function resolvePlaywrightPort(env: NodeJS.ProcessEnv): number {
-  const candidate = env.PLAYWRIGHT_PORT;
-  if (!candidate) {
-    return DEFAULT_PLAYWRIGHT_PORT;
+  for (const candidate of [env.PLAYWRIGHT_PORT, env.PORT]) {
+    if (!candidate) {
+      continue;
+    }
+
+    const parsed = Number.parseInt(candidate, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
 
-  const parsed = Number.parseInt(candidate, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return DEFAULT_PLAYWRIGHT_PORT;
-  }
-
-  return parsed;
+  return DEFAULT_PLAYWRIGHT_PORT;
 }
 
 export function resolvePlaywrightWebServer({
