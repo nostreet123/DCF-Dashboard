@@ -15,11 +15,12 @@ test('desktop assumptions slider triggers recalculation', async ({ page }, testI
   const recalculating = page.getByText('Recalculating assumptions...');
   await expect(recalculating).toBeVisible({ timeout: 3_000 });
 
-  // Keep the same control active while recomputing to verify we can adjust repeatedly.
-  await setRange(revenueGrowthSlider, 14);
   await expect(revenueGrowthSlider).toBeVisible();
   await expect(revenueGrowthSlider).toBeFocused();
-  await expect(revenueGrowthSlider).toHaveValue('14');
+  await expect(revenueGrowthSlider).toHaveValue('13');
+  await page.keyboard.press('ArrowRight');
+  await expect(revenueGrowthSlider).toBeFocused();
+  await expect(revenueGrowthSlider).toHaveValue('13.5');
 
   await expect(recalculating).toBeHidden({ timeout: 6_000 });
 });
