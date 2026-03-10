@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import { enforceRateLimit, getRateLimitPerMinute } from "@/app/api/_lib/rateLimit";
 
 const MAX_LIMIT = 50;
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
     return errorResponse("RATE_LIMITED", "Too many requests", 429, {
       "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
     });
+  }
+
+  if (!(await isInternalPersistenceRequest(request))) {
+    return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
 
   const { searchParams } = new URL(request.url);

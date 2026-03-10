@@ -177,6 +177,55 @@ test('changing company clears the selected historical replay', async ({ page }, 
   await expect(historyButton).toBeHidden();
 });
 
+test('replay fetch failures keep the run history list visible', async ({ page }, testInfo) => {
+  test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
+
+  await page.route('**/api/dcf/history?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        runs: [
+          {
+            _id: 'run-123',
+            _creationTime: 1700000000001,
+            createdAt: 1700000000000,
+            engineVersion: 'workbench-v1',
+            status: 'success',
+            symbol: 'AAPL',
+            inputs: {},
+            traceStorage: 'inline',
+            resultSummary: {
+              base: { fairValuePerShare: 222.22 },
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/dcf/history/run-123', async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 'NOT_FOUND',
+        message: 'Valuation run not found',
+      }),
+    });
+  });
+
+  await page.goto('/');
+
+  const historyButton = page.getByRole('button', { name: /AAPL \$222\.22/i });
+  await expect(historyButton).toBeVisible();
+  await historyButton.click();
+
+  await expect(historyButton).toBeVisible();
+  await expect(page.getByText('Valuation run not found')).toHaveCount(0);
+  await expect(page.getByText('AAPL Fair Value')).toBeVisible();
+});
+
 test('run history errors are shown with friendly copy', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 

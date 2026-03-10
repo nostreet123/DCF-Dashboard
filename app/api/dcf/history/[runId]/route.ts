@@ -1,5 +1,6 @@
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import { enforceRateLimit, getRateLimitPerMinute } from "@/app/api/_lib/rateLimit";
 import { normalizeValuationReplay } from "@/lib/valuationHistory";
 
@@ -24,6 +25,10 @@ export async function GET(
     return errorResponse("RATE_LIMITED", "Too many requests", 429, {
       "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
     });
+  }
+
+  if (!(await isInternalPersistenceRequest(request))) {
+    return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
 
   const { runId } = await context.params;

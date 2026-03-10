@@ -52,6 +52,10 @@ const HISTORY_REQUEST_DEBOUNCE_MS = 200;
 export function toUserFacingValuationHistoryError({
   status,
 }: ValuationHistoryErrorInput): Error {
+  if (status === 401) {
+    return new Error('Recent runs are unavailable in this environment.');
+  }
+
   if (status === 429) {
     return new Error('Recent runs are temporarily unavailable. Try again in a moment.');
   }

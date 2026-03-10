@@ -114,6 +114,15 @@ describe("valuation history hook helpers", () => {
     ).toBe("Recent runs are temporarily unavailable. Try again in a moment.");
   });
 
+  test("maps unauthorized history reads to a non-technical unavailable message", () => {
+    expect(
+      toUserFacingValuationHistoryError({
+        status: 401,
+        message: "Unauthorized",
+      }).message,
+    ).toBe("Recent runs are unavailable in this environment.");
+  });
+
   test("keeps a generic fallback for unexpected history failures", () => {
     expect(
       toUserFacingValuationHistoryError({

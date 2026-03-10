@@ -3,11 +3,16 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ConvexHttpClient } from "convex/browser";
 
 import { GET } from "../app/api/dcf/history/[runId]/route";
+import {
+  createInternalPersistenceHeaders,
+  resetInternalAuthStateForTests,
+} from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalQuery = ConvexHttpClient.prototype.query;
 
 let restoreSecurityMock: (() => void) | null = null;
@@ -21,6 +26,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetRateLimitStateForTests();
+  resetInternalAuthStateForTests();
   ConvexHttpClient.prototype.query = originalQuery;
   if (restoreSecurityMock) {
     restoreSecurityMock();
@@ -37,13 +43,44 @@ afterEach(() => {
   } else {
     process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
   }
+  if (originalInternalPersistenceKey === undefined) {
+    delete process.env.INTERNAL_PERSISTENCE_KEY;
+  } else {
+    process.env.INTERNAL_PERSISTENCE_KEY = originalInternalPersistenceKey;
+  }
 });
 
 describe("valuation history detail route", () => {
+  test("rejects unsigned replay reads", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+
+    const response = await GET(
+      new Request("http://localhost/api/dcf/history/run-123", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.89" },
+      }),
+      { params: Promise.resolve({ runId: "run-123" }) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   test("returns bad request for missing run id", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url: "http://localhost/api/dcf/history/",
+      body: "",
+      nonce: "history-detail-missing",
+      timestampMs: Date.now(),
+    });
     const response = await GET(
       new Request("http://localhost/api/dcf/history/", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.90" },
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.90",
+        },
       }),
       { params: Promise.resolve({ runId: "" }) },
     );
@@ -53,6 +90,7 @@ describe("valuation history detail route", () => {
   });
 
   test("passes syncToken and includeTrace to Convex", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     let capturedName: string | undefined;
     let capturedArgs: Record<string, unknown> | undefined;
     ConvexHttpClient.prototype.query = async (name, args) => {
@@ -61,9 +99,21 @@ describe("valuation history detail route", () => {
       return null;
     };
 
+    const url = "http://localhost/api/dcf/history/run-123";
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      body: "",
+      nonce: "history-detail-query",
+      timestampMs: Date.now(),
+    });
     await GET(
-      new Request("http://localhost/api/dcf/history/run-123", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.91" },
+      new Request(url, {
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.91",
+        },
       }),
       { params: Promise.resolve({ runId: "run-123" }) },
     );
@@ -77,6 +127,7 @@ describe("valuation history detail route", () => {
   });
 
   test("returns normalized replay payload from inline trace", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     ConvexHttpClient.prototype.query = async () => ({
       run: {
         _id: "run-123",
@@ -96,9 +147,21 @@ describe("valuation history detail route", () => {
       },
     });
 
+    const url = "http://localhost/api/dcf/history/run-123";
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      body: "",
+      nonce: "history-detail-inline",
+      timestampMs: Date.now(),
+    });
     const response = await GET(
-      new Request("http://localhost/api/dcf/history/run-123", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.92" },
+      new Request(url, {
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.92",
+        },
       }),
       { params: Promise.resolve({ runId: "run-123" }) },
     );
@@ -121,11 +184,24 @@ describe("valuation history detail route", () => {
   });
 
   test("returns not found when Convex has no matching run", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     ConvexHttpClient.prototype.query = async () => null;
 
+    const url = "http://localhost/api/dcf/history/run-404";
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      body: "",
+      nonce: "history-detail-not-found",
+      timestampMs: Date.now(),
+    });
     const response = await GET(
-      new Request("http://localhost/api/dcf/history/run-404", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.93" },
+      new Request(url, {
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.93",
+        },
       }),
       { params: Promise.resolve({ runId: "run-404" }) },
     );
@@ -135,6 +211,7 @@ describe("valuation history detail route", () => {
   });
 
   test("returns conflict when run has no replayable trace", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     ConvexHttpClient.prototype.query = async () => ({
       run: {
         _id: "run-error",
@@ -145,9 +222,21 @@ describe("valuation history detail route", () => {
       },
     });
 
+    const url = "http://localhost/api/dcf/history/run-error";
+    const headers = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      body: "",
+      nonce: "history-detail-conflict",
+      timestampMs: Date.now(),
+    });
     const response = await GET(
-      new Request("http://localhost/api/dcf/history/run-error", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.94" },
+      new Request(url, {
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.94",
+        },
       }),
       { params: Promise.resolve({ runId: "run-error" }) },
     );

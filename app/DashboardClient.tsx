@@ -38,7 +38,6 @@ function DashboardShell() {
     mockPriceHistory,
     openAssumptionsDrawer,
     openLibraryDrawer,
-    replayError,
     runHistory,
     runHistoryError,
     scenario,
@@ -52,7 +51,7 @@ function DashboardShell() {
     datasets: mockDatasets,
     runHistory,
     isRunHistoryLoading,
-    runHistoryError: replayError?.message ?? runHistoryError?.message ?? null,
+    runHistoryError: runHistoryError?.message ?? null,
     selectedRunId: selectedRunId ?? undefined,
     selectedCompanyId: activeCompanyId ?? undefined,
   };
