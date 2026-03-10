@@ -97,10 +97,9 @@ export function SensitivityHeatmap({
     <div className={className} style={{ width: '100%', maxWidth: `${totalWidth}px` }}>
       <svg
         width="100%"
-        height="auto"
         viewBox={`0 0 ${totalWidth} ${totalHeight}`}
         preserveAspectRatio="xMinYMin meet"
-        style={{ display: 'block', maxWidth: `${totalWidth}px` }}
+        style={{ display: 'block', width: '100%', height: 'auto', maxWidth: `${totalWidth}px` }}
       >
         {/* Column headers (Growth offsets) */}
         <g

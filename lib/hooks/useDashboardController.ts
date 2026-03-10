@@ -110,10 +110,17 @@ export function useDashboardController() {
     error: runHistoryError,
   } = useValuationHistory(activeTicker, 5);
   const {
+    activeRunId: replayRunId,
     replay,
     isLoading: isReplayLoading,
     error: replayError,
   } = useValuationReplay(selectedRunId ?? undefined);
+
+  useEffect(() => {
+    if (replayError && selectedRunId && replayRunId === selectedRunId) {
+      setSelectedRunId(null);
+    }
+  }, [replayError, replayRunId, selectedRunId, setSelectedRunId]);
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {

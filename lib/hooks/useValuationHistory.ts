@@ -29,6 +29,7 @@ type ValuationHistoryResult = {
 };
 
 type ValuationReplayResult = {
+  activeRunId: string | null;
   replay: ValuationReplaySnapshot | null;
   isLoading: boolean;
   error: Error | null;
@@ -155,6 +156,7 @@ function useValuationHistoryRequest(lookup: ValuationHistoryLookup): ValuationHi
 }
 
 function useValuationReplayRequest(runId: string | undefined): ValuationReplayResult {
+  const [activeRunId, setActiveRunId] = useState<string | null>(runId ?? null);
   const [replay, setReplay] = useState<ValuationReplaySnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -164,6 +166,7 @@ function useValuationReplayRequest(runId: string | undefined): ValuationReplayRe
 
   useEffect(() => {
     if (!path) {
+      setActiveRunId(null);
       setReplay(null);
       setIsLoading(false);
       setError(null);
@@ -172,6 +175,8 @@ function useValuationReplayRequest(runId: string | undefined): ValuationReplayRe
 
     const controller = new AbortController();
     let didCancel = false;
+    setActiveRunId(runId ?? null);
+    setReplay(null);
     setIsLoading(true);
     setError(null);
 
@@ -223,9 +228,10 @@ function useValuationReplayRequest(runId: string | undefined): ValuationReplayRe
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [path, refreshToken]);
+  }, [path, refreshToken, runId]);
 
   return {
+    activeRunId,
     replay,
     isLoading,
     error,

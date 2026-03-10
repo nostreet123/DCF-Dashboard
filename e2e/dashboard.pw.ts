@@ -222,8 +222,10 @@ test('replay fetch failures keep the run history list visible', async ({ page },
   await historyButton.click();
 
   await expect(historyButton).toBeVisible();
+  await expect(historyButton).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByText('Valuation run not found')).toHaveCount(0);
   await expect(page.getByText('AAPL Fair Value')).toBeVisible();
+  await expect(page.getByRole('main').getByText('$145.20')).toBeVisible();
 });
 
 test('run history errors are shown with friendly copy', async ({ page }, testInfo) => {
