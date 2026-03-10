@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCurrentAssumptions, useWorkbench } from '@/lib/contexts/WorkbenchContext';
 import {
   applyAssumptionChange,
@@ -31,12 +31,12 @@ export function useDashboardController() {
     updateAssumption,
     isComputing,
     setIsComputing,
+    error,
+    setError,
     result,
   } = useWorkbench();
   const assumptions = useCurrentAssumptions();
   const {
-    viewMode,
-    setViewMode,
     activeDrawer,
     openLibraryDrawer,
     openAssumptionsDrawer,
@@ -46,6 +46,7 @@ export function useDashboardController() {
   } = useWorkbenchViewState();
 
   const computeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -59,6 +60,7 @@ export function useDashboardController() {
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {
+      setError(null);
       applyAssumptionChange(computeTimeoutRef, {
         key,
         value,
@@ -66,35 +68,53 @@ export function useDashboardController() {
         updateAssumption,
       });
     },
-    [setIsComputing, updateAssumption],
+    [setError, setIsComputing, updateAssumption],
   );
 
   const handleSelectCompany = useCallback(
     (id: string, source: RailVariant) => {
       const company = resolveActiveCompany(mockDatasets, id);
+      setError(null);
+      setSearchFeedback(null);
       selectCompany(company?.id ?? id, company?.ticker ?? null);
       onCompanySelected(source);
     },
-    [onCompanySelected, selectCompany],
+    [onCompanySelected, selectCompany, setError],
   );
 
   const handleSelectRun = useCallback(
     (id: string, source: RailVariant) => {
+      setError(null);
       setSelectedRunId(id);
       onRunSelected(source);
     },
-    [onRunSelected, setSelectedRunId],
+    [onRunSelected, setError, setSelectedRunId],
   );
 
   const handleSearch = useCallback(
     (query: string) => {
-      const company = findMockCompanyBySearch(query);
-      if (company) {
-        selectCompany(company.id, company.ticker);
+      const normalizedQuery = query.trim();
+      if (!normalizedQuery) {
+        setSearchFeedback('Enter a ticker or company name to search.');
+        return;
       }
+
+      const company = findMockCompanyBySearch(normalizedQuery);
+      if (company) {
+        setError(null);
+        setSearchFeedback(null);
+        selectCompany(company.id, company.ticker);
+        return;
+      }
+
+      setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
     },
-    [selectCompany],
+    [selectCompany, setError],
   );
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, [setError]);
 
   const currentValue = result?.fairValue ?? scenarioValues[scenario];
   const histogram = result?.histogram ?? mockHistogram;
@@ -106,7 +126,9 @@ export function useDashboardController() {
     activeTicker,
     assumptions,
     closeDrawers,
+    clearError,
     currentValue,
+    error,
     handleAssumptionChange,
     handleSearch,
     handleSelectCompany,
@@ -119,9 +141,8 @@ export function useDashboardController() {
     openAssumptionsDrawer,
     openLibraryDrawer,
     scenario,
+    searchFeedback,
     setScenario,
-    setViewMode,
     valuationRange,
-    viewMode,
   };
 }
