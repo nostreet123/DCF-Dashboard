@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  HamburgerMenuIcon,
+  MagnifyingGlassIcon,
+  MixerHorizontalIcon,
+} from '@radix-ui/react-icons';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ModeToggle } from '@/components/ui/ModeToggle';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { Sparkline } from '@/components/charts/Sparkline';
+import {
+  getSearchShortcutLabelForPlatform,
+  resolveSearchShortcutAction,
+} from '@/lib/utils/topBarShortcut';
 import styles from './TopBar.module.css';
 
 interface TopBarProps {
@@ -16,14 +25,12 @@ interface TopBarProps {
   currentPrice?: number;
   /** Search callback */
   onSearch?: (query: string) => void;
-  /** Mode change callback */
-  onModeChange?: (mode: 'workbench' | 'investor') => void;
-  /** Current mode */
-  mode?: 'workbench' | 'investor';
   /** Opens left mobile drawer */
   onOpenLibrary?: () => void;
   /** Opens right mobile drawer */
   onOpenAssumptions?: () => void;
+  /** Disables the global search shortcut while another modal owns focus */
+  disableSearchShortcut?: boolean;
 }
 
 /**
@@ -35,13 +42,15 @@ export function TopBar({
   priceHistory,
   currentPrice,
   onSearch,
-  onModeChange,
-  mode = 'workbench',
   onOpenLibrary,
   onOpenAssumptions,
+  disableSearchShortcut = false,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const overlaySearchRef = useRef<HTMLInputElement>(null);
+  const shortcutLabel = getSearchShortcutLabel();
 
   const submitSearch = () => {
     onSearch?.(searchQuery);
@@ -51,6 +60,50 @@ export function TopBar({
     e.preventDefault();
     submitSearch();
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (disableSearchShortcut) {
+        return;
+      }
+
+      const desktopSearch = desktopSearchRef.current;
+      const action = resolveSearchShortcutAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        defaultPrevented: event.defaultPrevented,
+        targetIsEditable: isEditableTarget(event.target),
+        hasVisibleDesktopSearch: Boolean(desktopSearch && desktopSearch.offsetParent !== null),
+        isOverlayOpen: isSearchOverlayOpen,
+      });
+
+      if (!action) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (action === 'focus-inline') {
+        focusAndSelect(desktopSearch);
+        return;
+      }
+
+      if (action === 'focus-overlay') {
+        focusAndSelect(overlaySearchRef.current);
+        return;
+      }
+
+      setIsSearchOverlayOpen(true);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [disableSearchShortcut, isSearchOverlayOpen]);
 
   return (
     <>
@@ -62,17 +115,15 @@ export function TopBar({
             onClick={onOpenLibrary}
             aria-label="Open library panel"
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <path d="M3 4H15M3 9H15M3 14H15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            <HamburgerMenuIcon width={18} height={18} aria-hidden="true" />
           </button>
 
           <div className={styles.logo}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="3" width="7" height="7" rx="1" fill="var(--accent-gold)" />
-              <rect x="14" y="3" width="7" height="7" rx="1" fill="var(--accent-teal)" opacity="0.6" />
-              <rect x="3" y="14" width="7" height="7" rx="1" fill="var(--accent-teal)" opacity="0.6" />
-              <rect x="14" y="14" width="7" height="7" rx="1" fill="var(--accent-gold)" />
+              <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor" opacity="0.55" />
+              <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor" opacity="0.35" />
+              <rect x="14" y="14" width="7" height="7" rx="1" fill="var(--accent-gold)" opacity="0.86" />
             </svg>
             <span className={styles.logoText}>DCF Lab</span>
           </div>
@@ -97,24 +148,23 @@ export function TopBar({
 
         <div className={styles.center}>
           <form onSubmit={handleSearchSubmit} className={styles.searchForm}>
-            <svg
+            <MagnifyingGlassIcon
               className={styles.searchIcon}
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-            >
-              <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M11 11L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+              width={16}
+              height={16}
+              aria-hidden="true"
+            />
             <input
+              ref={desktopSearchRef}
               type="text"
               placeholder="Search companies..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={styles.searchInput}
             />
-            <kbd className={styles.searchKbd}>⌘K</kbd>
+            <kbd className={styles.searchKbd} suppressHydrationWarning>
+              {shortcutLabel}
+            </kbd>
           </form>
         </div>
 
@@ -125,17 +175,15 @@ export function TopBar({
             onClick={() => setIsSearchOverlayOpen(true)}
             aria-label="Open search"
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.6" />
-              <path d="M12 12L15 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            <MagnifyingGlassIcon width={18} height={18} aria-hidden="true" />
           </button>
 
           <ModeToggle
-            value={mode}
-            onChange={(m) => onModeChange?.(m)}
+            value="workbench"
             className={styles.modeToggle}
             labels={{ workbench: 'Workbench', investor: 'Investor' }}
+            disabledModes={{ investor: true }}
+            statusLabels={{ investor: 'Soon' }}
           />
 
           <button
@@ -144,14 +192,7 @@ export function TopBar({
             onClick={onOpenAssumptions}
             aria-label="Open assumptions panel"
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <line x1="4" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              <line x1="4" y1="9" x2="14" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              <line x1="4" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              <circle cx="7" cy="4" r="1.4" fill="var(--accent-gold)" />
-              <circle cx="11" cy="9" r="1.4" fill="var(--accent-gold)" />
-              <circle cx="8" cy="14" r="1.4" fill="var(--accent-gold)" />
-            </svg>
+            <MixerHorizontalIcon width={18} height={18} aria-hidden="true" />
           </button>
 
           <ThemeToggle className={styles.themeToggle} />
@@ -164,7 +205,39 @@ export function TopBar({
         onChange={setSearchQuery}
         onSubmit={submitSearch}
         onClose={() => setIsSearchOverlayOpen(false)}
+        inputRef={overlaySearchRef}
       />
     </>
   );
+}
+
+function focusAndSelect(input: HTMLInputElement | null) {
+  if (!input) {
+    return;
+  }
+
+  input.focus();
+  input.select();
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tag = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tag === 'input' ||
+    tag === 'textarea' ||
+    tag === 'select'
+  );
+}
+
+function getSearchShortcutLabel(): string {
+  if (typeof navigator === 'undefined') {
+    return 'Ctrl+K';
+  }
+
+  return getSearchShortcutLabelForPlatform(`${navigator.platform} ${navigator.userAgent}`);
 }
