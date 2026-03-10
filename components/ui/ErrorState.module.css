@@ -15,8 +15,10 @@
 }
 
 .title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   margin: 0 0 var(--spacing-sm);
 }

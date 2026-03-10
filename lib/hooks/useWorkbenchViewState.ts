@@ -15,12 +15,10 @@ export interface DatasetItem {
 export type DatasetGroups = Record<string, DatasetItem[]>;
 
 export interface WorkbenchViewState {
-  viewMode: ViewMode;
   activeDrawer: DrawerState;
 }
 
 export type WorkbenchViewAction =
-  | { type: 'set_view_mode'; mode: ViewMode }
   | { type: 'open_library_drawer' }
   | { type: 'open_assumptions_drawer' }
   | { type: 'close_drawers' }
@@ -28,7 +26,6 @@ export type WorkbenchViewAction =
   | { type: 'select_run'; source: RailVariant };
 
 export const initialWorkbenchViewState: WorkbenchViewState = {
-  viewMode: 'workbench',
   activeDrawer: null,
 };
 
@@ -37,8 +34,6 @@ export function workbenchViewReducer(
   action: WorkbenchViewAction,
 ): WorkbenchViewState {
   switch (action.type) {
-    case 'set_view_mode':
-      return { ...state, viewMode: action.mode };
     case 'open_library_drawer':
       return { ...state, activeDrawer: 'library' };
     case 'open_assumptions_drawer':
@@ -70,10 +65,6 @@ export function resolveActiveCompany(
 export function useWorkbenchViewState() {
   const [state, dispatch] = useReducer(workbenchViewReducer, initialWorkbenchViewState);
 
-  const setViewMode = useCallback((mode: ViewMode) => {
-    dispatch({ type: 'set_view_mode', mode });
-  }, []);
-
   const openLibraryDrawer = useCallback(() => {
     dispatch({ type: 'open_library_drawer' });
   }, []);
@@ -101,6 +92,5 @@ export function useWorkbenchViewState() {
     onRunSelected,
     openAssumptionsDrawer,
     openLibraryDrawer,
-    setViewMode,
   };
 }
