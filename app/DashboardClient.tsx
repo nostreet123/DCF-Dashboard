@@ -32,20 +32,27 @@ function DashboardShell() {
     handleSelectRun,
     histogram,
     isComputing,
+    isReplayLoading,
+    isRunHistoryLoading,
     mockDatasets,
     mockPriceHistory,
-    mockRunHistory,
     openAssumptionsDrawer,
     openLibraryDrawer,
+    runHistory,
+    runHistoryError,
     scenario,
     searchFeedback,
+    selectedRunId,
     setScenario,
     valuationRange,
   } = useDashboardController();
 
   const leftRailSharedProps = {
     datasets: mockDatasets,
-    runHistory: mockRunHistory,
+    runHistory,
+    isRunHistoryLoading,
+    runHistoryError: runHistoryError?.message ?? null,
+    selectedRunId: selectedRunId ?? undefined,
     selectedCompanyId: activeCompanyId ?? undefined,
   };
   const rightPanelSharedProps = {
@@ -92,7 +99,7 @@ function DashboardShell() {
               message={error.message || 'Something went wrong while updating this workspace.'}
               onRetry={clearError}
             />
-          ) : isComputing ? (
+          ) : isComputing || isReplayLoading ? (
             <ValueCardSkeleton />
           ) : (
             <ValueCard

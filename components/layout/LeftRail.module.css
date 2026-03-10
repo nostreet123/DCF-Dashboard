@@ -168,6 +168,12 @@
   border-color: var(--accent-gold);
 }
 
+.historyItemSelected {
+  border-color: rgba(212, 168, 83, 0.65);
+  background: rgba(212, 168, 83, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(212, 168, 83, 0.18);
+}
+
 .historyItem:active {
   transform: translateY(1px) scale(0.99);
 }

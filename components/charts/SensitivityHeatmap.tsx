@@ -71,11 +71,12 @@ export function SensitivityHeatmap({
   const labelWidth = 48;
   const labelHeight = 24;
   const gap = 2;
+  const footerHeight = 18;
 
   const gridWidth = numCols * (cellSize + gap) - gap;
   const gridHeight = numRows * (cellSize + gap) - gap;
   const totalWidth = labelWidth + 8 + gridWidth;
-  const totalHeight = labelHeight + 8 + gridHeight;
+  const totalHeight = labelHeight + 8 + gridHeight + footerHeight;
 
   // Determine text color based on background brightness
   const getTextColor = (bgColor: string): string => {
@@ -93,12 +94,12 @@ export function SensitivityHeatmap({
   };
 
   return (
-    <div className={className} style={{ overflowX: 'auto' }}>
+    <div className={className} style={{ width: '100%', maxWidth: `${totalWidth}px` }}>
       <svg
-        width={totalWidth}
-        height={totalHeight}
+        width="100%"
         viewBox={`0 0 ${totalWidth} ${totalHeight}`}
-        style={{ display: 'block' }}
+        preserveAspectRatio="xMinYMin meet"
+        style={{ display: 'block', width: '100%', height: 'auto', maxWidth: `${totalWidth}px` }}
       >
         {/* Column headers (Growth offsets) */}
         <g
@@ -173,22 +174,21 @@ export function SensitivityHeatmap({
             );
           })}
         </g>
-      </svg>
 
-      {/* Axis labels */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '8px',
-          paddingLeft: labelWidth + 8,
-          fontSize: '11px',
-          color: 'var(--text-tertiary)',
-        }}
-      >
-        <span>← Lower Growth</span>
-        <span>Higher Growth →</span>
-      </div>
+        <g
+          fill="var(--text-tertiary)"
+          fontSize="11"
+          fontFamily="var(--font-mono)"
+          dominantBaseline="middle"
+        >
+          <text x={labelWidth + 8} y={totalHeight - 7} textAnchor="start">
+            {'\u2190 Lower Growth'}
+          </text>
+          <text x={totalWidth} y={totalHeight - 7} textAnchor="end">
+            {'Higher Growth \u2192'}
+          </text>
+        </g>
+      </svg>
     </div>
   );
 }

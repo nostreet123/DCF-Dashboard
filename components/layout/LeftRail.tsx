@@ -1,6 +1,7 @@
 'use client';
 
 import { Accordion, AccordionItem } from '@/components/ui/Accordion';
+import type { ValuationHistoryItem } from '@/lib/hooks/useValuationHistory';
 import styles from './LeftRail.module.css';
 
 interface DatasetItem {
@@ -9,18 +10,17 @@ interface DatasetItem {
   ticker: string;
 }
 
-interface RunHistoryItem {
-  id: string;
-  timestamp: Date;
-  ticker: string;
-  value: number;
-}
-
 interface LeftRailProps {
   /** Grouped datasets by category */
   datasets?: Record<string, DatasetItem[]>;
   /** Recent valuation runs */
-  runHistory?: RunHistoryItem[];
+  runHistory?: ValuationHistoryItem[];
+  /** Whether run history is loading */
+  isRunHistoryLoading?: boolean;
+  /** Run history load error */
+  runHistoryError?: string | null;
+  /** Selected historical run ID */
+  selectedRunId?: string;
   /** Currently selected company ID */
   selectedCompanyId?: string;
   /** Company selection callback */
@@ -38,6 +38,9 @@ interface LeftRailProps {
 export function LeftRail({
   datasets,
   runHistory,
+  isRunHistoryLoading = false,
+  runHistoryError,
+  selectedRunId,
   selectedCompanyId,
   onSelectCompany,
   onSelectRun,
@@ -103,13 +106,20 @@ export function LeftRail({
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Run History</h3>
-        {runHistory && runHistory.length > 0 ? (
+        {isRunHistoryLoading ? (
+          <div className={styles.empty}>Loading recent runs...</div>
+        ) : runHistoryError ? (
+          <div className={styles.empty}>{runHistoryError}</div>
+        ) : runHistory && runHistory.length > 0 ? (
           <ul className={styles.historyList}>
-            {runHistory.slice(0, 5).map((run) => (
+            {runHistory.map((run) => (
               <li key={run.id}>
                 <button
-                  className={styles.historyItem}
+                  className={`${styles.historyItem} ${
+                    selectedRunId === run.id ? styles.historyItemSelected : ''
+                  }`}
                   onClick={() => onSelectRun?.(run.id)}
+                  aria-pressed={selectedRunId === run.id}
                 >
                   <div className={styles.historyTop}>
                     <span className={styles.historyTicker}>{run.ticker}</span>

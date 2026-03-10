@@ -7,6 +7,11 @@ import {
   clearComputeTimeout,
 } from '@/lib/hooks/dashboardControllerTiming';
 import {
+  type ValuationReplaySnapshot,
+  useValuationHistory,
+  useValuationReplay,
+} from '@/lib/hooks/useValuationHistory';
+import {
   resolveActiveCompany,
   type RailVariant,
   useWorkbenchViewState,
@@ -17,14 +22,56 @@ import {
   mockDatasets,
   mockHistogram,
   mockPriceHistory,
-  mockRunHistory,
   scenarioValues,
 } from '@/lib/workbench/mockData';
+
+type Histogram = {
+  binCenters: number[];
+  density: number[];
+};
+
+type LiveValuationResult = {
+  fairValue: number;
+  range: [number, number];
+  histogram: Histogram;
+  sensitivityMatrix: number[][];
+};
+
+export function resolveDisplayedValuationData({
+  scenario,
+  liveResult,
+  replaySnapshot,
+  scenarioFallbacks,
+  fallbackRange,
+  fallbackHistogram,
+}: {
+  scenario: 'base' | 'bull' | 'bear';
+  liveResult: LiveValuationResult | null;
+  replaySnapshot: ValuationReplaySnapshot | null;
+  scenarioFallbacks: Record<'base' | 'bull' | 'bear', number>;
+  fallbackRange: [number, number];
+  fallbackHistogram: Histogram;
+}) {
+  if (replaySnapshot) {
+    return {
+      currentValue: replaySnapshot.scenarios[scenario].fairValue,
+      valuationRange: replaySnapshot.range,
+      histogram: replaySnapshot.histogram,
+    };
+  }
+
+  return {
+    currentValue: liveResult?.fairValue ?? scenarioFallbacks[scenario],
+    valuationRange: liveResult?.range ?? fallbackRange,
+    histogram: liveResult?.histogram ?? fallbackHistogram,
+  };
+}
 
 export function useDashboardController() {
   const {
     scenario,
     selectedCompanyId,
+    selectedRunId,
     selectCompany,
     setScenario,
     setSelectedRunId,
@@ -57,6 +104,23 @@ export function useDashboardController() {
   const activeCompany = resolveActiveCompany(mockDatasets, selectedCompanyId);
   const activeCompanyId = activeCompany?.id ?? null;
   const activeTicker = activeCompany?.ticker ?? 'AAPL';
+  const {
+    runs: runHistory,
+    isLoading: isRunHistoryLoading,
+    error: runHistoryError,
+  } = useValuationHistory(activeTicker, 5);
+  const {
+    activeRunId: replayRunId,
+    replay,
+    isLoading: isReplayLoading,
+    error: replayError,
+  } = useValuationReplay(selectedRunId ?? undefined);
+
+  useEffect(() => {
+    if (replayError && selectedRunId && replayRunId === selectedRunId) {
+      setSelectedRunId(null);
+    }
+  }, [replayError, replayRunId, selectedRunId, setSelectedRunId]);
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {
@@ -116,9 +180,14 @@ export function useDashboardController() {
     setError(null);
   }, [setError]);
 
-  const currentValue = result?.fairValue ?? scenarioValues[scenario];
-  const histogram = result?.histogram ?? mockHistogram;
-  const valuationRange = result?.range ?? fallbackRange;
+  const { currentValue, histogram, valuationRange } = resolveDisplayedValuationData({
+    scenario,
+    liveResult: result,
+    replaySnapshot: replay,
+    scenarioFallbacks: scenarioValues,
+    fallbackRange,
+    fallbackHistogram: mockHistogram,
+  });
 
   return {
     activeCompanyId,
@@ -135,13 +204,18 @@ export function useDashboardController() {
     handleSelectRun,
     histogram,
     isComputing,
+    isReplayLoading,
+    isRunHistoryLoading,
     mockDatasets,
     mockPriceHistory,
-    mockRunHistory,
     openAssumptionsDrawer,
     openLibraryDrawer,
+    replayError,
+    runHistory,
+    runHistoryError,
     scenario,
     searchFeedback,
+    selectedRunId,
     setScenario,
     valuationRange,
   };
