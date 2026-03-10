@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, type MutableRefObject } from 'react';
 import { useDialogInteractions } from '@/lib/hooks/useDialogInteractions';
 import styles from './SearchOverlay.module.css';
 
@@ -10,6 +10,7 @@ interface SearchOverlayProps {
   onChange: (value: string) => void;
   onSubmit: () => void;
   onClose: () => void;
+  inputRef?: MutableRefObject<HTMLInputElement | null>;
 }
 
 export function SearchOverlay({
@@ -18,16 +19,27 @@ export function SearchOverlay({
   onChange,
   onSubmit,
   onClose,
+  inputRef,
 }: SearchOverlayProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLFormElement | null>(null);
+  const resolvedInputRef = inputRef ?? localInputRef;
+  const setInputRef = (node: HTMLInputElement | null) => {
+    localInputRef.current = node;
+    if (inputRef) {
+      inputRef.current = node;
+    }
+  };
 
   useDialogInteractions({
     open,
     onEscape: onClose,
-    initialFocusRef: inputRef,
+    containerRef: dialogRef,
+    initialFocusRef: resolvedInputRef,
+    trapFocus: true,
+    lockScroll: true,
     focusDelayMs: 10,
     selectOnFocus: true,
-    restoreFocus: false,
   });
 
   if (!open) {
@@ -37,6 +49,7 @@ export function SearchOverlay({
   return (
     <div className={styles.overlay} onClick={onClose} role="presentation">
       <form
+        ref={dialogRef}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
@@ -53,7 +66,7 @@ export function SearchOverlay({
         </label>
         <input
           id="mobile-search-input"
-          ref={inputRef}
+          ref={setInputRef}
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
