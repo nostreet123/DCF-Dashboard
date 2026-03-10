@@ -29,6 +29,8 @@ interface TopBarProps {
   onOpenLibrary?: () => void;
   /** Opens right mobile drawer */
   onOpenAssumptions?: () => void;
+  /** Disables the global search shortcut while another modal owns focus */
+  disableSearchShortcut?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export function TopBar({
   onSearch,
   onOpenLibrary,
   onOpenAssumptions,
+  disableSearchShortcut = false,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
@@ -60,6 +63,10 @@ export function TopBar({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (disableSearchShortcut) {
+        return;
+      }
+
       const desktopSearch = desktopSearchRef.current;
       const action = resolveSearchShortcutAction({
         key: event.key,
@@ -96,7 +103,7 @@ export function TopBar({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isSearchOverlayOpen]);
+  }, [disableSearchShortcut, isSearchOverlayOpen]);
 
   return (
     <>

@@ -26,6 +26,23 @@ test('mobile assumptions drawer slider recalculates and closes on escape', async
   await expect(page.getByRole('dialog', { name: 'Assumptions' })).toBeHidden();
 });
 
+test('mobile assumptions drawer keeps Ctrl+K trapped inside the modal', async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
+
+  await page.goto('/');
+
+  const assumptionsDrawer = await openDrawer(page, 'Assumptions');
+  const revenueGrowthSlider = assumptionsDrawer.getByRole('slider', { name: 'Revenue Growth' });
+  await revenueGrowthSlider.focus();
+  await expect(revenueGrowthSlider).toBeFocused();
+
+  await page.keyboard.press('Control+k');
+
+  await expect(page.getByRole('dialog', { name: 'Search companies' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Assumptions' })).toBeVisible();
+  await expect(revenueGrowthSlider).toBeFocused();
+});
+
 test('mobile search overlay closes with escape', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
