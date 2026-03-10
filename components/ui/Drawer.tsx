@@ -1,5 +1,6 @@
 'use client';
 
+import { Cross2Icon } from '@radix-ui/react-icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialogInteractions } from '@/lib/hooks/useDialogInteractions';
@@ -63,14 +64,7 @@ export function Drawer({
             aria-label={`Close ${title}`}
             onClick={onClose}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
+            <Cross2Icon width={16} height={16} aria-hidden="true" />
           </button>
         </header>
         <div className={styles.body}>{children}</div>
