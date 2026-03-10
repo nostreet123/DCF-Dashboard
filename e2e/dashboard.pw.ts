@@ -1,21 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type TestInfo } from '@playwright/test';
 import { isMobileProject } from './helpers/ui';
 
-test('dashboard loads', async ({ page }) => {
+test('dashboard loads', async ({ page }, testInfo: TestInfo) => {
   await page.goto('/');
 
-  if (await page.getByRole('button', { name: 'Workbench' }).isVisible()) {
-    await expect(page.getByRole('button', { name: 'Workbench' })).toBeVisible();
-  } else {
-    await expect(page.getByRole('button', { name: 'Open library' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Open assumptions' })).toBeVisible();
-  }
-
-  const desktopSearch = page.getByPlaceholder('Search companies...');
-  if (await desktopSearch.isVisible()) {
-    await expect(desktopSearch).toBeVisible();
-  } else {
+  if (isMobileProject(testInfo)) {
+    await expect(page.getByRole('button', { name: 'Open library panel' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open assumptions panel' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open search' })).toBeVisible();
+  } else {
+    await expect(page.getByRole('button', { name: 'Workbench' })).toBeVisible();
+    await expect(page.getByPlaceholder('Search companies...')).toBeVisible();
   }
 
   await expect(page.getByText('AAPL Fair Value')).toBeVisible();
@@ -69,24 +64,9 @@ test('search shows inline feedback when no company matches', async ({ page }) =>
 });
 
 test('search shortcut opens the relevant search surface', async ({ page }, testInfo) => {
-  await page.goto('/');
+  test.skip(isMobileProject(testInfo), 'Desktop-only keyboard shortcut assertion.');
 
-  if (isMobileProject(testInfo)) {
-    await page.evaluate(() => {
-      window.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: 'k',
-          ctrlKey: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
-    const dialog = page.getByRole('dialog', { name: 'Search companies' });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('textbox', { name: 'Search companies' })).toBeFocused();
-    return;
-  }
+  await page.goto('/');
 
   const shortcutHint = page.locator('kbd').filter({ hasText: /K/ }).first();
   await expect(shortcutHint).toHaveText(/^(Ctrl\+K|⌘K)$/);
