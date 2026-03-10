@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 
 import "./globals.css";
 import { Providers } from "./providers";
-import { jetbrainsMono, instrumentSerif, dmSans } from "./fonts";
+import { geist, jetbrainsMono } from "./fonts";
 
 export const metadata: Metadata = {
   title: "DCF Dashboard",
@@ -27,7 +27,7 @@ export default async function RootLayout({
         <script src="/theme-init.js" nonce={nonce} suppressHydrationWarning />
       </head>
       <body
-        className={`${dmSans.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
+        className={`${geist.variable} ${jetbrainsMono.variable}`}
       >
         <Providers>{children}</Providers>
       </body>

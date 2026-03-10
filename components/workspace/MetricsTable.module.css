@@ -1,9 +1,6 @@
 .container {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-xl);
-  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-xl) 0 0;
+  border-top: 1px solid var(--border);
 }
 
 .header {
@@ -11,15 +8,19 @@
 }
 
 .title {
-  font-family: var(--font-serif);
-  font-size: 18px;
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
 .tableWrapper {
   position: relative;
   overflow-x: auto;
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-xl) + 2px);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
   scrollbar-width: thin;
   scrollbar-color: var(--text-tertiary) transparent;
 }
@@ -108,7 +109,7 @@
 
 .table thead .stickyMetric {
   z-index: 5;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-elevated) 90%, transparent);
 }
 
 .table tbody tr:hover {
@@ -135,7 +136,7 @@
 
 @media (max-width: 768px) {
   .container {
-    padding: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
   }
 
   .table {

@@ -47,6 +47,7 @@ export function LeftRail({
     variant === 'drawer'
       ? `${styles.rail} ${styles.drawer}`
       : `${styles.rail} ${styles.docked}`;
+  const unavailableRegions = ['US', 'EU', 'APAC'] as const;
 
   return (
     <aside className={railClass}>
@@ -89,10 +90,13 @@ export function LeftRail({
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Region</h3>
         <div className={styles.regionSelector}>
-          <button className={`${styles.regionBtn} ${styles.active}`}>US</button>
-          <button className={styles.regionBtn}>EU</button>
-          <button className={styles.regionBtn}>APAC</button>
+          {unavailableRegions.map((region) => (
+            <button key={region} type="button" className={styles.regionBtn} disabled>
+              {region}
+            </button>
+          ))}
         </div>
+        <p className={styles.regionHelp}>Regional filtering unavailable in this prototype.</p>
       </div>
 
       <div className={styles.divider} />
