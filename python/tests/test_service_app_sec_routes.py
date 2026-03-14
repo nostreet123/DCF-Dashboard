@@ -35,6 +35,11 @@ def _valid_dcf_payload() -> dict[str, object]:
     }
 
 
+@pytest.fixture(autouse=True)
+def _allow_unsigned_engine_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DCF_ENGINE_ALLOW_UNSIGNED", "1")
+
+
 def test_sec_search_wraps_requests_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,6 +165,18 @@ def test_dcf_compute_rate_limit_ignores_xff_by_default(
 
     assert first.status_code == 200
     assert second.status_code == 429
+
+
+def test_dcf_compute_fails_closed_when_unsigned_mode_is_not_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DCF_ENGINE_ALLOW_UNSIGNED", raising=False)
+    monkeypatch.delenv("DCF_ENGINE_INTERNAL_KEY", raising=False)
+
+    response = client.post("/dcf/compute", json=_valid_dcf_payload())
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Service not configured"
 
 
 def test_dcf_compute_rate_limit_uses_xff_for_trusted_proxy_allowlist(

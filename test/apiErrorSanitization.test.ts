@@ -11,12 +11,14 @@ const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalQuery = ConvexHttpClient.prototype.query;
 
 let restoreSecurityMock: (() => void) | null = null;
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
+  process.env.DCF_ENGINE_ALLOW_UNSIGNED = "1";
   process.env.CONVEX_URL = "https://example.convex.cloud";
   process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
   const securityMock = installSecurityMutationsMock();
@@ -48,6 +50,11 @@ afterEach(() => {
     delete process.env.DAMODARAN_SYNC_TOKEN;
   } else {
     process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
+  if (originalAllowUnsigned === undefined) {
+    delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+  } else {
+    process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
   }
 });
 

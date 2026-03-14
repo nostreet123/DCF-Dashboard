@@ -1,4 +1,7 @@
-# Sensitive automation and data-mutation paths require maintainer review.
+# Default owner for the public repository.
+* @nostreet123
+
+# Sensitive automation and data-mutation paths require extra care.
 .github/** @nostreet123
 app/api/** @nostreet123
 convex/http.ts @nostreet123

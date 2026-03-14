@@ -9,6 +9,7 @@ const originalFetch = globalThis.fetch;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalInternalKey = process.env.INTERNAL_PERSISTENCE_KEY;
+const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 
 let restoreSecurityMock: (() => void) | null = null;
 let fallbackMutation:
@@ -17,6 +18,7 @@ let fallbackMutation:
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
+  process.env.DCF_ENGINE_ALLOW_UNSIGNED = "1";
   process.env.CONVEX_URL = "https://example.convex.cloud";
   process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
   process.env.INTERNAL_PERSISTENCE_KEY = "internal-key";
@@ -57,6 +59,11 @@ afterEach(() => {
     delete process.env.INTERNAL_PERSISTENCE_KEY;
   } else {
     process.env.INTERNAL_PERSISTENCE_KEY = originalInternalKey;
+  }
+  if (originalAllowUnsigned === undefined) {
+    delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+  } else {
+    process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
   }
 });
 

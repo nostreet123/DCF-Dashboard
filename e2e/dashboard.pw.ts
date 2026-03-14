@@ -237,7 +237,7 @@ test('run history errors are shown with friendly copy', async ({ page }, testInf
       contentType: 'application/json',
       body: JSON.stringify({
         code: 'UNTRUSTED_IDENTITY',
-        message: 'Trusted client IP header required',
+        message: 'Request origin could not be verified',
       }),
     });
   });
@@ -247,7 +247,7 @@ test('run history errors are shown with friendly copy', async ({ page }, testInf
   await expect(
     page.getByText('Recent runs are temporarily unavailable. Try again in a moment.'),
   ).toBeVisible();
-  await expect(page.getByText('Trusted client IP header required')).toHaveCount(0);
+  await expect(page.getByText('Request origin could not be verified')).toHaveCount(0);
 });
 
 test('rapid company switching does not spam history requests', async ({ page }, testInfo) => {

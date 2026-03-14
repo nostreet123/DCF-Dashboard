@@ -1,5 +1,6 @@
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { isIP } from "node:net";
+import { errorResponse } from "@/app/api/_lib/errors";
 
 type RateLimitRule = {
   key: string;
@@ -19,6 +20,12 @@ export type RateLimitReason =
   | "RATE_LIMITED"
   | "UNTRUSTED_IDENTITY"
   | "BACKEND_UNAVAILABLE";
+
+type RateLimitDecision = {
+  allowed: boolean;
+  retryAfterSeconds?: number;
+  reason?: RateLimitReason;
+};
 
 const REAL_IP_HEADER = "x-real-ip";
 const CF_CONNECTING_IP_HEADER = "cf-connecting-ip";
@@ -118,11 +125,7 @@ const hitRateLimitBucket = async (
 export const enforceRateLimit = async (
   request: Request,
   rule: RateLimitRule,
-): Promise<{
-  allowed: boolean;
-  retryAfterSeconds?: number;
-  reason?: RateLimitReason;
-}> => {
+): Promise<RateLimitDecision> => {
   const clientId = trustedClientIdentifier(request);
   if (!clientId) {
     return {
@@ -163,6 +166,27 @@ export const getRateLimitPerMinute = (envKey: string, defaultValue: number): num
     return defaultValue;
   }
   return parsed;
+};
+
+export const rateLimitErrorResponse = (decision: RateLimitDecision) => {
+  if (decision.reason === "UNTRUSTED_IDENTITY") {
+    return errorResponse(
+      "UNTRUSTED_IDENTITY",
+      "Request origin could not be verified",
+      429,
+      {
+        "Retry-After": String(decision.retryAfterSeconds ?? 60),
+      },
+    );
+  }
+
+  if (decision.reason === "BACKEND_UNAVAILABLE") {
+    return errorResponse("RATE_LIMIT_UNAVAILABLE", "Rate-limit backend unavailable", 503);
+  }
+
+  return errorResponse("RATE_LIMITED", "Too many requests", 429, {
+    "Retry-After": String(decision.retryAfterSeconds ?? 60),
+  });
 };
 
 export const resetRateLimitStateForTests = () => {

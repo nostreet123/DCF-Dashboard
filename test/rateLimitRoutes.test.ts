@@ -16,6 +16,7 @@ const originalRunLimit = process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE;
 const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalIdentityMode = process.env.RATE_LIMIT_IDENTITY_MODE;
 const originalIdentitySource = process.env.RATE_LIMIT_IDENTITY_SOURCE;
 const originalQuery = ConvexHttpClient.prototype.query;
@@ -31,6 +32,7 @@ let restoreSecurityMock: (() => void) | null = null;
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
+  process.env.DCF_ENGINE_ALLOW_UNSIGNED = "1";
   process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE = "1";
@@ -68,6 +70,11 @@ afterEach(() => {
     delete process.env.DAMODARAN_SYNC_TOKEN;
   } else {
     process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
+  if (originalAllowUnsigned === undefined) {
+    delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+  } else {
+    process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
   }
   if (originalIdentityMode === undefined) {
     delete process.env.RATE_LIMIT_IDENTITY_MODE;

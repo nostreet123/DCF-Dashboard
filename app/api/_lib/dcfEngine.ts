@@ -17,6 +17,8 @@ const resolveBaseUrl = () => {
   return baseUrl.replace(/\/+$/, "");
 };
 
+const allowUnsignedEngineRequests = () => process.env.DCF_ENGINE_ALLOW_UNSIGNED === "1";
+
 const extractErrorMessage = (data: unknown): string | null => {
   if (!data || typeof data !== "object") {
     return null;
@@ -91,6 +93,11 @@ export const fetchDcfEngine = async <T>(
   const baseUrl = resolveBaseUrl();
   const headers = new Headers(init?.headers);
   const secret = process.env.DCF_ENGINE_INTERNAL_KEY;
+  if (!secret && !allowUnsignedEngineRequests()) {
+    throw new Error(
+      "DCF_ENGINE_INTERNAL_KEY is required unless DCF_ENGINE_ALLOW_UNSIGNED=1",
+    );
+  }
   const body =
     typeof init?.body === "string"
       ? init.body

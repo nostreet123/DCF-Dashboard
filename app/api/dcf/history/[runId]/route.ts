@@ -1,7 +1,11 @@
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
-import { enforceRateLimit, getRateLimitPerMinute } from "@/app/api/_lib/rateLimit";
+import {
+  enforceRateLimit,
+  getRateLimitPerMinute,
+  rateLimitErrorResponse,
+} from "@/app/api/_lib/rateLimit";
 import { normalizeValuationReplay } from "@/lib/valuationHistory";
 
 export async function GET(
@@ -14,17 +18,7 @@ export async function GET(
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
-    if (rateLimit.reason === "UNTRUSTED_IDENTITY") {
-      return errorResponse("UNTRUSTED_IDENTITY", "Trusted client IP header required", 429, {
-        "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
-      });
-    }
-    if (rateLimit.reason === "BACKEND_UNAVAILABLE") {
-      return errorResponse("RATE_LIMIT_UNAVAILABLE", "Rate-limit backend unavailable", 503);
-    }
-    return errorResponse("RATE_LIMITED", "Too many requests", 429, {
-      "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
-    });
+    return rateLimitErrorResponse(rateLimit);
   }
 
   if (!(await isInternalPersistenceRequest(request))) {

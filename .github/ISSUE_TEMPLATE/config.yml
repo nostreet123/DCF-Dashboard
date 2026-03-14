@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security reporting guidance
+    url: https://github.com/nostreet123/DCF-Dashboard/blob/main/SECURITY.md
+    about: Please use the security policy for suspected vulnerabilities.

@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { getConvexClient } from "@/app/api/_lib/convex";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
-import { enforceRateLimit, getRateLimitPerMinute } from "@/app/api/_lib/rateLimit";
+import {
+  enforceRateLimit,
+  getRateLimitPerMinute,
+  rateLimitErrorResponse,
+} from "@/app/api/_lib/rateLimit";
 
 type EdgarSearchResponse = {
   results: Array<{ symbol: string; name: string; cik: string }>;
@@ -16,17 +20,7 @@ export async function GET(request: Request) {
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
-    if (rateLimit.reason === "UNTRUSTED_IDENTITY") {
-      return errorResponse("UNTRUSTED_IDENTITY", "Trusted client IP header required", 429, {
-        "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
-      });
-    }
-    if (rateLimit.reason === "BACKEND_UNAVAILABLE") {
-      return errorResponse("RATE_LIMIT_UNAVAILABLE", "Rate-limit backend unavailable", 503);
-    }
-    return errorResponse("RATE_LIMITED", "Too many requests", 429, {
-      "Retry-After": String(rateLimit.retryAfterSeconds ?? 60),
-    });
+    return rateLimitErrorResponse(rateLimit);
   }
 
   const { searchParams } = new URL(request.url);

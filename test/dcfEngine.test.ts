@@ -9,6 +9,7 @@ import {
 
 const originalFetch = globalThis.fetch;
 const originalInternalKey = process.env.DCF_ENGINE_INTERNAL_KEY;
+const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const noopPreconnect: typeof fetch.preconnect = () => {};
 
 function createMockFetch(
@@ -20,6 +21,7 @@ function createMockFetch(
 describe("fetchDcfEngine", () => {
   beforeEach(() => {
     process.env.DCF_ENGINE_URL = "http://example.test";
+    process.env.DCF_ENGINE_ALLOW_UNSIGNED = "1";
   });
 
   afterEach(() => {
@@ -29,6 +31,11 @@ describe("fetchDcfEngine", () => {
       delete process.env.DCF_ENGINE_INTERNAL_KEY;
     } else {
       process.env.DCF_ENGINE_INTERNAL_KEY = originalInternalKey;
+    }
+    if (originalAllowUnsigned === undefined) {
+      delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+    } else {
+      process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
     }
   });
 
@@ -132,5 +139,14 @@ describe("fetchDcfEngine", () => {
     expect(capturedRequest).toBeDefined();
     expect(capturedRequest?.headers.get(internalPersistenceHeaderName)).toBeString();
     expect(await capturedRequest?.text()).toBe(JSON.stringify({ symbol: "AAPL" }));
+  });
+
+  test("fails closed when unsigned engine access is not explicitly enabled", async () => {
+    delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+    delete process.env.DCF_ENGINE_INTERNAL_KEY;
+
+    await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow(
+      "DCF_ENGINE_INTERNAL_KEY is required unless DCF_ENGINE_ALLOW_UNSIGNED=1",
+    );
   });
 });

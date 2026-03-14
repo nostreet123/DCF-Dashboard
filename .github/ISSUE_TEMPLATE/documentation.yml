@@ -1,0 +1,23 @@
+name: Documentation request
+description: Request clearer docs, examples, or onboarding guidance
+title: "[Docs]: "
+labels:
+  - type:docs
+body:
+  - type: textarea
+    id: gap
+    attributes:
+      label: Documentation gap
+      description: What is unclear, missing, or out of date?
+    validations:
+      required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Audience
+      description: Who is blocked by this gap? For example, first-time contributor, evaluator, or maintainer.
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Share the wording, example, or doc location that would help.

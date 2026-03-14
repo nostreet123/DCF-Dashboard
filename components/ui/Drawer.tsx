@@ -25,7 +25,6 @@ export function Drawer({
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard SSR hydration guard
     setMounted(true);
   }, []);
 

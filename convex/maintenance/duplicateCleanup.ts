@@ -23,7 +23,6 @@ import {
   shouldScheduleCleanupChunk,
 } from "./duplicateCleanup.logic";
 
-// @ts-expect-error TS2589: internal API reference triggers deep instantiation.
 const runDuplicateCleanupChunkAny: any = (internal as any).maintenance
   .runDuplicateCleanupChunk;
 

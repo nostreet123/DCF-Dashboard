@@ -27,6 +27,10 @@ def _internal_key() -> str | None:
     return secret
 
 
+def _allow_unsigned_requests() -> bool:
+    return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1"
+
+
 def _canonical_path(request: Request) -> str:
     parsed = urlsplit(str(request.url))
     if parsed.query:
@@ -61,10 +65,17 @@ def _reserve_nonce(nonce: str, now_ms: int) -> bool:
         return True
 
 
+def _release_nonce(nonce: str) -> None:
+    with _nonce_lock:
+        _seen_nonces.pop(nonce, None)
+
+
 async def require_internal_request(request: Request) -> None:
     secret = _internal_key()
     if secret is None:
-        return
+        if _allow_unsigned_requests():
+            return
+        raise HTTPException(status_code=503, detail="Service not configured")
 
     signature = request.headers.get(INTERNAL_SIGNATURE_HEADER, "").strip()
     timestamp_ms = request.headers.get(INTERNAL_TIMESTAMP_HEADER, "").strip()
@@ -99,4 +110,5 @@ async def require_internal_request(request: Request) -> None:
         hashlib.sha256,
     ).hexdigest()
     if not hmac.compare_digest(signature, expected):
+        _release_nonce(nonce)
         raise HTTPException(status_code=401, detail="Unauthorized")

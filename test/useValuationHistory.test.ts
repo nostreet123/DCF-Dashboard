@@ -109,7 +109,7 @@ describe("valuation history hook helpers", () => {
     expect(
       toUserFacingValuationHistoryError({
         status: 429,
-        message: "Trusted client IP header required",
+        message: "Request origin could not be verified",
       }).message,
     ).toBe("Recent runs are temporarily unavailable. Try again in a moment.");
   });
