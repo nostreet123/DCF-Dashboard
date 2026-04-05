@@ -6,6 +6,9 @@ permissions:
 
 jobs:
   dependency-review:
+    # GitHub's dependency-review action requires extra repository features on private repos.
+    # Keep it active by default for public repos, and allow opt-in on private repos via Actions vars.
+    if: ${{ !github.event.repository.private || vars.ENABLE_GITHUB_DEPENDENCY_REVIEW == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Review dependency changes
