@@ -4,268 +4,211 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 ## Purpose / Big Picture
 
-The Convex database layer has strong fundamentals — 100% index-based queries, 100% mutation auth, a sound Build ID atomicity pattern — but it has operational safety gaps that increase risk as the system grows. After this work, a contributor will be able to:
+The hardening work described here is already present in the repository. A contributor reading this document today should be able to verify, rather than re-implement, five operational safety improvements in the Convex database layer. The repository now includes integration tests that exercise the Build ID lifecycle against real Convex handlers, a single canonical snapshot-selection helper shared by the main and maintenance paths, typed helper contexts in the original target files, a Python-vs-TypeScript seed parity test, and bounded metrics counts for large tables.
 
-1. Run integration tests that exercise the full Build ID lifecycle (upsert → insert rows → finalize → cleanup) against a local Convex test harness, catching regressions in the actual mutation/query handlers rather than just pure-logic helpers.
-2. Trust that the snapshot-scoring logic cannot silently drift between the main code path and the maintenance code path, because it is consolidated into a single function.
-3. See compile-time errors when index usage or query shapes are wrong in helper functions, because the `any`-typed Convex context parameters have been replaced with proper generic types.
-4. Verify that seed data in TypeScript and Python stays in sync via an automated CI check.
-5. See row counts served from a lightweight counter mechanism instead of full-table pagination scans.
-
-The work is organized into two sprints of roughly equal effort. Sprint 1 addresses the highest-ROI items (integration tests, DRY consolidation, type safety). Sprint 2 addresses the remaining items (seed parity, metrics optimization).
-
+The practical value of this document is twofold. First, it shows a novice where those protections live and how to confirm they still work once the local toolchain is installed. Second, it records the design decisions and follow-up boundaries so future hardening work can start from a stable baseline instead of reopening already completed milestones.
 
 ## Progress
 
-- [x] Sprint 1, Milestone 1: Consolidate duplicated snapshot-scoring logic
-- [x] Sprint 1, Milestone 2: Replace `any`-typed Convex context in helpers
-- [x] Sprint 1, Milestone 3: Add integration tests for Build ID lifecycle
-- [x] Sprint 2, Milestone 4: Automated seed data parity check
-- [x] Sprint 2, Milestone 5: Replace metrics full-scan counting with bounded counts
-
+- [x] (2026-03-04 00:00Z) Sprint 1, Milestone 1 completed: consolidated snapshot scoring by routing `pickSnapshotKeepId` through `pickBestSnapshot`.
+- [x] (2026-03-04 00:00Z) Sprint 1, Milestone 2 completed: replaced the original `any`-typed helper contexts in `convex/snapshots_helpers.ts` and `convex/requestIdDedupe.ts`.
+- [x] (2026-03-05 00:00Z) Sprint 1, Milestone 3 completed: added `convex_tests/buildIdLifecycle.test.ts` with Build ID lifecycle integration coverage.
+- [x] (2026-03-05 00:00Z) Sprint 2, Milestone 4 completed: added `python/tests/test_seed_parity.py` to keep TS and Python seed data in sync.
+- [x] (2026-03-05 00:00Z) Sprint 2, Milestone 5 completed: changed `convex/metrics.ts` to use bounded counts for large tables.
+- [x] (2026-03-30 00:00Z) Refreshed this ExecPlan so it now describes the current repository state, documents environment prerequisites for verification, and marks broader Convex `any` cleanup as future work rather than part of these completed milestones.
+- [x] (2026-03-30 00:00Z) Executed the refreshed verification path: bootstrapped local dependencies, installed a workspace-local Bun runtime plus Homebrew Python 3.12, and re-ran the canonical Bun, Convex typecheck, seed parity, and full Python test commands successfully.
+- [x] (2026-04-06 00:00Z) Corrected the runnable verification path so the ExecPlan now bootstraps the repo-local Bun and Python toolchain explicitly, uses repo-local verification commands, and inspects enough of `convex_tests/buildIdLifecycle.test.ts` to cover the auth-enforcement case.
 
 ## Surprises & Discoveries
 
-- `pickBestSnapshot` needed to be made generic (`<T extends SnapshotPick>(snapshots: T[]): T | null`) to preserve the full document type for callers in `snapshots.ts` that expected the complete snapshot document, not just `SnapshotPick`.
+- Observation: `pickBestSnapshot` had to become generic as `pickBestSnapshot<T extends SnapshotPick>(snapshots: T[]): T | null` so callers in `convex/snapshots.ts` could retain full snapshot document typing.
+  Evidence: `convex/snapshots_helpers.ts` now exports the generic signature and `convex/maintenance/shared.ts` consumes it without redefining the scoring loop.
 
-- `requestIdDedupe.ts` required `as unknown as T` casts because the `DatabaseReader` query on a union table (`"syncLogs" | "valuationRuns"`) returns a union of document types, and TypeScript cannot narrow a union directly to a generic `T`.
+- Observation: `convex/requestIdDedupe.ts` still needs `as unknown as T` casts even after the helper context was typed, because querying a union of tables produces a union of document types that TypeScript cannot narrow directly to the generic callback type.
+  Evidence: `convex/requestIdDedupe.ts` uses `DatabaseReader` but preserves casts on the returned matches.
 
-- Bun does not support `import.meta.glob`, which `convex-test` relies on for module discovery. Solved by manually building the modules map using `Bun.Glob` to scan the `convex/` directory and construct a `Record<string, () => Promise<any>>`.
+- Observation: Bun does not support `import.meta.glob`, which `convex-test` expects for module discovery.
+  Evidence: `convex_tests/buildIdLifecycle.test.ts` builds a manual module map with `Bun.Glob` before calling `convexTest(schema, modules)`.
 
-- `normalizePrimaryKey` in `tableData.ts` replaces non-alphanumeric characters with spaces (not preserving hyphens). Test helper `makeRows` initially used `"row-a"` as `primaryKeyNorm` but the normalizer produces `"row a"`. Fixing the helper resolved the 2 failing integration tests.
+- Observation: TypeScript seed extraction was more robust via a Node subprocess than by regex-only parsing.
+  Evidence: `python/tests/test_seed_parity.py` shells out to `node -e` and reconstructs the seed structures before comparing them to Python constants.
 
+- Observation: The current shell used for this refresh does not have `bun`, `bunx`, or pytest on `PATH`, so the canonical validation commands could not be re-run during the documentation update.
+  Evidence: `which bun bunx pytest` returned `not found`, while `node` and `python3` were present.
+
+- Observation: The machine’s default Python 3.9 environment was too old for the pinned Python toolchain, but a local Python 3.12 environment resolved the issue cleanly.
+  Evidence: `python3 -m venv .venv` with the system Python failed during dependency resolution, while `/opt/homebrew/bin/python3.12 -m venv .venv` installed `python/requirements-dev.txt` successfully and `cd python && pytest` passed.
+
+- Observation: Referring readers to `AGENTS.md` and `convex/AGENTS.md` was not enough to recover from a shell where `bun`, `bunx`, and `pytest` were missing from `PATH`.
+  Evidence: the checked-in setup docs invoke `bun`/`bunx` directly and install `python/requirements.txt`, while the successful refresh path in this workspace depended on `./.bun-home/bin/bun`, `./.bun-home/bin/bunx`, and `python/requirements-dev.txt` inside `.venv`.
 
 ## Decision Log
 
 - Decision: Order sprint 1 as DRY → types → integration tests.
-  Rationale: Consolidating the scoring function first means the integration tests will exercise the canonical version. Fixing types second means the integration tests will import properly typed helpers. This avoids writing tests against code that is about to change.
+  Rationale: Consolidating the scoring function first means the integration tests exercise the canonical version. Fixing types second means the tests import the intended helper shapes instead of code that is about to move.
   Date/Author: 2026-03-04 / assistant
 
 - Decision: Use `convex-test` for integration tests rather than a custom harness.
-  Rationale: `convex-test` is the official Convex testing library that provides an in-memory Convex backend. The project already uses Bun as its test runner, which `convex-test` supports. This avoids building a bespoke test harness and ensures compatibility with future Convex versions.
+  Rationale: `convex-test` provides an in-memory Convex backend and matches the project’s Bun-based test stack, which keeps the tests close to real handler behavior without adding bespoke infrastructure.
   Date/Author: 2026-03-04 / assistant
 
-- Decision: Keep `metrics.ts` optimization as bounded counts rather than a counter table.
-  Rationale: A counter table requires incrementing/decrementing on every insert/delete across multiple mutation files, adding complexity and risk. The reference tables (categories, regions, datasets) are small (< 100 rows) and change only during seeding, so scanning them is cheap. The real problem is `snapshots` and `tableData` — for these, a bounded `.take(N+1)` approach (already used for `tableData`) is sufficient and requires no schema changes.
+- Decision: Keep the metrics optimization as bounded counts rather than adding a counter table.
+  Rationale: Counter rows would need cross-cutting maintenance across many write paths. The reference tables are small enough for exact collection, while `snapshots` and `tableData` benefit from bounded `.take(N + 1)` reads without schema changes.
   Date/Author: 2026-03-04 / assistant
 
-- Decision: Use `.collect()` for reference tables instead of pagination in `metrics.ts`.
-  Rationale: Categories, regions, and datasets are each < 100 rows and change only during seeding. `.collect()` is simpler and cheaper than the pagination loop — one query call instead of potentially multiple pages. Only `snapshots` and `tableData` use the bounded `.take(LIMIT + 1)` pattern since they can grow large.
+- Decision: Use `.collect()` for reference tables instead of pagination in `convex/metrics.ts`.
+  Rationale: `categories`, `regions`, and `datasets` are small and seed-driven, so exact collection is simpler and cheaper than paginated counting. Only the large tables need bounded counts.
   Date/Author: 2026-03-05 / assistant
 
-- Decision: Use a Node subprocess for TS seed extraction in the parity test.
-  Rationale: Parsing TypeScript constant arrays with regex is fragile and error-prone. A Node one-liner that reads the source and uses `eval` on the extracted array literal is more reliable, since it handles nested structures, trailing commas, and template literals correctly. The subprocess adds ~0.1s to test runtime, which is negligible.
+- Decision: Use a Node subprocess for TypeScript seed extraction in the parity test.
+  Rationale: Evaluating the extracted array literals is less brittle than hand-maintaining a regex parser for nested TypeScript object literals and derived mapping structures.
   Date/Author: 2026-03-05 / assistant
 
+- Decision: Treat this ExecPlan as a completion record plus maintenance reference, and defer broader Convex `any` cleanup to a separate future plan.
+  Rationale: The original milestones are complete, but the repo still contains other `any`-typed query builders in files outside the original scope such as `convex/reference.ts`, `convex/catalog.ts`, `convex/assets.ts`, and maintenance helpers. Folding that work into this document would blur the boundary between completed hardening and new follow-up hardening.
+  Date/Author: 2026-03-30 / assistant
+
+- Decision: Make the verification instructions self-contained and default them to the repo-local Bun and Python toolchain.
+  Rationale: The documented shell state for this refresh did not have `bun`, `bunx`, or `pytest` on `PATH`, so the ExecPlan must include the exact bootstrap and verification commands that actually worked in this workspace instead of assuming the reader can infer them from other docs.
+  Date/Author: 2026-04-06 / assistant
 
 ## Outcomes & Retrospective
 
-All 5 milestones complete. Final validation results:
+The original five milestones are complete and their artifacts are still present in the repository. The database layer now has end-to-end Build ID lifecycle coverage in Bun, consolidated snapshot-selection logic, safer helper typing in the original target files, automated seed parity protection, and bounded counts for large metrics tables.
 
-- `bun test convex_tests`: 42 tests pass (38 original + 4 new integration tests)
-- `bunx convex typecheck`: passes with no errors
-- `cd python && pytest`: 126 tests pass (117 original + 9 new seed parity tests)
+Historically recorded validation from the implementation pass was:
 
-**Milestone 1** — `pickSnapshotKeepId` in `convex/maintenance/shared.ts` now delegates to `pickBestSnapshot` from `convex/snapshots_helpers.ts`. The duplicated scoring loop is eliminated. All existing tests pass unchanged.
+- `bun test convex_tests`
+- `bunx convex typecheck`
+- `cd python && pytest`
 
-**Milestone 2** — `ctx: { db: any }` replaced with `ctx: { db: DatabaseReader }` in `snapshots_helpers.ts` and `requestIdDedupe.ts`. `(q: any)` casts removed. `pickBestSnapshot` made generic to preserve caller types.
+During the initial documentation refresh, static inspection confirmed that the milestone artifacts still exist in the expected files, but the canonical commands could not be re-run until the local toolchain was bootstrapped. That bootstrap is now complete for this workspace: `npm ci` installed the Node dependencies, `.bun-home/bin/bun` provided Bun 1.3.11, Homebrew supplied Python 3.12.13, and a local `.venv` installed the pinned Python requirements.
 
-**Milestone 3** — 4 integration tests in `convex_tests/buildIdLifecycle.test.ts` cover the full Build ID lifecycle: happy path, rebuild, unchanged, and auth enforcement. These are the first tests exercising actual Convex mutation/query handlers via `convex-test`.
+The current verification results from this workspace are:
 
-**Milestone 4** — `python/tests/test_seed_parity.py` with 9 tests compares category slugs, region codes, dataset keys, region suffixes, regional base datasets, and dataset mapping patterns between `convex/seed.ts` and `python/damodaran_sync/dataset_mappings_seed.py`. Would fail immediately if a key is added to one side but not the other.
+- `./.bun-home/bin/bun test convex_tests` -> 42 passed, 0 failed
+- `./.bun-home/bin/bun test convex_tests/buildIdLifecycle.test.ts` -> 4 passed, 0 failed
+- `./.bun-home/bin/bunx convex typecheck` -> passed
+- `. .venv/bin/activate && cd python && pytest tests/test_seed_parity.py` -> 9 passed
+- `. .venv/bin/activate && cd python && pytest` -> 127 passed, 2 warnings
 
-**Milestone 5** — `convex/metrics.ts` no longer paginates through any table. Reference tables use `.collect()` for exact counts. `snapshots` and `tableData` use bounded `.take(1001)` with `isSnapshotsCapped` and `isTableDataCapped` booleans. The `countQuery` pagination helper is removed entirely.
+The main lesson from this refresh is that living plans need periodic maintenance even after the code lands. Several narrative sections had become stale and were describing already-shipped behavior as future work. That is now corrected, and the remaining wider type-hardening opportunities are explicitly called out as a separate follow-up area.
 
+A smaller follow-up correction was still necessary after the first refresh. The plan now tells the reader exactly how to recreate the repo-local Bun and Python toolchain that was used here, and its static-inspection step now reads far enough into `convex_tests/buildIdLifecycle.test.ts` to include the auth-enforcement scenario it cites.
 
 ## Context and Orientation
 
-The Convex database layer lives entirely in `/root/DCF-Dashboard/convex/`. The schema is defined in `convex/schema.ts` (20 tables, 38 indexes). Mutations and queries are in individual `.ts` files per domain (e.g., `snapshots.ts`, `tableData.ts`). Pure business logic is extracted into helper files (`snapshots_helpers.ts`, `maintenance/shared.ts`, etc.) and tested via Bun unit tests in `convex_tests/`.
+The Convex database layer lives in `convex/`, with generated types in `convex/_generated/`, Bun tests in `convex_tests/`, and mirrored seed data on the Python side in `python/damodaran_sync/`. The core write pattern is the Build ID lifecycle: `snapshots:upsertByIdentity` starts or reuses a rebuild, `tableData:insertBatch` writes rows for a specific build, `snapshots:finalizeRebuild` promotes the pending build to the active build, and `tableData:deleteBySnapshotBuild` removes obsolete rows from the previous build. Readers only follow the active build, which prevents partial rebuilds from leaking into query results.
 
-Key files for this plan:
+The files that matter for this completed hardening work are:
 
-- `convex/snapshots_helpers.ts` — Contains `pickBestSnapshot()` (lines 47-75) and `findSnapshotByIdentity()` (lines 77-105). The latter uses `ctx: { db: any }` and `(q: any)` for Convex query builders.
-- `convex/maintenance/shared.ts` — Contains `pickSnapshotKeepId()` (lines 100-137), a near-duplicate of `pickBestSnapshot()` that returns `._id` instead of the full object.
-- `convex/requestIdDedupe.ts` — Uses `ctx: { db: any }` for the Convex context.
-- `convex/metrics.ts` — `getCounts` query (lines 4-81) paginates through 4 tables on every call.
-- `convex/seed.ts` — TypeScript seed data for categories, regions, datasets, dataset mappings.
-- `python/damodaran_sync/dataset_mappings_seed.py` — Python mirror of the same seed data.
-- `convex_tests/` — 9 Bun test files, all unit tests against pure functions.
+- `convex/snapshots_helpers.ts`, which now exports the generic `pickBestSnapshot<T extends SnapshotPick>(...)` helper and uses `DatabaseReader` in `findSnapshotByIdentity`.
+- `convex/maintenance/shared.ts`, which now implements `pickSnapshotKeepId(...)` by delegating to `pickBestSnapshot(...)` and returning `best?._id ?? null`.
+- `convex/requestIdDedupe.ts`, which now uses `DatabaseReader` instead of `ctx: { db: any }` in the original scope targeted by this hardening.
+- `convex/metrics.ts`, which now returns exact counts for reference tables and bounded counts for `snapshots` and `tableData`, including `isSnapshotsCapped` and `isTableDataCapped`.
+- `convex_tests/buildIdLifecycle.test.ts`, which exercises the happy path, rebuild path, unchanged path, and auth enforcement against real Convex handlers through `convex-test`.
+- `python/tests/test_seed_parity.py`, which compares TypeScript and Python seed structures so either side fails loudly when they drift.
 
-The "Build ID pattern" is the core data-write workflow:
-1. `snapshots:upsertByIdentity` creates/updates a snapshot with a `pendingBuildId` and status `"rebuilding"`.
-2. `tableData:insertBatch` inserts data rows tagged with that `buildId`.
-3. `snapshots:finalizeRebuild` promotes `pendingBuildId` to `activeBuildId` and sets status to `"ready"`.
-4. `tableData:deleteBySnapshotBuild` cleans up rows from the old `buildId`.
-Readers always filter `tableData` by `activeBuildId`, so they never see partial writes.
-
-"Scoring logic" refers to the `pickBestSnapshot` / `pickSnapshotKeepId` functions. Both rank snapshots by the same lexicographic tuple `[hasActiveBuild, hasPendingBuild, downloadedAt, parsedAt, creationTime]` to deterministically choose the "best" among duplicates. They exist in two places with slightly different return types.
-
+There are still additional `any`-typed query builders elsewhere in the Convex tree. They are intentionally out of scope for this document. This plan records the completed hardening slice only.
 
 ## Plan of Work
 
-### Sprint 1 — High-ROI Hardening
+The work for this document is no longer to implement the hardening itself. The work is to keep the hardening story accurate and verifiable for the next contributor.
 
-#### Milestone 1: Consolidate duplicated snapshot-scoring logic
+Begin by statically confirming that the repository still contains the milestone artifacts in the files named above. Do not assume the plan is correct just because the progress section is checked. Read the helpers, the integration test, the parity test, and the metrics query so the prose stays anchored in the code rather than in memory.
 
-The functions `pickBestSnapshot` in `convex/snapshots_helpers.ts:47-75` and `pickSnapshotKeepId` in `convex/maintenance/shared.ts:100-137` implement identical scoring logic. `pickBestSnapshot` returns the full object (or `null`); `pickSnapshotKeepId` returns only `._id` (or `null`). The fix is to make `pickSnapshotKeepId` call `pickBestSnapshot` internally and extract `._id`, eliminating the duplicated scoring loop.
+Next, update any stale narrative that still describes completed code as future work. In practice that means the purpose statement, the context section, the plan narrative, the concrete steps, and the acceptance criteria. Keep the original design rationale where it is still useful, but rewrite implementation instructions into verification instructions. The next contributor should come away knowing what exists, why it exists, and how to confirm it still behaves as intended once the toolchain is available.
 
-The type `SnapshotPick` (defined in `snapshots_helpers.ts:8-15`) will serve as the canonical input type for both. `pickSnapshotKeepId` currently defines an inline type that is structurally identical to `SnapshotPick`; it should import `SnapshotPick` instead.
-
-Steps:
-1. In `convex/maintenance/shared.ts`, import `pickBestSnapshot` and `SnapshotPick` from `../snapshots_helpers`.
-2. Replace the body of `pickSnapshotKeepId` with a call to `pickBestSnapshot(snapshots)`, returning `result?._id ?? null`.
-3. Update the parameter type of `pickSnapshotKeepId` to use `SnapshotPick[]`.
-4. Run existing tests: `bun test convex_tests/maintenance_shared.test.ts` and `bun test convex_tests/snapshots_helpers.test.ts`. Both must pass unchanged, proving behavioral equivalence.
-
-#### Milestone 2: Replace `any`-typed Convex context in helpers
-
-Three helper functions use `ctx: { db: any }` and `(q: any)`:
-- `findSnapshotByIdentity` in `convex/snapshots_helpers.ts:77-105`
-- `findExistingByRequestId` in `convex/requestIdDedupe.ts`
-
-Convex provides `GenericQueryCtx` and `GenericMutationCtx` from `convex/server` for typing contexts outside of direct query/mutation handlers. The fix is to import the project's generated `DataModel` type from `convex/_generated/dataModel` and use `GenericQueryCtx<DataModel>` (or `GenericMutationCtx<DataModel>`) as the context type. This gives full type safety on `.query("tableName")` and `.withIndex("indexName", ...)` calls.
-
-Steps:
-1. In `convex/snapshots_helpers.ts`, replace `ctx: { db: any }` with `ctx: { db: GenericDatabaseReader<DataModel> }` (imported from `convex/server` and `_generated/dataModel`). Remove the `(q: any)` casts on the query builder callbacks — the types will be inferred from the index definition.
-2. In `convex/requestIdDedupe.ts`, apply the same pattern.
-3. Run `bunx convex typecheck` to verify the types are correct.
-4. Run `bun test convex_tests` to verify no regressions.
-
-#### Milestone 3: Add integration tests for Build ID lifecycle
-
-This milestone adds the first integration tests that exercise actual Convex mutation and query handlers against an in-memory Convex backend using `convex-test`.
-
-The test file `convex_tests/buildIdLifecycle.test.ts` will cover:
-
-1. **Happy path**: Call `snapshots:upsertByIdentity` (expect `action: "created"`), call `tableData:insertBatch` with rows, call `snapshots:finalizeRebuild`, then call `tableData:listBySnapshot` and verify the rows are returned.
-2. **Rebuild path**: Call `upsertByIdentity` again on the same identity with a new `fileHash` (expect `action: "updated"`), insert new rows with the new `pendingBuildId`, finalize, then verify `listBySnapshot` returns only the new rows (old rows should be deletable via `deleteBySnapshotBuild`).
-3. **Unchanged path**: Call `upsertByIdentity` with the same `fileHash` as the current snapshot (expect `action: "unchanged"`).
-4. **Auth enforcement**: Call `insertBatch` without a `syncToken` and verify it throws `UNAUTHORIZED`.
-
-Steps:
-1. Install `convex-test` as a dev dependency: `npm install --save-dev convex-test`.
-2. Create `convex_tests/buildIdLifecycle.test.ts` with the four test cases described above.
-3. Run `bun test convex_tests/buildIdLifecycle.test.ts` and verify all tests pass.
-
-
-### Sprint 2 — Operational Polish
-
-#### Milestone 4: Automated seed data parity check
-
-The seed data in `convex/seed.ts` and `python/damodaran_sync/dataset_mappings_seed.py` must stay in sync. This milestone adds a CI-runnable script that extracts the canonical keys from both files and compares them.
-
-Steps:
-1. Create `python/tests/test_seed_parity.py` — a pytest test that:
-   a. Parses the Python seed data from `dataset_mappings_seed.py` (it's a Python module, so it can be imported directly).
-   b. Parses the TypeScript seed data from `convex/seed.ts` by extracting JSON-like structures with a simple regex or by running a Node one-liner that imports and prints the data.
-   c. Compares category slugs, region codes, dataset keys, and mapping patterns. Asserts they are identical sets.
-2. Run `cd python && pytest tests/test_seed_parity.py` and verify it passes.
-
-#### Milestone 5: Replace metrics full-scan counting with bounded counts
-
-`convex/metrics.ts:getCounts` currently paginates through `categories`, `regions`, `datasets`, and `snapshots` to count all rows. The reference tables are small and stable (< 100 rows each), but `snapshots` can grow large. The fix is to use a bounded `.take(N+1)` pattern for `snapshots` (matching what is already done for `tableData`) and keep exact counts only for the small reference tables.
-
-Steps:
-1. In `convex/metrics.ts`, replace the `snapshots` counting branch with a bounded `.take(LIMIT + 1)` call, matching the `tableData` pattern. Add an `isSnapshotsCapped` boolean to the return type.
-2. Update the return type validator to include `isSnapshotsCapped: v.boolean()`.
-3. Check if any frontend code consumes `getCounts` and update it to handle the new `isSnapshotsCapped` field.
-4. Run `bunx convex typecheck` to verify types.
-
+Finally, keep the boundary of this ExecPlan crisp. Mention that the broader cleanup of remaining Convex `any` usage is valuable future work, but do not smuggle that larger effort into the definition of done for this document. This plan is finished work plus maintenance guidance, not an umbrella for every remaining type-safety improvement in the database layer.
 
 ## Concrete Steps
 
-All commands are run from the repository root `/root/DCF-Dashboard` unless otherwise noted.
+All commands below are intended to run from the repository root.
 
-Sprint 1:
+Before running the canonical verification commands, ensure the repo-local toolchain exists. This refresh was performed in a shell where `node` and `python3` were present but `bun`, `bunx`, and pytest were missing from `PATH`, so the recovery path must be explicit rather than delegated to other docs.
 
-    # Milestone 1: After editing shared.ts
-    bun test convex_tests/maintenance_shared.test.ts
-    bun test convex_tests/snapshots_helpers.test.ts
+Bootstrap the workspace exactly as follows. The successful refresh used `/opt/homebrew/bin/python3.12`; if your machine exposes Python 3.12 at a different path, substitute that binary in the `venv` creation step.
 
-    # Milestone 2: After fixing types
-    bunx convex typecheck
-    bun test convex_tests
+    npm ci
+    if [ ! -x ./.bun-home/bin/bun ]; then
+      curl -fsSL https://bun.sh/install | env BUN_INSTALL="$PWD/.bun-home" bash
+    fi
+    if [ -d .venv ]; then
+      . .venv/bin/activate
+    else
+      /opt/homebrew/bin/python3.12 -m venv .venv
+      . .venv/bin/activate
+    fi
+    python -m pip install --upgrade pip
+    python -m pip install -r python/requirements-dev.txt
 
-    # Milestone 3: After writing integration tests
-    npm install --save-dev convex-test
-    bun test convex_tests/buildIdLifecycle.test.ts
+Use these static inspection commands to confirm the milestone artifacts are still present before editing the plan text:
 
-Sprint 2:
+    sed -n '1,220p' convex/snapshots_helpers.ts
+    sed -n '1,220p' convex/maintenance/shared.ts
+    sed -n '1,220p' convex/requestIdDedupe.ts
+    sed -n '1,220p' convex/metrics.ts
+    sed -n '1,340p' convex_tests/buildIdLifecycle.test.ts
+    sed -n '1,260p' python/tests/test_seed_parity.py
 
-    # Milestone 4: After writing parity test
-    cd python && pytest tests/test_seed_parity.py
+Once the toolchain is installed, use the canonical repo validation commands:
 
-    # Milestone 5: After editing metrics.ts
-    bunx convex typecheck
-
+    ./.bun-home/bin/bun test convex_tests
+    ./.bun-home/bin/bunx convex typecheck
+    . .venv/bin/activate && cd python && pytest
 
 ## Validation and Acceptance
 
-After all milestones are complete:
+Acceptance for this refresh is documentation accuracy first and code verification second.
 
-    bun test convex_tests          # All tests pass, including new integration tests
-    bunx convex typecheck          # No type errors
-    cd python && pytest            # All Python tests pass, including seed parity
+The documentation portion is complete when both copies of the ExecPlan describe the current repository state, no section still frames the shipped milestones as pending implementation work, the progress entries are timestamped, the living sections reflect the code that is present today, and the document ends with a revision note explaining why it was refreshed.
 
-Specific acceptance criteria:
+The repository verification portion is complete once a contributor can run the repo-local verification commands:
 
-- Milestone 1: `pickSnapshotKeepId` no longer contains its own scoring loop. Existing tests pass unchanged.
-- Milestone 2: No `any` types remain in `snapshots_helpers.ts` or `requestIdDedupe.ts`. `bunx convex typecheck` passes.
-- Milestone 3: 4 new integration tests pass in `buildIdLifecycle.test.ts`.
-- Milestone 4: `test_seed_parity.py` passes and would fail if a dataset key were added to one file but not the other.
-- Milestone 5: `getCounts` no longer paginates through `snapshots`. TypeScript types pass.
+    ./.bun-home/bin/bun test convex_tests
+    ./.bun-home/bin/bunx convex typecheck
+    . .venv/bin/activate && cd python && pytest
 
+and observe that the Bun test suite includes `convex_tests/buildIdLifecycle.test.ts`, the Python test suite includes `python/tests/test_seed_parity.py`, and the typecheck accepts the interfaces documented here. If the toolchain is unavailable, static inspection of the named files is the fallback proof for this document refresh, but it does not replace the canonical verification commands for future contributors.
 
 ## Idempotence and Recovery
 
-All milestones are additive. No data migrations, schema changes, or destructive operations are involved. Each milestone can be re-run independently. If a milestone fails partway through, the contributor can restart from the beginning of that milestone with no cleanup needed.
-
+This refresh is safe to repeat. The only expected edits are to the two mirrored ExecPlan files. If one copy is updated and the other is not, restore parity immediately by copying the finalized text across and re-checking that both files are identical. No schema changes, data migrations, or runtime mutations are part of this refresh.
 
 ## Artifacts and Notes
 
-Duplicated scoring logic evidence — the two functions side by side:
+The most important artifact is the presence of the completed milestone files themselves:
 
-    # convex/snapshots_helpers.ts:51-57
-    const score = (snapshot: SnapshotPick) => [
-      snapshot.activeBuildId ? 1 : 0,
-      snapshot.pendingBuildId ? 1 : 0,
-      snapshot.downloadedAt ?? 0,
-      snapshot.parsedAt ?? 0,
-      snapshot._creationTime,
-    ];
+    convex_tests/buildIdLifecycle.test.ts
+    python/tests/test_seed_parity.py
+    convex/metrics.ts
+    convex/snapshots_helpers.ts
+    convex/maintenance/shared.ts
+    convex/requestIdDedupe.ts
 
-    # convex/maintenance/shared.ts:113-119
-    const score = (snapshot: typeof snapshots[number]) => [
-      snapshot.activeBuildId ? 1 : 0,
-      snapshot.pendingBuildId ? 1 : 0,
-      snapshot.downloadedAt ?? 0,
-      snapshot.parsedAt ?? 0,
-      snapshot._creationTime,
-    ];
-
-These are character-for-character identical scoring functions in two separate files.
-
+The most important follow-up note is that wider Convex type-hardening remains available work, but it is intentionally outside the scope of this document. A future plan should start by reviewing the remaining `any` usage in files such as `convex/reference.ts`, `convex/catalog.ts`, `convex/assets.ts`, and maintenance helpers.
 
 ## Interfaces and Dependencies
 
-No new external dependencies except `convex-test` (Milestone 3). All other changes are internal refactors.
+This refresh adds no new production dependencies and introduces no API changes. It documents the interfaces that now exist:
 
-Key types after Milestone 2:
+    pickBestSnapshot<T extends SnapshotPick>(snapshots: T[]): T | null
+    pickSnapshotKeepId(snapshots: SnapshotPick[]): Id<"snapshots"> | null
+    metrics:getCounts -> {
+      categories,
+      regions,
+      datasets,
+      snapshots,
+      isSnapshotsCapped,
+      tableData,
+      isTableDataCapped,
+    }
 
-    // convex/snapshots_helpers.ts
-    import type { GenericDatabaseReader } from "convex/server";
-    import type { DataModel } from "./_generated/dataModel";
+The key test entry points remain:
 
-    export const findSnapshotByIdentity = async (
-      ctx: { db: GenericDatabaseReader<DataModel> },
-      datasetKey: string,
-      regionCode: string,
-      asOfDate: string,
-    ) => { ... };
+    bun test convex_tests/buildIdLifecycle.test.ts
+    cd python && pytest tests/test_seed_parity.py
 
-    // convex/requestIdDedupe.ts
-    export const findExistingByRequestId = async <T extends string>(
-      ctx: { db: GenericDatabaseReader<DataModel> },
-      table: T,
-      requestId: string | undefined,
-    ) => { ... };
+Revision note (2026-03-30): Updated this ExecPlan because the implementation already landed and the previous prose had become stale. The refresh converts the document from a forward-looking implementation plan into an accurate completion record and maintenance reference, explicitly defers broader Convex `any` cleanup to a separate future plan, and now records a successful local re-run of the canonical validation flow after bootstrapping Bun and Python 3.12 in the workspace.
+
+Revision note (2026-04-06): Corrected the runnable verification path after review. The plan now bootstraps the repo-local Bun and Python toolchain explicitly, uses the repo-local verification commands that were actually proven in this workspace, and extends the static inspection range for `convex_tests/buildIdLifecycle.test.ts` so the auth-enforcement case is visible during review.
