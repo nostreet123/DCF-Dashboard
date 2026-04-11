@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 import logging
 import os
 
@@ -53,6 +54,14 @@ _MAX_REQUESTS, _WINDOW_SECONDS = _compute_rate_limit_config()
 
 def _allow_unsigned_requests() -> bool:
     return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1" and not os.getenv("DCF_ENGINE_INTERNAL_KEY")
+
+
+def _rate_limit_window_ms() -> int:
+    window_seconds = _WINDOW_SECONDS
+    if not math.isfinite(window_seconds):
+        window_seconds = _MAX_RATE_LIMIT_WINDOW_MS / 1000.0
+    window_seconds = min(max(1.0, window_seconds), _MAX_RATE_LIMIT_WINDOW_MS / 1000.0)
+    return int(window_seconds * 1000)
 
 
 def _trusted_proxy_mode() -> str:
@@ -120,7 +129,7 @@ def _enforce_dcf_rate_limit(request: Request) -> None:
     client_id = _client_id(request)
     bucket_key = f"fastapi:dcf:compute:ip:{client_id}"
     limit = min(_MAX_REQUESTS, _MAX_RATE_LIMIT_REQUESTS)
-    window_ms = min(int(_WINDOW_SECONDS * 1000), _MAX_RATE_LIMIT_WINDOW_MS)
+    window_ms = _rate_limit_window_ms()
     try:
         result = ConvexSecurityStateClient().hit_rate_limit_bucket(
             bucket_key,

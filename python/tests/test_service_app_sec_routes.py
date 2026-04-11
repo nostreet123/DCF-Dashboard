@@ -523,6 +523,33 @@ def test_dcf_compute_rate_limit_caps_window_to_one_hour(
     assert window_ms == 3_600_000
 
 
+def test_dcf_compute_rate_limit_caps_infinite_window_to_one_hour(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    monkeypatch.setattr(service_app, "_WINDOW_SECONDS", float("inf"))
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+    ]
+    test_client = TestClient(service_app.app, raise_server_exceptions=False)
+
+    encoded = json.dumps(_valid_dcf_payload())
+    response = test_client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=_signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+        | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 200
+    rate_limit_calls = [
+        call for call in _SharedSecurityClientStub.calls if call[0] == "hit_rate_limit_bucket"
+    ]
+    assert rate_limit_calls
+    _, (_, _, window_ms) = rate_limit_calls[0]
+    assert window_ms == 3_600_000
+
+
 def test_unsigned_local_mode_skips_shared_rate_limit_backend_when_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
