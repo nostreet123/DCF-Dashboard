@@ -133,7 +133,6 @@ bunx convex typecheck             # Convex types valid
 
 - Prefer a concrete fix plan before implementing non-trivial changes, then execute fully once approved.
 - Use subagents for substantial tasks and run a brief plan-review subagent pass before starting implementation.
-- When subagents are used, spawn only `gpt-5.4-mini` subagents unless explicitly instructed otherwise.
 - If a session is interrupted, continue from the next unfinished step rather than restarting exploration.
 - Prefer parsimonious solutions (simple, effective) and avoid correctness-reducing "skip" optimizations unless explicitly approved.
 - Prefer headful browser flows for UI validation when practical (e.g. Playwright in non-headless mode).
