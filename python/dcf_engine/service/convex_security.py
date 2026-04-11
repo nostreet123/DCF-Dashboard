@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from typing import Any, Callable, TypedDict
 
-import requests
 from convex import ConvexClient
 
 logger = logging.getLogger(__name__)
@@ -17,10 +15,6 @@ class SharedRateLimitResult(TypedDict):
 
 
 class ConvexSecurityStateClient:
-    _MAX_ATTEMPTS = 3
-    _BACKOFF_BASE_SECONDS = 0.5
-    _BACKOFF_MAX_SECONDS = 4.0
-
     def __init__(self, convex_url: str | None = None, sync_token: str | None = None) -> None:
         self._convex_url = convex_url or os.getenv("CONVEX_URL")
         if not self._convex_url:
@@ -41,57 +35,29 @@ class ConvexSecurityStateClient:
                 sanitized[key] = value
         return sanitized
 
-    def _is_transient_error(self, exc: Exception) -> bool:
-        if isinstance(exc, (TimeoutError, OSError)):
-            return True
-        if isinstance(exc, requests.RequestException):
-            response = getattr(exc, "response", None)
-            if response is not None:
-                return response.status_code == 429 or response.status_code >= 500
-            return True
-        return False
-
     def _execute(
         self,
         operation: str,
         args: dict[str, Any],
         func: Callable[[], Any],
     ) -> Any:
-        attempt = 0
-        while True:
-            try:
-                return func()
-            except Exception as exc:
-                attempt += 1
-                if self._is_transient_error(exc) and attempt < self._MAX_ATTEMPTS:
-                    delay = min(
-                        self._BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
-                        self._BACKOFF_MAX_SECONDS,
-                    )
-                    logger.warning(
-                        "Transient Convex security-state error during %s (attempt %s/%s); retrying in %.1fs.",
-                        operation,
-                        attempt,
-                        self._MAX_ATTEMPTS,
-                        delay,
-                        exc_info=exc,
-                    )
-                    time.sleep(delay)
-                    continue
-
-                sanitized = self._sanitize_args(args)
-                logger.error(
-                    "Convex security-state %s failed with args=%s",
-                    operation,
-                    sanitized,
-                    exc_info=exc,
-                )
-                raise RuntimeError(
-                    f"Convex security-state {operation} failed with args {sanitized}"
-                ) from exc
+        try:
+            return func()
+        except Exception as exc:
+            sanitized = self._sanitize_args(args)
+            logger.error(
+                "Convex security-state %s failed with args=%s",
+                operation,
+                sanitized,
+                exc_info=exc,
+            )
+            raise RuntimeError(
+                f"Convex security-state {operation} failed with args {sanitized}"
+            ) from exc
 
     def _mutation(self, name: str, args: dict[str, Any]) -> Any:
-        payload = {"syncToken": self._sync_token, **args}
+        # Keep the class-owned sync token authoritative even if callers include one.
+        payload = {**args, "syncToken": self._sync_token}
         return self._execute(
             f"mutation {name}",
             payload,
@@ -147,4 +113,3 @@ class ConvexSecurityStateClient:
                 int(retry_after) if isinstance(retry_after, (int, float)) else None
             ),
         }
-

@@ -441,10 +441,10 @@ def test_signed_mode_requires_convex_security_state_configuration(
     assert response.json()["detail"] == "Service not configured"
 
 
-def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable(
+def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable_even_if_unsigned_mode_is_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("DCF_ENGINE_ALLOW_UNSIGNED", raising=False)
+    monkeypatch.setenv("DCF_ENGINE_ALLOW_UNSIGNED", "1")
     monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
 
     class _AuthSecurityClientStub(_SharedSecurityClientStub):
@@ -481,6 +481,32 @@ def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable(
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Service not configured"
+
+
+def test_dcf_compute_rate_limit_caps_window_to_one_hour(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    monkeypatch.setattr(service_app, "_WINDOW_SECONDS", 99_999.0)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+    ]
+
+    encoded = json.dumps(_valid_dcf_payload())
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=_signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+        | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 200
+    rate_limit_calls = [
+        call for call in _SharedSecurityClientStub.calls if call[0] == "hit_rate_limit_bucket"
+    ]
+    assert rate_limit_calls
+    _, (_, _, window_ms) = rate_limit_calls[0]
+    assert window_ms == 3_600_000
 
 
 def test_unsigned_local_mode_skips_shared_rate_limit_backend_when_unavailable(

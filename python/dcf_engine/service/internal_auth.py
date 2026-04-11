@@ -6,6 +6,7 @@ import os
 import time
 from urllib.parse import urlsplit
 
+import anyio
 from fastapi import HTTPException, Request
 
 from dcf_engine.service.convex_security import ConvexSecurityStateClient
@@ -51,6 +52,18 @@ def _shared_security_client() -> ConvexSecurityStateClient:
     return ConvexSecurityStateClient()
 
 
+def _reserve_nonce_shared(nonce: str) -> bool:
+    return _shared_security_client().reserve_nonce(nonce, NONCE_TTL_MS)
+
+
+def _mark_nonce_used_shared(nonce: str) -> bool:
+    return _shared_security_client().mark_nonce_used(nonce, NONCE_TTL_MS)
+
+
+def _release_pending_nonce_shared(nonce: str) -> None:
+    _shared_security_client().release_pending_nonce(nonce)
+
+
 async def require_internal_request(request: Request) -> None:
     secret = _internal_key()
     if secret is None:
@@ -74,12 +87,9 @@ async def require_internal_request(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        security_client = _shared_security_client()
+        reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
-
-    try:
-        reserved = security_client.reserve_nonce(nonce, NONCE_TTL_MS)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
 
@@ -102,14 +112,16 @@ async def require_internal_request(request: Request) -> None:
     ).hexdigest()
     if not hmac.compare_digest(signature, expected):
         try:
-            security_client.release_pending_nonce(nonce)
+            await anyio.to_thread.run_sync(_release_pending_nonce_shared, nonce)
         except RuntimeError:
             # Keep the request unauthorized even if cleanup fails.
             pass
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        marked = security_client.mark_nonce_used(nonce, NONCE_TTL_MS)
+        marked = await anyio.to_thread.run_sync(_mark_nonce_used_shared, nonce)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     if not marked:
