@@ -41,7 +41,15 @@ npx convex typecheck
 ## Pull Requests
 
 - Keep changes focused and explain the user-visible impact
+- Prefer small, reviewable PRs over bundling unrelated work together
+- Open a draft PR early if you want feedback, but switch to ready-for-review only after validation and docs are in shape
+- Link the relevant issue, incident, audit note, or design doc in the PR body
 - Add or update tests when behavior changes
+- Include screenshots, recordings, or request/response examples when they help reviewers verify the change quickly
+- Call out risk, rollback notes, env/config changes, and reviewer focus explicitly
+- Use the specialized PR templates when they fit the change best (`bug-fix`, `security-fix`, `feature`, `refactor`, `docs-only`, `ci-tooling`)
+- Tag the PR size honestly and follow the suggested review strategy for that size
+- Before opening the PR, do a final self-review from code, security, and functionality perspectives
 - Document new env vars, setup steps, or security assumptions
 - Use conventional commit prefixes when possible, such as `feat:`, `fix:`, or `docs:`
 

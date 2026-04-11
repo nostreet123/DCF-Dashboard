@@ -71,9 +71,30 @@ cd python && pytest                   # Run all tests
 
 ### Git
 
-- **Branches**: Feature branches off `main`
+- **Branches**: Branch off `main` and use a type prefix that matches the PR template when possible:
+  - `feature/<topic>`
+  - `bugfix/<topic>`
+  - `security/<topic>`
+  - `refactor/<topic>`
+  - `docs/<topic>`
+  - `ci/<topic>`
 - **Commits**: Conventional commits (`feat:`, `fix:`, `refactor:`)
-- **PRs**: Link to relevant issue, include test coverage
+- **PRs**: Link to relevant issue, include test coverage, and use the repo PR template that best fits the change (`bug-fix`, `security-fix`, `feature`, `refactor`, `docs-only`, `ci-tooling`). Complete the pre-open self-review from code, security, and functionality perspectives before opening or marking the PR ready.
+- **Review-before-commit option**: You can review the working tree before the final commit, address any findings first, and create the commit after the review is green and no blocking issues remain.
+- **Categorization guidance**:
+  - Use `feature` for net-new product or operator capability
+    - Main reviewer mindset: product correctness, UX, integration fit, and edge-case behavior
+  - Use `bugfix` for behavior corrections, regressions, and reliability fixes without a primary security framing
+    - Main reviewer mindset: regression prevention, root-cause correctness, and adjacent-flow safety
+  - Use `security` for auth, authorization, secrets, validation, exposure, rate-limiting, or abuse-path hardening
+    - Main reviewer mindset: threat reduction, failure-closed behavior, and public disclosure safety
+  - Use `refactor` for structural cleanup where intended behavior should stay the same
+    - Main reviewer mindset: hidden behavior drift, preserved invariants, and maintainability gain
+  - Use `docs` for documentation-only changes
+    - Main reviewer mindset: accuracy, clarity, and consistency with the real repo state
+  - Use `ci` for workflow, automation, dependency-management, or developer-tooling changes
+    - Main reviewer mindset: workflow reliability, permissions/supply-chain safety, and operator impact
+  - If a change spans multiple categories, choose the category that best matches the main reviewer mindset the PR needs
 
 ## Core Architecture Pattern: Build ID
 
@@ -133,6 +154,7 @@ bunx convex typecheck             # Convex types valid
 
 - Prefer a concrete fix plan before implementing non-trivial changes, then execute fully once approved.
 - Use subagents for substantial tasks and run a brief plan-review subagent pass before starting implementation.
+- When subagents are used, spawn only `gpt-5.4-mini` subagents unless explicitly instructed otherwise.
 - If a session is interrupted, continue from the next unfinished step rather than restarting exploration.
 - Prefer parsimonious solutions (simple, effective) and avoid correctness-reducing "skip" optimizations unless explicitly approved.
 - Prefer headful browser flows for UI validation when practical (e.g. Playwright in non-headless mode).
