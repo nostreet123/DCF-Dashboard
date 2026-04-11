@@ -30,6 +30,7 @@ SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
 SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"
 DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
 DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
+_MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 
 
@@ -118,11 +119,12 @@ def _client_id(request: Request) -> str:
 def _enforce_dcf_rate_limit(request: Request) -> None:
     client_id = _client_id(request)
     bucket_key = f"fastapi:dcf:compute:ip:{client_id}"
+    limit = min(_MAX_REQUESTS, _MAX_RATE_LIMIT_REQUESTS)
     window_ms = min(int(_WINDOW_SECONDS * 1000), _MAX_RATE_LIMIT_WINDOW_MS)
     try:
         result = ConvexSecurityStateClient().hit_rate_limit_bucket(
             bucket_key,
-            _MAX_REQUESTS,
+            limit,
             window_ms,
         )
     except ValueError as exc:

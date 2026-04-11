@@ -26,6 +26,11 @@ class DummyConvexClient:
         raise AssertionError(f"Unexpected mutation {name}")
 
 
+class ExplodingConvexClient:
+    def __init__(self, url: str) -> None:
+        raise Exception(f"bad convex url: {url}")
+
+
 class FailingConvexClient:
     last_instance = None
 
@@ -56,6 +61,17 @@ def test_convex_security_client_requires_sync_token(
     monkeypatch.delenv("DAMODARAN_SYNC_TOKEN", raising=False)
 
     with pytest.raises(ValueError, match="DAMODARAN_SYNC_TOKEN"):
+        convex_security.ConvexSecurityStateClient()
+
+
+def test_convex_security_client_wraps_initialization_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(convex_security, "ConvexClient", ExplodingConvexClient)
+    monkeypatch.setenv("CONVEX_URL", "http://example")
+    monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
+
+    with pytest.raises(RuntimeError, match="failed to initialize"):
         convex_security.ConvexSecurityStateClient()
 
 

@@ -88,7 +88,7 @@ async def require_internal_request(request: Request) -> None:
 
     try:
         reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc

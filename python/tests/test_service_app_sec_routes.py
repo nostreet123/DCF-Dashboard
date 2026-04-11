@@ -128,7 +128,7 @@ class _SharedSecurityClientStub:
 
     def __init__(self) -> None:
         if self.fail_init:
-            raise ValueError("Service not configured")
+            raise RuntimeError("Service not configured")
 
     @classmethod
     def reset(cls) -> None:
@@ -481,6 +481,20 @@ def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable_even_if_
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Service not configured"
+
+
+def test_dcf_compute_rate_limit_caps_request_limit_to_backend_max(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(service_app, "_MAX_REQUESTS", 15_000)
+
+    response = client.post("/dcf/compute", json=_valid_dcf_payload())
+
+    assert response.status_code == 200
+    assert any(
+        call[0] == "hit_rate_limit_bucket" and call[1][1] == 10_000
+        for call in _SharedSecurityClientStub.calls
+    )
 
 
 def test_dcf_compute_rate_limit_caps_window_to_one_hour(

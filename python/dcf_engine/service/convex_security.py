@@ -22,7 +22,10 @@ class ConvexSecurityStateClient:
         self._sync_token = sync_token or os.getenv("DAMODARAN_SYNC_TOKEN")
         if not self._sync_token:
             raise ValueError("DAMODARAN_SYNC_TOKEN is required")
-        self._client = ConvexClient(self._convex_url)
+        try:
+            self._client = ConvexClient(self._convex_url)
+        except Exception as exc:
+            raise RuntimeError("Convex security-state client failed to initialize") from exc
 
     def _sanitize_args(self, args: dict[str, Any] | None) -> dict[str, Any] | None:
         if args is None:
