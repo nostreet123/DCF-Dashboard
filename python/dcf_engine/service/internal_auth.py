@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-import threading
 import time
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException, Request
+
+from dcf_engine.service.convex_security import ConvexSecurityStateClient
 
 
 INTERNAL_SIGNATURE_HEADER = "x-dcf-internal-signature"
@@ -15,9 +16,6 @@ INTERNAL_TIMESTAMP_HEADER = "x-dcf-internal-ts"
 INTERNAL_NONCE_HEADER = "x-dcf-internal-nonce"
 INTERNAL_MAX_SKEW_MS = 5 * 60 * 1000
 NONCE_TTL_MS = INTERNAL_MAX_SKEW_MS
-
-_nonce_lock = threading.Lock()
-_seen_nonces: dict[str, int] = {}
 
 
 def _internal_key() -> str | None:
@@ -49,25 +47,8 @@ def _canonical_payload(
     return f"{method}\n{path_and_query}\n{timestamp_ms}\n{nonce}\n{body_hash}"
 
 
-def _prune_expired_nonces(now_ms: int) -> None:
-    expired = [nonce for nonce, expires_at in _seen_nonces.items() if expires_at <= now_ms]
-    for nonce in expired:
-        _seen_nonces.pop(nonce, None)
-
-
-def _reserve_nonce(nonce: str, now_ms: int) -> bool:
-    with _nonce_lock:
-        _prune_expired_nonces(now_ms)
-        expires_at = _seen_nonces.get(nonce)
-        if expires_at is not None and expires_at > now_ms:
-            return False
-        _seen_nonces[nonce] = now_ms + NONCE_TTL_MS
-        return True
-
-
-def _release_nonce(nonce: str) -> None:
-    with _nonce_lock:
-        _seen_nonces.pop(nonce, None)
+def _shared_security_client() -> ConvexSecurityStateClient:
+    return ConvexSecurityStateClient()
 
 
 async def require_internal_request(request: Request) -> None:
@@ -92,7 +73,17 @@ async def require_internal_request(request: Request) -> None:
     if abs(now_ms - timestamp_value) > INTERNAL_MAX_SKEW_MS:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    if not _reserve_nonce(nonce, now_ms):
+    try:
+        security_client = _shared_security_client()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+
+    try:
+        reserved = security_client.reserve_nonce(nonce, NONCE_TTL_MS)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+
+    if not reserved:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     body = await request.body()
@@ -110,5 +101,16 @@ async def require_internal_request(request: Request) -> None:
         hashlib.sha256,
     ).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        _release_nonce(nonce)
+        try:
+            security_client.release_pending_nonce(nonce)
+        except RuntimeError:
+            # Keep the request unauthorized even if cleanup fails.
+            pass
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        marked = security_client.mark_nonce_used(nonce, NONCE_TTL_MS)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+    if not marked:
         raise HTTPException(status_code=401, detail="Unauthorized")

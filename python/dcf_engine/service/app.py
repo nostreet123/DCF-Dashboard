@@ -3,11 +3,11 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
-import time
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 import requests
 
+from dcf_engine.service.convex_security import ConvexSecurityStateClient
 from dcf_engine.service.internal_auth import require_internal_request
 from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
 from dcf_engine.workbench.run import run_workbench
@@ -32,33 +32,6 @@ DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
 DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
 
 
-class _WindowRateLimiter:
-    def __init__(self, *, max_requests: int, window_seconds: float) -> None:
-        self._max_requests = max_requests
-        self._window_seconds = window_seconds
-        self._state: dict[str, tuple[float, int]] = {}
-
-    def allow(self, key: str, now: float) -> bool:
-        current = self._state.get(key)
-        if current is None:
-            self._state[key] = (now, 1)
-            return True
-
-        window_start, count = current
-        if now - window_start >= self._window_seconds:
-            self._state[key] = (now, 1)
-            return True
-
-        if count >= self._max_requests:
-            return False
-
-        self._state[key] = (window_start, count + 1)
-        return True
-
-    def reset(self) -> None:
-        self._state.clear()
-
-
 def _compute_rate_limit_config() -> tuple[int, float]:
     raw_max = os.getenv("DCF_COMPUTE_RATE_LIMIT_MAX", "30")
     raw_window = os.getenv("DCF_COMPUTE_RATE_LIMIT_WINDOW_SECONDS", "60")
@@ -74,10 +47,10 @@ def _compute_rate_limit_config() -> tuple[int, float]:
 
 
 _MAX_REQUESTS, _WINDOW_SECONDS = _compute_rate_limit_config()
-_compute_rate_limiter = _WindowRateLimiter(
-    max_requests=_MAX_REQUESTS,
-    window_seconds=_WINDOW_SECONDS,
-)
+
+
+def _allow_unsigned_requests() -> bool:
+    return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1"
 
 
 def _trusted_proxy_mode() -> str:
@@ -142,13 +115,30 @@ def _client_id(request: Request) -> str:
 
 
 def _enforce_dcf_rate_limit(request: Request) -> None:
-    now = time.monotonic()
-    if not _compute_rate_limiter.allow(_client_id(request), now):
+    client_id = _client_id(request)
+    bucket_key = f"fastapi:dcf:compute:ip:{client_id}"
+    try:
+        result = ConvexSecurityStateClient().hit_rate_limit_bucket(
+            bucket_key,
+            _MAX_REQUESTS,
+            int(_WINDOW_SECONDS * 1000),
+        )
+    except ValueError as exc:
+        if _allow_unsigned_requests():
+            return
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+    except RuntimeError as exc:
+        if _allow_unsigned_requests():
+            return
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+
+    if not result["allowed"]:
         raise HTTPException(status_code=429, detail="Too many requests")
 
 
 def _reset_rate_limiter_for_tests() -> None:
-    _compute_rate_limiter.reset()
+    # No-op: rate-limit state is stored in Convex.
+    return None
 
 
 @app.get("/sec/search")

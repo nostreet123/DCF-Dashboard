@@ -143,6 +143,7 @@ Security defaults:
 
 - Next.js signs FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured.
 - FastAPI rejects unsigned requests by default.
+- In signed mode, FastAPI also requires `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` so replay protection and `/dcf/compute` rate limiting use shared Convex state across workers and replicas.
 - Set `DCF_ENGINE_ALLOW_UNSIGNED=1` only for trusted local development.
 - FastAPI docs are disabled by default and can be enabled locally with `DCF_ENGINE_EXPOSE_DOCS=1`.
 

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import importlib
+import json
+import hashlib
+import hmac
+import time
+import uuid
 import pytest
 import requests
 from fastapi.testclient import TestClient
@@ -113,17 +118,71 @@ def test_dcf_compute_serializes_scenario_assumptions_with_camel_case_keys() -> N
     assert "revenue_growth" not in assumptions
 
 
-def _install_single_request_limiter(monkeypatch: pytest.MonkeyPatch) -> None:
-    limiter = service_app._WindowRateLimiter(max_requests=1, window_seconds=60.0)
-    monkeypatch.setattr(service_app, "_compute_rate_limiter", limiter)
+class _SharedSecurityClientStub:
+    reserve_should_succeed = True
+    mark_should_succeed = True
+    rate_limit_sequence: list[dict[str, object]] = []
+    calls: list[tuple[str, tuple[object, ...]]] = []
+    fail_init = False
+    fail_calls = False
+
+    def __init__(self) -> None:
+        if self.fail_init:
+            raise ValueError("Service not configured")
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.reserve_should_succeed = True
+        cls.mark_should_succeed = True
+        cls.rate_limit_sequence = []
+        cls.calls = []
+        cls.fail_init = False
+        cls.fail_calls = False
+
+    def reserve_nonce(self, nonce: str, ttl_ms: int) -> bool:
+        self.calls.append(("reserve_nonce", (nonce, ttl_ms)))
+        if self.fail_calls:
+            raise RuntimeError("backend unavailable")
+        return self.reserve_should_succeed
+
+    def mark_nonce_used(self, nonce: str, ttl_ms: int) -> bool:
+        self.calls.append(("mark_nonce_used", (nonce, ttl_ms)))
+        if self.fail_calls:
+            raise RuntimeError("backend unavailable")
+        return self.mark_should_succeed
+
+    def release_pending_nonce(self, nonce: str) -> None:
+        self.calls.append(("release_pending_nonce", (nonce,)))
+        if self.fail_calls:
+            raise RuntimeError("backend unavailable")
+
+    def hit_rate_limit_bucket(
+        self,
+        bucket_key: str,
+        limit: int,
+        window_ms: int,
+    ) -> dict[str, object]:
+        self.calls.append(("hit_rate_limit_bucket", (bucket_key, limit, window_ms)))
+        if self.fail_calls:
+            raise RuntimeError("backend unavailable")
+        if self.rate_limit_sequence:
+            return self.rate_limit_sequence.pop(0)
+        return {"allowed": True, "retry_after_seconds": None}
+
+
+@pytest.fixture(autouse=True)
+def _stub_shared_security_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SharedSecurityClientStub.reset()
+    monkeypatch.setattr(service_app, "ConvexSecurityStateClient", _SharedSecurityClientStub)
+    internal_auth = importlib.import_module("dcf_engine.service.internal_auth")
+    monkeypatch.setattr(
+        internal_auth,
+        "ConvexSecurityStateClient",
+        _SharedSecurityClientStub,
+    )
 
 
 def _signed_headers(secret: str, method: str, url: str, body: str = "") -> dict[str, str]:
-    import hashlib
-    import hmac
-    import uuid
-    import time
-
     timestamp_ms = str(int(time.time() * 1000))
     nonce = str(uuid.uuid4())
     body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
@@ -147,7 +206,10 @@ def _reload_service_app() -> object:
 def test_dcf_compute_rate_limit_ignores_xff_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_single_request_limiter(monkeypatch)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+        {"allowed": False, "retry_after_seconds": 60},
+    ]
     monkeypatch.delenv("DCF_TRUSTED_PROXY_MODE", raising=False)
     monkeypatch.delenv("DCF_TRUSTED_PROXY_CIDRS", raising=False)
     direct_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
@@ -182,7 +244,10 @@ def test_dcf_compute_fails_closed_when_unsigned_mode_is_not_enabled(
 def test_dcf_compute_rate_limit_uses_xff_for_trusted_proxy_allowlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_single_request_limiter(monkeypatch)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+        {"allowed": True, "retry_after_seconds": None},
+    ]
     monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
     monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
     proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
@@ -205,7 +270,10 @@ def test_dcf_compute_rate_limit_uses_xff_for_trusted_proxy_allowlist(
 def test_dcf_compute_rate_limit_rejects_xff_from_untrusted_proxy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_single_request_limiter(monkeypatch)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+        {"allowed": False, "retry_after_seconds": 60},
+    ]
     monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
     monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.99/32")
     untrusted_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
@@ -228,7 +296,10 @@ def test_dcf_compute_rate_limit_rejects_xff_from_untrusted_proxy(
 def test_dcf_compute_rate_limit_uses_leftmost_ip_for_multi_hop_xff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_single_request_limiter(monkeypatch)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+        {"allowed": False, "retry_after_seconds": 60},
+    ]
     monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
     monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
     proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
@@ -251,7 +322,10 @@ def test_dcf_compute_rate_limit_uses_leftmost_ip_for_multi_hop_xff(
 def test_dcf_compute_rate_limit_falls_back_on_malformed_xff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_single_request_limiter(monkeypatch)
+    _SharedSecurityClientStub.rate_limit_sequence = [
+        {"allowed": True, "retry_after_seconds": None},
+        {"allowed": False, "retry_after_seconds": 60},
+    ]
     monkeypatch.setenv("DCF_TRUSTED_PROXY_MODE", "allowlist")
     monkeypatch.setenv("DCF_TRUSTED_PROXY_CIDRS", "198.51.100.10/32")
     proxy_client = TestClient(service_app.app, client=("198.51.100.10", 50000))
@@ -319,14 +393,105 @@ def test_dcf_compute_rejects_replayed_nonce_when_engine_key_is_set(
 ) -> None:
     monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
     body = _valid_dcf_payload()
-    import json
-
     encoded = json.dumps(body)
     headers = _signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
     first = client.post("/dcf/compute", data=encoded, headers=headers | {"content-type": "application/json"})
+    _SharedSecurityClientStub.reserve_should_succeed = False
     second = client.post("/dcf/compute", data=encoded, headers=headers | {"content-type": "application/json"})
     assert first.status_code == 200
     assert second.status_code == 401
+
+
+def test_dcf_compute_releases_pending_nonce_after_invalid_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    body = _valid_dcf_payload()
+    encoded = json.dumps(body)
+    headers = _signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+    headers["x-dcf-internal-signature"] = "wrong"
+
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=headers | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 401
+    assert any(
+        call[0] == "release_pending_nonce" for call in _SharedSecurityClientStub.calls
+    )
+
+
+def test_signed_mode_requires_convex_security_state_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    _SharedSecurityClientStub.fail_init = True
+    encoded = json.dumps(_valid_dcf_payload())
+    headers = _signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=headers | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Service not configured"
+
+
+def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DCF_ENGINE_ALLOW_UNSIGNED", raising=False)
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+
+    class _AuthSecurityClientStub(_SharedSecurityClientStub):
+        pass
+
+    class _RateLimitFailingSecurityClientStub(_SharedSecurityClientStub):
+        def hit_rate_limit_bucket(
+            self,
+            bucket_key: str,
+            limit: int,
+            window_ms: int,
+        ) -> dict[str, object]:
+            raise RuntimeError("backend unavailable")
+
+    internal_auth = importlib.import_module("dcf_engine.service.internal_auth")
+    monkeypatch.setattr(
+        internal_auth,
+        "ConvexSecurityStateClient",
+        _AuthSecurityClientStub,
+    )
+    monkeypatch.setattr(
+        service_app,
+        "ConvexSecurityStateClient",
+        _RateLimitFailingSecurityClientStub,
+    )
+
+    encoded = json.dumps(_valid_dcf_payload())
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=_signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+        | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Service not configured"
+
+
+def test_unsigned_local_mode_skips_shared_rate_limit_backend_when_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_ALLOW_UNSIGNED", "1")
+    _SharedSecurityClientStub.fail_calls = True
+
+    response = client.post("/dcf/compute", json=_valid_dcf_payload())
+
+    assert response.status_code == 200
 
 
 def test_fastapi_docs_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
