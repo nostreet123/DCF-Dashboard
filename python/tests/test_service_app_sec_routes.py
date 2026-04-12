@@ -402,7 +402,7 @@ def test_dcf_compute_rejects_replayed_nonce_when_engine_key_is_set(
     assert second.status_code == 401
 
 
-def test_dcf_compute_releases_pending_nonce_after_invalid_signature(
+def test_dcf_compute_rejects_invalid_signature_without_shared_nonce_mutations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
@@ -418,8 +418,9 @@ def test_dcf_compute_releases_pending_nonce_after_invalid_signature(
     )
 
     assert response.status_code == 401
-    assert any(
-        call[0] == "release_pending_nonce" for call in _SharedSecurityClientStub.calls
+    assert not any(
+        call[0] in {"reserve_nonce", "mark_nonce_used", "release_pending_nonce"}
+        for call in _SharedSecurityClientStub.calls
     )
 
 

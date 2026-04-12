@@ -59,11 +59,6 @@ def _reserve_nonce_shared(nonce: str) -> bool:
 def _mark_nonce_used_shared(nonce: str) -> bool:
     return _shared_security_client().mark_nonce_used(nonce, NONCE_TTL_MS)
 
-
-def _release_pending_nonce_shared(nonce: str) -> None:
-    _shared_security_client().release_pending_nonce(nonce)
-
-
 async def require_internal_request(request: Request) -> None:
     secret = _internal_key()
     if secret is None:
@@ -86,16 +81,6 @@ async def require_internal_request(request: Request) -> None:
     if abs(now_ms - timestamp_value) > INTERNAL_MAX_SKEW_MS:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    try:
-        reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
-    except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
-
-    if not reserved:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
     body = await request.body()
     body_hash = hashlib.sha256(body).hexdigest()
     payload = _canonical_payload(
@@ -111,11 +96,14 @@ async def require_internal_request(request: Request) -> None:
         hashlib.sha256,
     ).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        try:
-            await anyio.to_thread.run_sync(_release_pending_nonce_shared, nonce)
-        except RuntimeError:
-            # Keep the request unauthorized even if cleanup fails.
-            pass
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+
+    if not reserved:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
