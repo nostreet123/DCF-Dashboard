@@ -14,7 +14,7 @@
 - [ ] `size/L` — 100-499 changed lines
 - [ ] `size/XL` — 500-999 changed lines
 - [ ] `size/XXL` — 1000+ changed lines
-- Codex review strategy:
+- Review strategy (by size):
   - `size/XS` / `size/S`: verify the wording and factual accuracy directly against the repo
   - `size/M`: review commands, paths, and cross-doc consistency as separate checks
   - `size/L`+: review section by section against source-of-truth files and flag drift aggressively when multiple docs must stay aligned

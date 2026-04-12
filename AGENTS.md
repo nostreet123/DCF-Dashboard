@@ -71,7 +71,7 @@ cd python && pytest                   # Run all tests
 
 ### Git
 
-- **Branches**: Branch off `main` and use a type prefix that matches the PR template when possible:
+- **Branches**: Branch off `main` and use a type prefix that matches the PR category/type when possible:
   - `feature/<topic>`
   - `bugfix/<topic>`
   - `security/<topic>`

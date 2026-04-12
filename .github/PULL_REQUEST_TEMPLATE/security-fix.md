@@ -14,7 +14,7 @@
 - [ ] `size/L` — 100-499 changed lines
 - [ ] `size/XL` — 500-999 changed lines
 - [ ] `size/XXL` — 1000+ changed lines
-- Codex review strategy:
+- Review strategy (by size):
   - `size/XS` / `size/S`: verify the abuse path directly and confirm the new behavior fails closed
   - `size/M`: review threat reduction first, then compatibility and security-test coverage
   - `size/L`+: review auth, validation, logging, rate limiting, and data exposure as separate passes; split if the hardening story cannot be audited confidently in one review

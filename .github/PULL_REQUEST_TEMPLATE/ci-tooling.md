@@ -14,7 +14,7 @@
 - [ ] `size/L` — 100-499 changed lines
 - [ ] `size/XL` — 500-999 changed lines
 - [ ] `size/XXL` — 1000+ changed lines
-- Codex review strategy:
+- Review strategy (by size):
   - `size/XS` / `size/S`: review the exact config delta and its immediate operational effect
   - `size/M`: review permissions, behavior changes, and local/CI impact in separate passes
   - `size/L`+: review workflow by workflow or script by script, starting with the highest-blast-radius changes; split if multiple operational concerns are bundled

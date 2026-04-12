@@ -31,7 +31,7 @@ PR best practices for this repo:
 - [ ] `size/L` — 100-499 changed lines
 - [ ] `size/XL` — 500-999 changed lines
 - [ ] `size/XXL` — 1000+ changed lines
-- Codex review strategy:
+- Review strategy (by size):
   - `size/XS` / `size/S`: one-pass findings-first review; check stated intent, exact diff correctness, and obvious regressions
   - `size/M`: review hotspot-first by behavior slice; trace callers/callees, then verify targeted tests and edge cases
   - `size/L`: review subsystem by subsystem; focus first on the riskiest paths, then check rollout notes, compatibility, and missing verification
