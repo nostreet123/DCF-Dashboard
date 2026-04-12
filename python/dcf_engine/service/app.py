@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import ipaddress
 import math
 import logging
@@ -31,6 +32,7 @@ SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
 SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"
 DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
 DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
+SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 _MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 
@@ -54,6 +56,11 @@ _MAX_REQUESTS, _WINDOW_SECONDS = _compute_rate_limit_config()
 
 def _allow_unsigned_requests() -> bool:
     return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1" and not os.getenv("DCF_ENGINE_INTERNAL_KEY")
+
+
+@lru_cache(maxsize=1)
+def _rate_limit_security_client() -> ConvexSecurityStateClient:
+    return ConvexSecurityStateClient()
 
 
 def _rate_limit_window_ms() -> int:
@@ -131,7 +138,7 @@ def _enforce_dcf_rate_limit(request: Request) -> None:
     limit = min(_MAX_REQUESTS, _MAX_RATE_LIMIT_REQUESTS)
     window_ms = _rate_limit_window_ms()
     try:
-        result = ConvexSecurityStateClient().hit_rate_limit_bucket(
+        result = _rate_limit_security_client().hit_rate_limit_bucket(
             bucket_key,
             limit,
             window_ms,
@@ -143,7 +150,7 @@ def _enforce_dcf_rate_limit(request: Request) -> None:
     except RuntimeError as exc:
         if _allow_unsigned_requests():
             return
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
+        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
 
     if not result["allowed"]:
         raise HTTPException(status_code=429, detail="Too many requests")

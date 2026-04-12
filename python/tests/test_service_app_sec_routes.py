@@ -123,12 +123,14 @@ class _SharedSecurityClientStub:
     mark_should_succeed = True
     rate_limit_sequence: list[dict[str, object]] = []
     calls: list[tuple[str, tuple[object, ...]]] = []
+    init_count = 0
     fail_init = False
     fail_calls = False
 
     def __init__(self) -> None:
+        type(self).init_count += 1
         if self.fail_init:
-            raise RuntimeError("Service not configured")
+            raise ValueError("Service not configured")
 
     @classmethod
     def reset(cls) -> None:
@@ -136,6 +138,7 @@ class _SharedSecurityClientStub:
         cls.mark_should_succeed = True
         cls.rate_limit_sequence = []
         cls.calls = []
+        cls.init_count = 0
         cls.fail_init = False
         cls.fail_calls = False
 
@@ -173,8 +176,10 @@ class _SharedSecurityClientStub:
 @pytest.fixture(autouse=True)
 def _stub_shared_security_client(monkeypatch: pytest.MonkeyPatch) -> None:
     _SharedSecurityClientStub.reset()
+    service_app._rate_limit_security_client.cache_clear()
     monkeypatch.setattr(service_app, "ConvexSecurityStateClient", _SharedSecurityClientStub)
     internal_auth = importlib.import_module("dcf_engine.service.internal_auth")
+    internal_auth._shared_security_client.cache_clear()
     monkeypatch.setattr(
         internal_auth,
         "ConvexSecurityStateClient",
@@ -442,6 +447,24 @@ def test_signed_mode_requires_convex_security_state_configuration(
     assert response.json()["detail"] == "Service not configured"
 
 
+def test_signed_mode_reports_security_backend_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    _SharedSecurityClientStub.fail_calls = True
+    encoded = json.dumps(_valid_dcf_payload())
+    headers = _signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=headers | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Security backend unavailable"
+
+
 def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable_even_if_unsigned_mode_is_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -481,7 +504,16 @@ def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable_even_if_
     )
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Service not configured"
+    assert response.json()["detail"] == service_app.SECURITY_BACKEND_UNAVAILABLE_DETAIL
+
+
+def test_dcf_compute_rate_limit_reuses_cached_security_client() -> None:
+    first = client.post("/dcf/compute", json=_valid_dcf_payload())
+    second = client.post("/dcf/compute", json=_valid_dcf_payload())
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert _SharedSecurityClientStub.init_count == 1
 
 
 def test_dcf_compute_rate_limit_caps_request_limit_to_backend_max(

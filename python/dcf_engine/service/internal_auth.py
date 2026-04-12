@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import hashlib
 import hmac
 import os
@@ -17,6 +18,7 @@ INTERNAL_TIMESTAMP_HEADER = "x-dcf-internal-ts"
 INTERNAL_NONCE_HEADER = "x-dcf-internal-nonce"
 INTERNAL_MAX_SKEW_MS = 5 * 60 * 1000
 NONCE_TTL_MS = INTERNAL_MAX_SKEW_MS
+SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 
 
 def _internal_key() -> str | None:
@@ -48,6 +50,7 @@ def _canonical_payload(
     return f"{method}\n{path_and_query}\n{timestamp_ms}\n{nonce}\n{body_hash}"
 
 
+@lru_cache(maxsize=1)
 def _shared_security_client() -> ConvexSecurityStateClient:
     return ConvexSecurityStateClient()
 
@@ -100,8 +103,10 @@ async def require_internal_request(request: Request) -> None:
 
     try:
         reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
-    except (ValueError, RuntimeError) as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
 
     if not reserved:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -111,6 +116,6 @@ async def require_internal_request(request: Request) -> None:
     except ValueError as exc:
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
+        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
     if not marked:
         raise HTTPException(status_code=401, detail="Unauthorized")
