@@ -3,14 +3,24 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
 
   - package-ecosystem: "pip"
     directory: "/python"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    groups:
+      pip-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
