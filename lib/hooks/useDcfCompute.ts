@@ -277,11 +277,11 @@ const readNumberArray = (value: unknown): number[] => {
   return [];
 };
 
-const readPercentPointOffsets = (value: unknown): number[] =>
-  readNumberArray(value).map((offset) => {
-    const scaled = Math.abs(offset) <= 1 ? offset * 100 : offset;
-    return Math.round(scaled * 100) / 100;
-  });
+const readPercentPointOffsets = (value: unknown): number[] => {
+  const offsets = readNumberArray(value);
+  const scale = offsets.some((offset) => Math.abs(offset) > 1) ? 1 : 100;
+  return offsets.map((offset) => Math.round(offset * scale * 100) / 100);
+};
 
 const readScenarioValue = (payload: Record<string, unknown>, scenario: Scenario): number | null => {
   const scenarioResult = isRecord(payload[scenario]) ? payload[scenario] : null;

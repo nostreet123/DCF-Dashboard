@@ -50,6 +50,7 @@ export function ValuationDetails({
   const hasKpis = kpis.length > 0;
   const hasHistory = statementHistory.length > 0;
   const hasProvenance =
+    Boolean(provenance?.latestStatementSource) ||
     Boolean(provenance?.source) ||
     Boolean(provenance?.latestPeriodEnd) ||
     Boolean(provenance?.latestFilingDate);

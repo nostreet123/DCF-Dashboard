@@ -483,7 +483,9 @@ graph TD
 | Nonce replay protection | Nonce reservation / mark-used / release flow backed by `securityNonces` | `app/api/_lib/internalAuth.ts`, `convex/securityAuth.ts` |
 | Next.js route rate limiting | Trusted-client-IP extraction plus `securityRateLimit:hitBucket` | `app/api/_lib/rateLimit.ts`, `convex/securityRateLimit.ts` |
 | Shared server-side counters | Fixed-window counters in `rateLimits` | `convex/rateLimits.ts` |
-| FastAPI compute rate limiting | In-process per-client window limiter | `python/dcf_engine/service/app.py` |
+| FastAPI shared security client | Convex-backed nonce and rate-limit operations for FastAPI | `python/dcf_engine/service/convex_security.py` |
+| FastAPI replay protection | HMAC verification plus Convex-backed nonce reserve/mark-used/release | `python/dcf_engine/service/internal_auth.py`, `convex/securityAuth.ts` |
+| FastAPI compute rate limiting | Convex-backed fixed-window limiter keyed by trusted client identity | `python/dcf_engine/service/app.py`, `convex/securityRateLimit.ts` |
 | Trusted proxy handling | Socket-IP default; `x-forwarded-for` only from allowlisted proxies | `python/dcf_engine/service/app.py` |
 | Audit events | `auditLogs` table exists for operational auditing | `convex/schema.ts` and selected mutations |
 

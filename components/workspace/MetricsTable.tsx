@@ -10,11 +10,11 @@ import styles from './MetricsTable.module.css';
 interface MetricRow {
   id: string;
   label: string;
-  year1: number;
-  year2: number;
-  year3: number;
-  year4: number;
-  year5: number;
+  year1: number | null;
+  year2: number | null;
+  year3: number | null;
+  year4: number | null;
+  year5: number | null;
   trend: number[];
   format?: 'currency' | 'percent' | 'number';
 }
@@ -92,7 +92,10 @@ const defaultRows: MetricRow[] = [
   },
 ];
 
-function formatMetricValue(value: number, format?: MetricFormat): string {
+function formatMetricValue(value: number | null, format?: MetricFormat): string {
+  if (value === null) {
+    return '—';
+  }
   switch (format) {
     case 'currency':
       return formatCompactCurrency(value);
@@ -112,10 +115,13 @@ function rowsFromProjections(projections: ProjectionRow[]): MetricRow[] {
   const valueAt = (
     key: keyof Pick<ProjectionRow, 'revenue' | 'ebit' | 'nopat' | 'freeCashFlow'>,
     index: number,
-  ) => visible[index]?.[key] ?? 0;
+  ) => visible[index]?.[key] ?? null;
   const trendFor = (
     key: keyof Pick<ProjectionRow, 'revenue' | 'ebit' | 'nopat' | 'freeCashFlow'>,
-  ) => projections.map((row) => row[key] ?? 0);
+  ) => projections.flatMap((row) => {
+    const value = row[key];
+    return typeof value === 'number' ? [value] : [];
+  });
 
   return [
     {
@@ -182,8 +188,11 @@ export function MetricsTable({
   const visibleRows = tableRows.slice(startIndex, startIndex + pageSize);
 
   const projectionYears =
-    projections && projections.length >= 5
-      ? projections.slice(0, 5).map((row) => row.year)
+    projections && projections.length > 0
+      ? Array.from({ length: 5 }, (_, index) => {
+          const lastProjectionYear = projections[projections.length - 1]?.year ?? new Date().getFullYear();
+          return projections[index]?.year ?? lastProjectionYear + index - projections.length + 1;
+        })
       : getProjectionYears();
 
   return (

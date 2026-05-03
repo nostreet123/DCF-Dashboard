@@ -116,6 +116,8 @@ const getDemoReplay = (
   };
 };
 
+const RUN_HISTORY_DISABLED_ERROR = new Error('Recent runs are unavailable in this environment.');
+
 export function useDashboardController() {
   const {
     scenario,
@@ -152,8 +154,8 @@ export function useDashboardController() {
   const shouldLoadBrowserHistory = !isDemoMode && areBrowserHistoryReadsEnabled();
 
   const activeCompany = resolveActiveCompany(mockDatasets, selectedCompanyId);
-  const activeCompanyId = activeCompany?.id ?? selectedCompanyId ?? null;
-  const activeTicker = activeCompany?.ticker ?? selectedSymbol ?? 'AAPL';
+  const activeCompanyId = selectedCompanyId ?? activeCompany?.id ?? null;
+  const activeTicker = selectedSymbol ?? activeCompany?.ticker ?? 'AAPL';
   const {
     runs: liveRunHistory,
     isLoading: isRunHistoryLoading,
@@ -180,7 +182,7 @@ export function useDashboardController() {
   const effectiveRunHistoryError =
     isDemoMode || shouldLoadBrowserHistory
       ? runHistoryError
-      : new Error('Recent runs are unavailable in this environment.');
+      : RUN_HISTORY_DISABLED_ERROR;
 
   useEffect(() => {
     if (!isDemoMode && replayError && selectedRunId && replayRunId === selectedRunId) {
@@ -338,7 +340,7 @@ export function useDashboardController() {
     searchFeedback,
     selectedRunId,
     setScenario,
-    sensitivityMatrix: resultForDisplay?.sensitivityMatrix,
+    sensitivityMatrix: replay && !isDemoMode ? undefined : resultForDisplay?.sensitivityMatrix,
     valuationRange,
   };
 }

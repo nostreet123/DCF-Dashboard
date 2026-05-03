@@ -251,4 +251,22 @@ describe("useDcfCompute concurrency", () => {
       latestPeriodEnd: "2024-12-31",
     });
   });
+
+  test("keeps sensitivity offset arrays in one unit system", () => {
+    const result = normalizeDcfComputeResponse(
+      {
+        ...COMPUTE_PAYLOAD,
+        sensitivity: {
+          growthOffsets: [-2, -1, 0, 1, 2],
+          waccOffsets: [-0.02, -0.01, 0, 0.01, 0.02],
+          values: [],
+        },
+      },
+      "base",
+      FACTS_PAYLOAD,
+    );
+
+    expect(result.sensitivity?.growthOffsets).toEqual([-2, -1, 0, 1, 2]);
+    expect(result.sensitivity?.waccOffsets).toEqual([-2, -1, 0, 1, 2]);
+  });
 });
