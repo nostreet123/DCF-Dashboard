@@ -43,6 +43,11 @@ type ValuationHistoryLookup = {
   limit?: number;
 };
 
+type ValuationHistoryOptions = {
+  enabled?: boolean;
+  browserReads?: boolean;
+};
+
 type ValuationHistoryErrorInput = {
   status?: number;
   message?: string;
@@ -72,13 +77,19 @@ export function toUserFacingValuationHistoryError({
   return new Error('Unable to load recent runs.');
 }
 
-function useValuationHistoryRequest(lookup: ValuationHistoryLookup): ValuationHistoryResult {
+function useValuationHistoryRequest(
+  lookup: ValuationHistoryLookup,
+  options: ValuationHistoryOptions = {},
+): ValuationHistoryResult {
   const [runs, setRuns] = useState<ValuationHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
-  const path = buildValuationHistoryPath(lookup);
+  const path =
+    options.enabled === false
+      ? null
+      : buildValuationHistoryPath(lookup, { browserReads: options.browserReads });
 
   useEffect(() => {
     if (!path) {
@@ -155,14 +166,20 @@ function useValuationHistoryRequest(lookup: ValuationHistoryLookup): ValuationHi
   };
 }
 
-function useValuationReplayRequest(runId: string | undefined): ValuationReplayResult {
+function useValuationReplayRequest(
+  runId: string | undefined,
+  options: ValuationHistoryOptions = {},
+): ValuationReplayResult {
   const [activeRunId, setActiveRunId] = useState<string | null>(runId ?? null);
   const [replay, setReplay] = useState<ValuationReplaySnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
-  const path = buildValuationRunDetailPath(runId);
+  const path =
+    options.enabled === false
+      ? null
+      : buildValuationRunDetailPath(runId, { browserReads: options.browserReads });
 
   useEffect(() => {
     if (!path) {
@@ -244,18 +261,23 @@ function useValuationReplayRequest(runId: string | undefined): ValuationReplayRe
 export function useValuationHistory(
   symbol: string | undefined,
   limit: number = 10,
+  options: ValuationHistoryOptions = {},
 ): ValuationHistoryResult {
-  return useValuationHistoryRequest({ symbol, limit });
+  return useValuationHistoryRequest({ symbol, limit }, options);
 }
 
 export function useValuationHistoryByKey(
   primaryKeyNorm: string | undefined,
   regionCode?: string,
   limit: number = 10,
+  options: ValuationHistoryOptions = {},
 ): ValuationHistoryResult {
-  return useValuationHistoryRequest({ primaryKeyNorm, regionCode, limit });
+  return useValuationHistoryRequest({ primaryKeyNorm, regionCode, limit }, options);
 }
 
-export function useValuationReplay(runId: string | undefined): ValuationReplayResult {
-  return useValuationReplayRequest(runId);
+export function useValuationReplay(
+  runId: string | undefined,
+  options: ValuationHistoryOptions = {},
+): ValuationReplayResult {
+  return useValuationReplayRequest(runId, options);
 }

@@ -1,9 +1,46 @@
 /// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
+import {
+  areBrowserHistoryReadsEnabled,
+  getDashboardDataMode,
+} from "../lib/dashboardDataMode";
 import { resolveDisplayedValuationData } from "../lib/hooks/useDashboardController";
 
 describe("dashboard historical replay display state", () => {
+  const originalDashboardMode = process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
+  const originalBrowserReads = process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS;
+
+  afterEach(() => {
+    if (originalDashboardMode === undefined) {
+      delete process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
+    } else {
+      process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE = originalDashboardMode;
+    }
+    if (originalBrowserReads === undefined) {
+      delete process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS;
+    } else {
+      process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS = originalBrowserReads;
+    }
+  });
+
+  test("defaults dashboard data mode to demo", () => {
+    delete process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
+    expect(getDashboardDataMode()).toBe("demo");
+  });
+
+  test("enables live dashboard data mode explicitly", () => {
+    process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE = "live";
+    expect(getDashboardDataMode()).toBe("live");
+  });
+
+  test("requires an explicit public flag for browser history reads", () => {
+    delete process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS;
+    expect(areBrowserHistoryReadsEnabled()).toBe(false);
+    process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS = "1";
+    expect(areBrowserHistoryReadsEnabled()).toBe(true);
+  });
+
   test("uses replay snapshot for the active scenario", () => {
     expect(
       resolveDisplayedValuationData({
@@ -25,13 +62,6 @@ describe("dashboard historical replay display state", () => {
           range: [118, 171],
           histogram: { binCenters: [120, 130], density: [0.5, 1] },
         },
-        scenarioFallbacks: {
-          base: 145.2,
-          bull: 185.5,
-          bear: 112.3,
-        },
-        fallbackRange: [100, 200],
-        fallbackHistogram: { binCenters: [100], density: [1] },
       }),
     ).toEqual({
       currentValue: 182,
@@ -54,13 +84,6 @@ describe("dashboard historical replay display state", () => {
             bear: { fairValue: 95 },
           },
         },
-        scenarioFallbacks: {
-          base: 145.2,
-          bull: 185.5,
-          bear: 112.3,
-        },
-        fallbackRange: [100, 200],
-        fallbackHistogram: { binCenters: [100], density: [1] },
       }),
     ).toEqual({
       currentValue: 130,
@@ -80,18 +103,25 @@ describe("dashboard historical replay display state", () => {
           sensitivityMatrix: [],
         },
         replaySnapshot: null,
-        scenarioFallbacks: {
-          base: 145.2,
-          bull: 185.5,
-          bear: 112.3,
-        },
-        fallbackRange: [100, 200],
-        fallbackHistogram: { binCenters: [100], density: [1] },
       }),
     ).toEqual({
       currentValue: 151,
       valuationRange: [140, 164],
       histogram: { binCenters: [150], density: [1] },
+    });
+  });
+
+  test("does not invent a display value when no compute result exists", () => {
+    expect(
+      resolveDisplayedValuationData({
+        scenario: "base",
+        liveResult: null,
+        replaySnapshot: null,
+      }),
+    ).toEqual({
+      currentValue: null,
+      valuationRange: undefined,
+      histogram: undefined,
     });
   });
 });

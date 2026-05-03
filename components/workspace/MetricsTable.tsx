@@ -3,17 +3,18 @@
 import { useState } from 'react';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { Pagination } from '@/components/ui/Pagination';
+import type { ProjectionRow } from '@/lib/hooks/useDcfCompute';
 import { formatCompactCurrency, formatPercent } from '@/lib/utils/formatters';
 import styles from './MetricsTable.module.css';
 
 interface MetricRow {
   id: string;
   label: string;
-  year1: number;
-  year2: number;
-  year3: number;
-  year4: number;
-  year5: number;
+  year1: number | null;
+  year2: number | null;
+  year3: number | null;
+  year4: number | null;
+  year5: number | null;
   trend: number[];
   format?: 'currency' | 'percent' | 'number';
 }
@@ -21,6 +22,8 @@ interface MetricRow {
 interface MetricsTableProps {
   /** Table rows */
   rows?: MetricRow[];
+  /** Engine forecast rows */
+  projections?: ProjectionRow[];
   /** Items per page */
   pageSize?: number;
   /** Additional CSS classes */
@@ -89,7 +92,10 @@ const defaultRows: MetricRow[] = [
   },
 ];
 
-function formatMetricValue(value: number, format?: MetricFormat): string {
+function formatMetricValue(value: number | null, format?: MetricFormat): string {
+  if (value === null) {
+    return '—';
+  }
   switch (format) {
     case 'currency':
       return formatCompactCurrency(value);
@@ -104,21 +110,90 @@ function getProjectionYears(currentYear: number = new Date().getFullYear()): num
   return [currentYear + 1, currentYear + 2, currentYear + 3, currentYear + 4, currentYear + 5];
 }
 
+function rowsFromProjections(projections: ProjectionRow[]): MetricRow[] {
+  const visible = projections.slice(0, 5);
+  const valueAt = (
+    key: keyof Pick<ProjectionRow, 'revenue' | 'ebit' | 'nopat' | 'freeCashFlow'>,
+    index: number,
+  ) => visible[index]?.[key] ?? null;
+  const trendFor = (
+    key: keyof Pick<ProjectionRow, 'revenue' | 'ebit' | 'nopat' | 'freeCashFlow'>,
+  ) => projections.flatMap((row) => {
+    const value = row[key];
+    return typeof value === 'number' ? [value] : [];
+  });
+
+  return [
+    {
+      id: 'revenue',
+      label: 'Revenue',
+      year1: valueAt('revenue', 0),
+      year2: valueAt('revenue', 1),
+      year3: valueAt('revenue', 2),
+      year4: valueAt('revenue', 3),
+      year5: valueAt('revenue', 4),
+      trend: trendFor('revenue'),
+      format: 'currency',
+    },
+    {
+      id: 'ebit',
+      label: 'EBIT',
+      year1: valueAt('ebit', 0),
+      year2: valueAt('ebit', 1),
+      year3: valueAt('ebit', 2),
+      year4: valueAt('ebit', 3),
+      year5: valueAt('ebit', 4),
+      trend: trendFor('ebit'),
+      format: 'currency',
+    },
+    {
+      id: 'nopat',
+      label: 'NOPAT',
+      year1: valueAt('nopat', 0),
+      year2: valueAt('nopat', 1),
+      year3: valueAt('nopat', 2),
+      year4: valueAt('nopat', 3),
+      year5: valueAt('nopat', 4),
+      trend: trendFor('nopat'),
+      format: 'currency',
+    },
+    {
+      id: 'fcff',
+      label: 'Free Cash Flow',
+      year1: valueAt('freeCashFlow', 0),
+      year2: valueAt('freeCashFlow', 1),
+      year3: valueAt('freeCashFlow', 2),
+      year4: valueAt('freeCashFlow', 3),
+      year5: valueAt('freeCashFlow', 4),
+      trend: trendFor('freeCashFlow'),
+      format: 'currency',
+    },
+  ];
+}
+
 /**
  * Paginated table displaying financial projections with sparkline trends.
  */
 export function MetricsTable({
-  rows = defaultRows,
+  rows,
+  projections,
   pageSize = DEFAULT_PAGE_SIZE,
   className,
 }: MetricsTableProps) {
+  const tableRows = rows ?? (projections && projections.length > 0 ? rowsFromProjections(projections) : defaultRows);
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(rows.length / pageSize);
+  const totalPages = Math.ceil(tableRows.length / pageSize);
 
   const startIndex = (currentPage - 1) * pageSize;
-  const visibleRows = rows.slice(startIndex, startIndex + pageSize);
+  const visibleRows = tableRows.slice(startIndex, startIndex + pageSize);
 
-  const projectionYears = getProjectionYears();
+  const projectionYears =
+    projections && projections.length > 0
+      ? Array.from({ length: 5 }, (_, index) => {
+          const lastProjectionYear = projections[projections.length - 1]?.year ?? new Date().getFullYear();
+          return projections[index]?.year ?? lastProjectionYear + index - projections.length + 1;
+        })
+      : getProjectionYears();
 
   return (
     <div className={`${styles.container} ${className || ''}`}>

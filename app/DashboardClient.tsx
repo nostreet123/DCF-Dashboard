@@ -12,6 +12,7 @@ import { SensitivitySection } from '@/components/workspace/SensitivitySection';
 import { SensitivitySectionSkeleton } from '@/components/workspace/SensitivitySectionSkeleton';
 import { MetricsTable } from '@/components/workspace/MetricsTable';
 import { MetricsTableSkeleton } from '@/components/workspace/MetricsTableSkeleton';
+import { ValuationDetails } from '@/components/workspace/ValuationDetails';
 import { WorkbenchProvider } from '@/lib/contexts/WorkbenchContext';
 import { useDashboardController } from '@/lib/hooks/useDashboardController';
 import styles from './page.module.css';
@@ -25,6 +26,7 @@ function DashboardShell() {
     closeDrawers,
     clearError,
     currentValue,
+    detailsForDisplay,
     error,
     handleAssumptionChange,
     handleSearch,
@@ -32,6 +34,7 @@ function DashboardShell() {
     handleSelectRun,
     histogram,
     isComputing,
+    isDemoMode,
     isReplayLoading,
     isRunHistoryLoading,
     mockDatasets,
@@ -43,9 +46,12 @@ function DashboardShell() {
     scenario,
     searchFeedback,
     selectedRunId,
+    sensitivityMatrix,
     setScenario,
     valuationRange,
   } = useDashboardController();
+  const hasValuationData =
+    !error && !isComputing && !isReplayLoading && currentValue !== null;
 
   const leftRailSharedProps = {
     datasets: mockDatasets,
@@ -99,7 +105,7 @@ function DashboardShell() {
               message={error.message || 'Something went wrong while updating this workspace.'}
               onRetry={clearError}
             />
-          ) : isComputing || isReplayLoading ? (
+          ) : isComputing || isReplayLoading || currentValue === null ? (
             <ValueCardSkeleton />
           ) : (
             <ValueCard
@@ -114,14 +120,42 @@ function DashboardShell() {
 
           {isComputing ? (
             <SensitivitySectionSkeleton />
+          ) : hasValuationData && sensitivityMatrix ? (
+            <SensitivitySection
+              className={`${styles.reveal} ${styles.revealDelay3}`}
+              data={sensitivityMatrix}
+              growthOffsets={detailsForDisplay?.sensitivity?.growthOffsets}
+              waccOffsets={detailsForDisplay?.sensitivity?.waccOffsets}
+            />
           ) : (
-            <SensitivitySection className={`${styles.reveal} ${styles.revealDelay3}`} />
+            null
           )}
+
+          {hasValuationData && detailsForDisplay ? (
+            <ValuationDetails
+              className={`${styles.reveal} ${styles.revealDelay4}`}
+              kpis={detailsForDisplay.kpis}
+              statementHistory={detailsForDisplay.statementHistory}
+              monteCarloSummary={detailsForDisplay.monteCarloSummary}
+              provenance={detailsForDisplay.provenance}
+            />
+          ) : null}
 
           {isComputing ? (
             <MetricsTableSkeleton />
-          ) : (
+          ) : hasValuationData && detailsForDisplay?.projections.length ? (
+            <MetricsTable
+              className={`${styles.reveal} ${styles.revealDelay4}`}
+              projections={detailsForDisplay.projections}
+            />
+          ) : hasValuationData && isDemoMode ? (
             <MetricsTable className={`${styles.reveal} ${styles.revealDelay4}`} />
+          ) : hasValuationData ? (
+            <p className={`${styles.searchFeedback} ${styles.reveal} ${styles.revealDelay4}`}>
+              Financial projections are unavailable for this live valuation.
+            </p>
+          ) : (
+            null
           )}
         </div>
       </main>

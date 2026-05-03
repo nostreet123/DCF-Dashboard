@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   }
   const responsePayload = {
     ...basePayload,
-    includeTrace: false,
+    includeTrace: true,
     ...(monteCarlo ? { monteCarlo } : {}),
   };
 

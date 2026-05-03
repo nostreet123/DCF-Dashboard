@@ -1,5 +1,4 @@
 import localFont from 'next/font/local';
-import { JetBrains_Mono } from 'next/font/google';
 
 export const geist = localFont({
   src: './fonts/GeistVF.woff2',
@@ -7,8 +6,8 @@ export const geist = localFont({
   display: 'swap',
 });
 
-export const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
+export const jetbrainsMono = localFont({
+  src: './fonts/GeistVF.woff2',
   variable: '--font-mono',
   display: 'swap',
 });

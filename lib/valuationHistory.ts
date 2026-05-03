@@ -68,6 +68,10 @@ type ValuationHistoryLookup = {
   limit?: number;
 };
 
+type ValuationHistoryPathOptions = {
+  browserReads?: boolean;
+};
+
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -95,7 +99,7 @@ export function buildValuationHistoryPath({
   primaryKeyNorm,
   regionCode,
   limit = 10,
-}: ValuationHistoryLookup): string | null {
+}: ValuationHistoryLookup, options: ValuationHistoryPathOptions = {}): string | null {
   const trimmedSymbol = symbol?.trim();
   const trimmedPrimaryKeyNorm = primaryKeyNorm?.trim();
   if (Boolean(trimmedSymbol) === Boolean(trimmedPrimaryKeyNorm)) {
@@ -114,15 +118,20 @@ export function buildValuationHistoryPath({
   }
   searchParams.set('limit', String(limit));
 
-  return `/api/dcf/history?${searchParams.toString()}`;
+  const basePath = options.browserReads ? '/api/dcf/history/browser' : '/api/dcf/history';
+  return `${basePath}?${searchParams.toString()}`;
 }
 
-export function buildValuationRunDetailPath(runId: string | undefined): string | null {
+export function buildValuationRunDetailPath(
+  runId: string | undefined,
+  options: ValuationHistoryPathOptions = {},
+): string | null {
   const trimmedRunId = runId?.trim();
   if (!trimmedRunId) {
     return null;
   }
-  return `/api/dcf/history/${encodeURIComponent(trimmedRunId)}`;
+  const basePath = options.browserReads ? '/api/dcf/history/browser' : '/api/dcf/history';
+  return `${basePath}/${encodeURIComponent(trimmedRunId)}`;
 }
 
 export function mapValuationRunsToHistoryItems(runs: ValuationRun[]): ValuationHistoryItem[] {

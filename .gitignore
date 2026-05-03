@@ -15,6 +15,7 @@ Gemini_Generated_Image_*.png
 .gemini/
 gha-creds-*.json
 .codex/
+.worktrees/
 .claude/
 .config/
 .replit
