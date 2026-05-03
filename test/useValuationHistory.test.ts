@@ -16,6 +16,15 @@ describe("valuation history hook helpers", () => {
     );
   });
 
+  test("builds browser-readable ticker history path when requested", () => {
+    expect(
+      buildValuationHistoryPath(
+        { symbol: "AAPL", limit: 5 },
+        { browserReads: true },
+      ),
+    ).toBe("/api/dcf/history/browser?symbol=AAPL&limit=5");
+  });
+
   test("builds primary key history path with region", () => {
     expect(
       buildValuationHistoryPath({
@@ -32,6 +41,9 @@ describe("valuation history hook helpers", () => {
 
   test("builds run detail path", () => {
     expect(buildValuationRunDetailPath("run-123")).toBe("/api/dcf/history/run-123");
+    expect(
+      buildValuationRunDetailPath("run-123", { browserReads: true }),
+    ).toBe("/api/dcf/history/browser/run-123");
     expect(buildValuationRunDetailPath("   ")).toBeNull();
   });
 
