@@ -59,7 +59,22 @@ describe("browser valuation history routes", () => {
 
   test("lists ticker history without internal persistence headers when enabled", async () => {
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
-    const runs = [{ _id: "run-1", symbol: "AAPL", status: "success" }];
+    const runs = [{
+      _id: "run-1",
+      createdAt: 1700000000000,
+      symbol: "AAPL",
+      status: "success",
+      resultSummary: {
+        base: { fairValuePerShare: 145.12 },
+      },
+      inputs: { revenueGrowth: 0.1 },
+      normalizedInputs: { revenueGrowth: 0.1 },
+      provenance: { source: "private filing cache" },
+      requestId: "request-123",
+      traceStorage: "external",
+      traceId: "trace-123",
+      traceByteSize: 12345,
+    }];
     let capturedName: string | undefined;
     let capturedArgs: Record<string, unknown> | undefined;
     ConvexHttpClient.prototype.query = async (name, args) => {
@@ -81,7 +96,17 @@ describe("browser valuation history routes", () => {
       symbol: "AAPL",
       limit: 5,
     });
-    expect(await response.json()).toEqual({ runs });
+    expect(await response.json()).toEqual({
+      runs: [{
+        _id: "run-1",
+        createdAt: 1700000000000,
+        symbol: "AAPL",
+        status: "success",
+        resultSummary: {
+          base: { fairValuePerShare: 145.12 },
+        },
+      }],
+    });
   });
 
   test("returns normalized replay details without internal persistence headers when enabled", async () => {

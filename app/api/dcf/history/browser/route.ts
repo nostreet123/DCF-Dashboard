@@ -24,6 +24,25 @@ const parseLimit = (value: string | null): number | null => {
 const browserHistoryReadsEnabled = (): boolean =>
   process.env.VALUATION_HISTORY_BROWSER_READS === "1";
 
+const sanitizeBrowserHistoryRuns = (runs: unknown): unknown[] => {
+  if (!Array.isArray(runs)) {
+    return [];
+  }
+  return runs.flatMap((run) => {
+    if (!run || typeof run !== "object" || Array.isArray(run)) {
+      return [];
+    }
+    const record = run as Record<string, unknown>;
+    return [{
+      _id: record._id,
+      createdAt: record.createdAt,
+      status: record.status,
+      symbol: record.symbol,
+      resultSummary: record.resultSummary,
+    }];
+  });
+};
+
 export async function GET(request: Request) {
   if (!browserHistoryReadsEnabled()) {
     return errorResponse("NOT_FOUND", "Not found", 404);
@@ -74,7 +93,7 @@ export async function GET(request: Request) {
         symbol,
         limit,
       });
-      return NextResponse.json({ runs });
+      return NextResponse.json({ runs: sanitizeBrowserHistoryRuns(runs) });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
@@ -84,7 +103,7 @@ export async function GET(request: Request) {
       regionCode,
       limit,
     });
-    return NextResponse.json({ runs });
+    return NextResponse.json({ runs: sanitizeBrowserHistoryRuns(runs) });
   } catch (error) {
     console.error("Browser valuation history fetch failed", error);
     return errorResponse(
