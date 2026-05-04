@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import requests
+
 from dcf_engine.service.sec_edgar_cache import load_company_tickers as load_company_tickers_cached
 from dcf_engine.service.sec_edgar_extract import (
     build_statements,
@@ -26,9 +28,17 @@ from dcf_engine.service.sec_edgar_models import (
 
 def load_company_tickers() -> list[dict[str, Any]]:
     try:
-        return load_company_tickers_cached(get_json, SEC_COMPANY_TICKERS_EXCHANGE_URL)
-    except RuntimeError:
-        return load_company_tickers_cached(get_json, SEC_COMPANY_TICKERS_URL)
+        return load_company_tickers_cached(
+            get_json,
+            SEC_COMPANY_TICKERS_EXCHANGE_URL,
+            cache_key="exchange",
+        )
+    except (RuntimeError, TransientHttpError, requests.RequestException):
+        return load_company_tickers_cached(
+            get_json,
+            SEC_COMPANY_TICKERS_URL,
+            cache_key="legacy",
+        )
 
 
 def _normalize_ticker(ticker: str) -> str:
@@ -37,6 +47,13 @@ def _normalize_ticker(ticker: str) -> str:
 
 def _pad_cik(value: int | str) -> str:
     return str(value).zfill(10)
+
+
+def _extract_cik_entry(entry: dict[str, Any]) -> str:
+    cik = entry.get("cik_str")
+    if cik is None or cik == "":
+        cik = entry.get("cik")
+    return _pad_cik(cik or "")
 
 
 def _normalized_exchange(entry: dict[str, Any]) -> str | None:
@@ -66,7 +83,7 @@ def _sec_browse_url(cik: str) -> str:
 def _search_result_from_entry(entry: dict[str, Any]) -> EdgarSearchResult:
     ticker = str(entry.get("ticker", "")).upper()
     title = str(entry.get("title") or entry.get("name") or ticker)
-    cik = _pad_cik(entry.get("cik_str") or entry.get("cik") or "")
+    cik = _extract_cik_entry(entry)
     exchange = _normalized_exchange(entry)
     mic = _mic_for_exchange(exchange)
     listing_id = f"{mic}:{ticker}" if mic else ticker
@@ -115,7 +132,7 @@ def fetch_company_facts(symbol: str) -> EdgarCompanyFacts:
     if entry is None:
         raise ValueError(f"Unknown ticker: {symbol}")
 
-    cik = _pad_cik(entry.get("cik_str", ""))
+    cik = _extract_cik_entry(entry)
     url = SEC_COMPANY_FACTS_URL.format(cik=cik)
     facts = get_json(url)
     statements = build_statements(facts, normalized)

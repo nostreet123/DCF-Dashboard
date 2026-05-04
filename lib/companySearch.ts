@@ -31,7 +31,8 @@ export const getCompanySearchSymbol = (company: CompanySearchResult): string | n
 export const getCompanySearchId = (
   company: CompanySearchResult,
   fallbackSymbol: string,
-): string => company.listing_id ?? company.listingID ?? company._id ?? company.id ?? `search:${fallbackSymbol}`;
+): string => company._id ?? company.id ?? company.listing_id ?? company.listingID ?? `search:${fallbackSymbol}`;
+
 
 export const getCompanyCoverageState = (
   company: CompanySearchResult,
