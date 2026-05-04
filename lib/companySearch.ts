@@ -38,6 +38,11 @@ export const getCompanyCoverageState = (
   company: CompanySearchResult,
 ): CompanyCoverageState => company.coverage_state ?? company.coverageState ?? 'valuation_ready';
 
+export const getBestValuationSearchResult = (
+  results: CompanySearchResult[],
+): CompanySearchResult | undefined =>
+  results.find((company) => getCompanyCoverageState(company) === 'valuation_ready') ?? results[0];
+
 export const getCompanyListingLabel = (company: CompanySearchResult): string | null =>
   company.listing_id ?? company.listingID ?? company.mic ?? company.exchange ?? null;
 

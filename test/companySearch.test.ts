@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   formatCoverageState,
+  getBestValuationSearchResult,
   getCompanyCoverageState,
   getCompanyListingLabel,
   getCompanyMarketLabel,
@@ -38,5 +39,34 @@ describe("company search result helpers", () => {
     expect(getCompanySearchSymbol(result)).toBe("MSFT");
     expect(getCompanySearchId(result, "MSFT")).toBe("company:1");
     expect(getCompanyCoverageState(result)).toBe("valuation_ready");
+  });
+
+  test("prefers valuation-ready results over search-only matches", () => {
+    const results = [
+      {
+        symbol: "MIXL",
+        name: "Mixed Search Only Ltd.",
+        coverage_state: "search_only" as const,
+      },
+      {
+        symbol: "MSFT",
+        name: "Microsoft Corp.",
+        coverage_state: "valuation_ready" as const,
+      },
+    ];
+
+    expect(getBestValuationSearchResult(results)?.symbol).toBe("MSFT");
+  });
+
+  test("falls back to the first match when none are valuation-ready", () => {
+    const results = [
+      {
+        symbol: "MIXL",
+        name: "Mixed Search Only Ltd.",
+        coverage_state: "search_only" as const,
+      },
+    ];
+
+    expect(getBestValuationSearchResult(results)?.symbol).toBe("MIXL");
   });
 });

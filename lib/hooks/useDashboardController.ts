@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  getBestValuationSearchResult,
   getCompanyCoverageState,
   getCompanySearchId,
   getCompanySearchSymbol,
@@ -325,6 +326,7 @@ export function useDashboardController() {
     async (query: string) => {
       const normalizedQuery = query.trim();
       if (normalizedQuery.length < 2) {
+        searchRequestIdRef.current += 1;
         setSearchResults([]);
         setIsSearching(false);
         return;
@@ -345,7 +347,7 @@ export function useDashboardController() {
 
       setSearchFeedback('Searching companies...');
       const results = await fetchSearchResults(normalizedQuery, 6);
-      const company = results[0];
+      const company = getBestValuationSearchResult(results);
       if (!company) {
         setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
         return;
