@@ -1,4 +1,7 @@
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -122,6 +125,106 @@
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+}
+
+.searchResults {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.25rem;
+  max-height: min(24rem, calc(100vh - var(--topbar-height) - 2rem));
+  padding: 0.35rem;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.searchResult,
+.searchResultsEmpty {
+  min-height: 3.25rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-md);
+}
+
+.searchResultsEmpty {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  font-size: 0.82rem;
+}
+
+.searchResult {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  width: 100%;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.searchResult:hover,
+.searchResult:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+}
+
+.searchResultMain,
+.searchResultMeta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.searchResultMain {
+  gap: 0.5rem;
+}
+
+.searchResultMeta {
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+
+.searchResultSymbol {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.searchResultName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.83rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coverageBadge {
+  padding: 0.12rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.coverageReady {
+  color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 14%, transparent);
+}
+
+.coverageLimited {
+  color: var(--accent-coral);
+  background: color-mix(in srgb, var(--accent-coral) 14%, transparent);
 }
 
 .right {

@@ -7,6 +7,17 @@ class EdgarSearchResult(BaseModel):
     symbol: str = Field(..., description="Ticker symbol.")
     name: str = Field(..., description="Company name.")
     cik: str = Field(..., description="10-digit CIK.")
+    canonical_id: str = Field(..., description="Stable issuer identifier.")
+    listing_id: str = Field(..., description="Exchange-aware listing identifier.")
+    exchange: str | None = Field(None, description="Exchange display name.")
+    mic: str | None = Field(None, description="Market identifier code.")
+    country_code: str | None = Field(None, description="ISO country code.")
+    coverage_state: str = Field(
+        "valuation_ready",
+        description="Whether this listing can be valued directly or is search/detail only.",
+    )
+    detail_url: str | None = Field(None, description="Official source detail URL.")
+    source_system: str = Field("SEC EDGAR", description="Official source system.")
 
 
 class EdgarStatement(BaseModel):
