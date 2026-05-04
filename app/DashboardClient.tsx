@@ -30,13 +30,16 @@ function DashboardShell() {
     error,
     handleAssumptionChange,
     handleSearch,
+    handleSearchPreview,
     handleSelectCompany,
     handleSelectRun,
+    handleSelectSearchResult,
     histogram,
     isComputing,
     isDemoMode,
     isReplayLoading,
     isRunHistoryLoading,
+    isSearching,
     mockDatasets,
     mockPriceHistory,
     openAssumptionsDrawer,
@@ -45,6 +48,7 @@ function DashboardShell() {
     runHistoryError,
     scenario,
     searchFeedback,
+    searchResults,
     selectedRunId,
     sensitivityMatrix,
     setScenario,
@@ -74,6 +78,10 @@ function DashboardShell() {
         priceHistory={mockPriceHistory}
         currentPrice={152.35}
         onSearch={handleSearch}
+        onSearchPreview={handleSearchPreview}
+        searchResults={searchResults}
+        isSearching={isSearching}
+        onSelectSearchResult={handleSelectSearchResult}
         onOpenLibrary={openLibraryDrawer}
         onOpenAssumptions={openAssumptionsDrawer}
         disableSearchShortcut={activeDrawer !== null}

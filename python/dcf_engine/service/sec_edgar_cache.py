@@ -20,12 +20,26 @@ def cache_dir() -> Path:
 
 
 def ticker_cache_path() -> Path:
-    return cache_dir() / "company_tickers.json"
+    return cache_dir() / "company_tickers_exchange.json"
 
 
 def _parse_ticker_payload(payload: Any) -> list[dict[str, Any]] | None:
     if not isinstance(payload, dict):
         return None
+    fields = payload.get("fields")
+    data = payload.get("data")
+    if isinstance(fields, list) and isinstance(data, list):
+        parsed: list[dict[str, Any]] = []
+        for row in data:
+            if not isinstance(row, list):
+                continue
+            parsed.append(
+                {
+                    str(field): row[index] if index < len(row) else None
+                    for index, field in enumerate(fields)
+                }
+            )
+        return parsed
     return [entry for entry in payload.values() if isinstance(entry, dict)]
 
 

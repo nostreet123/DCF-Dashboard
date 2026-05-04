@@ -1,6 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  getCompanyCoverageState,
+  getCompanySearchId,
+  getCompanySearchSymbol,
+  type CompanySearchResult,
+} from '@/lib/companySearch';
 import { useCurrentAssumptions, useWorkbench } from '@/lib/contexts/WorkbenchContext';
 import {
   areBrowserHistoryReadsEnabled,
@@ -56,22 +62,6 @@ export function resolveDisplayedValuationData({
   };
 }
 
-type CompanySearchResult = {
-  _id?: string;
-  id?: string;
-  symbol?: string;
-  ticker?: string;
-  name?: string;
-};
-
-const getCompanySearchSymbol = (company: CompanySearchResult): string | null => {
-  const symbol = company.symbol ?? company.ticker;
-  return symbol?.trim() || null;
-};
-
-const getCompanySearchId = (company: CompanySearchResult, symbol: string): string =>
-  company._id ?? company.id ?? `search:${symbol}`;
-
 const getDemoResult = (scenario: 'base' | 'bull' | 'bear'): DcfResult => ({
   fairValue: scenarioValues[scenario],
   range: fallbackRange,
@@ -118,6 +108,29 @@ const getDemoReplay = (
 
 const RUN_HISTORY_DISABLED_ERROR = new Error('Recent runs are unavailable in this environment.');
 
+const getDemoSearchResults = (query: string, limit: number): CompanySearchResult[] => {
+  const normalizedLower = query.toLowerCase();
+  return Object.values(mockDatasets)
+    .flat()
+    .filter(
+      (company) =>
+        company.ticker.toLowerCase().includes(normalizedLower) ||
+        company.name.toLowerCase().includes(normalizedLower),
+    )
+    .slice(0, limit)
+    .map((company) => ({
+      id: company.id,
+      listing_id: `XNAS:${company.ticker}`,
+      symbol: company.ticker,
+      name: company.name,
+      exchange: 'Nasdaq',
+      mic: 'XNAS',
+      country_code: 'US',
+      coverage_state: 'valuation_ready',
+      source_system: 'Demo catalog',
+    }));
+};
+
 export function useDashboardController() {
   const {
     scenario,
@@ -148,6 +161,8 @@ export function useDashboardController() {
   } = useDcfCompute();
 
   const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const searchRequestIdRef = useRef(0);
   const isDemoMode = getDashboardDataMode() === 'demo';
@@ -229,6 +244,97 @@ export function useDashboardController() {
     [onRunSelected, setSelectedRunId],
   );
 
+  const fetchSearchResults = useCallback(
+    async (query: string, limit: number): Promise<CompanySearchResult[]> => {
+      const normalizedQuery = query.trim();
+      if (!normalizedQuery) {
+        setSearchResults([]);
+        return [];
+      }
+
+      const requestId = searchRequestIdRef.current + 1;
+      searchRequestIdRef.current = requestId;
+      setIsSearching(true);
+
+      if (isDemoMode) {
+        const results = getDemoSearchResults(normalizedQuery, limit);
+        if (requestId === searchRequestIdRef.current) {
+          setSearchResults(results);
+          setIsSearching(false);
+        }
+        return results;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/company/search?q=${encodeURIComponent(normalizedQuery)}&limit=${limit}`,
+          { method: 'GET' },
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          message?: string;
+          results?: CompanySearchResult[];
+        };
+        if (requestId !== searchRequestIdRef.current) {
+          return [];
+        }
+        if (!response.ok) {
+          throw new Error(payload.message ?? `Search failed (${response.status})`);
+        }
+        const results = payload.results ?? [];
+        setSearchResults(results);
+        return results;
+      } catch (searchError) {
+        if (requestId !== searchRequestIdRef.current) {
+          return [];
+        }
+        setSearchResults([]);
+        setSearchFeedback(
+          searchError instanceof Error ? searchError.message : 'Company search failed.',
+        );
+        return [];
+      } finally {
+        if (requestId === searchRequestIdRef.current) {
+          setIsSearching(false);
+        }
+      }
+    },
+    [isDemoMode],
+  );
+
+  const handleSelectSearchResult = useCallback(
+    (company: CompanySearchResult) => {
+      const symbol = getCompanySearchSymbol(company);
+      if (!symbol) {
+        setSearchFeedback('Search result did not include a ticker symbol.');
+        return;
+      }
+      if (getCompanyCoverageState(company) !== 'valuation_ready') {
+        setSearchFeedback(
+          `${company.name ?? symbol} is searchable, but valuation needs imported statements first.`,
+        );
+        return;
+      }
+      setSearchFeedback(null);
+      setSearchResults([]);
+      selectCompany(getCompanySearchId(company, symbol), symbol);
+    },
+    [selectCompany],
+  );
+
+  const handleSearchPreview = useCallback(
+    async (query: string) => {
+      const normalizedQuery = query.trim();
+      if (normalizedQuery.length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      setSearchFeedback(null);
+      await fetchSearchResults(normalizedQuery, 6);
+    },
+    [fetchSearchResults],
+  );
+
   const handleSearch = useCallback(
     async (query: string) => {
       const normalizedQuery = query.trim();
@@ -237,65 +343,16 @@ export function useDashboardController() {
         return;
       }
 
-      const requestId = searchRequestIdRef.current + 1;
-      searchRequestIdRef.current = requestId;
       setSearchFeedback('Searching companies...');
-
-      if (isDemoMode) {
-        const normalizedLower = normalizedQuery.toLowerCase();
-        const match = Object.values(mockDatasets)
-          .flat()
-          .find(
-            (company) =>
-              company.ticker.toLowerCase() === normalizedLower ||
-              company.name.toLowerCase().includes(normalizedLower),
-          );
-        if (!match) {
-          setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
-          return;
-        }
-        setSearchFeedback(null);
-        selectCompany(match.id, match.ticker);
+      const results = await fetchSearchResults(normalizedQuery, 6);
+      const company = results[0];
+      if (!company) {
+        setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
         return;
       }
-
-      try {
-        const response = await fetch(
-          `/api/company/search?q=${encodeURIComponent(normalizedQuery)}&limit=1`,
-          { method: 'GET' },
-        );
-        const payload = (await response.json().catch(() => ({}))) as {
-          message?: string;
-          results?: CompanySearchResult[];
-        };
-        if (requestId !== searchRequestIdRef.current) {
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(payload.message ?? `Search failed (${response.status})`);
-        }
-        const company = payload.results?.[0];
-        if (!company) {
-          setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
-          return;
-        }
-        const symbol = getCompanySearchSymbol(company);
-        if (!symbol) {
-          throw new Error('Search result did not include a ticker symbol.');
-        }
-        setSearchFeedback(null);
-        selectCompany(getCompanySearchId(company, symbol), symbol);
-        return;
-      } catch (searchError) {
-        if (requestId !== searchRequestIdRef.current) {
-          return;
-        }
-        setSearchFeedback(
-          searchError instanceof Error ? searchError.message : 'Company search failed.',
-        );
-      }
+      handleSelectSearchResult(company);
     },
-    [isDemoMode, selectCompany],
+    [fetchSearchResults, handleSelectSearchResult],
   );
 
   const clearError = useCallback(() => {
@@ -322,13 +379,16 @@ export function useDashboardController() {
     error,
     handleAssumptionChange,
     handleSearch,
+    handleSearchPreview,
     handleSelectCompany,
     handleSelectRun,
+    handleSelectSearchResult,
     histogram,
     isComputing,
     isDemoMode,
     isReplayLoading,
     isRunHistoryLoading,
+    isSearching,
     mockDatasets,
     mockPriceHistory,
     openAssumptionsDrawer,
@@ -338,6 +398,7 @@ export function useDashboardController() {
     runHistoryError: effectiveRunHistoryError,
     scenario,
     searchFeedback,
+    searchResults,
     selectedRunId,
     setScenario,
     sensitivityMatrix: replay && !isDemoMode ? undefined : resultForDisplay?.sensitivityMatrix,

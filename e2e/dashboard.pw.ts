@@ -29,6 +29,24 @@ test('scenario tabs update state', async ({ page }) => {
   await expect(page.getByText('BULL CASE')).toBeVisible();
 });
 
+test('desktop search shows selectable listing-aware results', async ({ page }, testInfo) => {
+  test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
+
+  await page.goto('/');
+
+  const desktopSearch = page.getByPlaceholder('Search companies...');
+  await desktopSearch.fill('app');
+
+  const results = page.getByRole('listbox', { name: 'Company search results' });
+  await expect(results).toBeVisible();
+  await expect(results.getByRole('option', { name: /AAPL/i })).toBeVisible();
+  await expect(results.getByText('Valuation ready')).toBeVisible();
+
+  await results.getByRole('option', { name: /AAPL/i }).click();
+  await expect(page.getByText('AAPL Fair Value')).toBeVisible();
+  await expect(results).toBeHidden();
+});
+
 test('run history click replays the hero card for the selected scenario', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 

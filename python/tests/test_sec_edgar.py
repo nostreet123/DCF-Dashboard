@@ -71,6 +71,23 @@ def test_cache_miss_fetches_and_writes_cache(
     assert written == payload
 
 
+def test_cache_parses_exchange_directory_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    payload = _load_fixture("company_tickers_exchange.json")
+
+    entries = load_company_tickers_cached(
+        lambda _: payload,
+        "https://example.test/tickers-exchange",
+    )
+
+    assert entries[0]["ticker"] == "AAPL"
+    assert entries[0]["name"] == "Apple Inc."
+    assert entries[0]["exchange"] == "Nasdaq"
+
+
 def test_stale_cache_fetches_fresh_payload(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -164,6 +181,24 @@ def test_search_companies_filters_results_and_limit(
 
     assert len(results) == 2
     assert results[0].symbol == "AAPL"
+
+
+def test_search_companies_returns_exchange_aware_listing_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _load_fixture("company_tickers_exchange.json")
+    fields = payload["fields"]
+    entries = [dict(zip(fields, row, strict=True)) for row in payload["data"]]
+    monkeypatch.setattr(sec_edgar, "load_company_tickers", lambda: entries)
+
+    results = sec_edgar.search_companies("AAPL", limit=5)
+
+    assert results[0].canonical_id == "0000320193"
+    assert results[0].listing_id == "XNAS:AAPL"
+    assert results[0].exchange == "Nasdaq"
+    assert results[0].mic == "XNAS"
+    assert results[0].country_code == "US"
+    assert results[0].coverage_state == "valuation_ready"
 
 
 def test_fetch_company_facts_raises_for_unknown_ticker(

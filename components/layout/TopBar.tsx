@@ -11,6 +11,14 @@ import { ModeToggle } from '@/components/ui/ModeToggle';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { Sparkline } from '@/components/charts/Sparkline';
 import {
+  formatCoverageState,
+  getCompanyCoverageState,
+  getCompanyListingLabel,
+  getCompanyMarketLabel,
+  getCompanySearchSymbol,
+  type CompanySearchResult,
+} from '@/lib/companySearch';
+import {
   getSearchShortcutLabelForPlatform,
   resolveSearchShortcutAction,
 } from '@/lib/utils/topBarShortcut';
@@ -25,6 +33,14 @@ interface TopBarProps {
   currentPrice?: number;
   /** Search callback */
   onSearch?: (query: string) => void;
+  /** Search preview callback for the dropdown. */
+  onSearchPreview?: (query: string) => void;
+  /** Current search suggestions. */
+  searchResults?: CompanySearchResult[];
+  /** Whether search suggestions are loading. */
+  isSearching?: boolean;
+  /** Search result selection callback. */
+  onSelectSearchResult?: (result: CompanySearchResult) => void;
   /** Opens left mobile drawer */
   onOpenLibrary?: () => void;
   /** Opens right mobile drawer */
@@ -42,18 +58,24 @@ export function TopBar({
   priceHistory,
   currentPrice,
   onSearch,
+  onSearchPreview,
+  searchResults = [],
+  isSearching = false,
+  onSelectSearchResult,
   onOpenLibrary,
   onOpenAssumptions,
   disableSearchShortcut = false,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
+  const [isDesktopResultsOpen, setIsDesktopResultsOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const overlaySearchRef = useRef<HTMLInputElement>(null);
   const shortcutLabel = getSearchShortcutLabel();
 
   const submitSearch = () => {
     onSearch?.(searchQuery);
+    setIsDesktopResultsOpen(false);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -104,6 +126,27 @@ export function TopBar({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [disableSearchShortcut, isSearchOverlayOpen]);
+
+  useEffect(() => {
+    if (!onSearchPreview || searchQuery.trim().length < 2) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      onSearchPreview(searchQuery);
+      setIsDesktopResultsOpen(true);
+    }, 180);
+    return () => window.clearTimeout(timeout);
+  }, [onSearchPreview, searchQuery]);
+
+  const handleSelectResult = (result: CompanySearchResult) => {
+    const symbol = getCompanySearchSymbol(result);
+    if (symbol) {
+      setSearchQuery(symbol);
+    }
+    setIsDesktopResultsOpen(false);
+    setIsSearchOverlayOpen(false);
+    onSelectSearchResult?.(result);
+  };
 
   return (
     <>
@@ -159,12 +202,28 @@ export function TopBar({
               type="text"
               placeholder="Search companies..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsDesktopResultsOpen(true);
+              }}
+              onFocus={() => {
+                if (searchQuery.trim().length >= 2) {
+                  setIsDesktopResultsOpen(true);
+                }
+              }}
               className={styles.searchInput}
+              autoComplete="off"
             />
             <kbd className={styles.searchKbd} suppressHydrationWarning>
               {shortcutLabel}
             </kbd>
+            {isDesktopResultsOpen && searchQuery.trim().length >= 2 && (
+              <SearchResultsPanel
+                results={searchResults}
+                isLoading={isSearching}
+                onSelect={handleSelectResult}
+              />
+            )}
           </form>
         </div>
 
@@ -202,12 +261,69 @@ export function TopBar({
       <SearchOverlay
         open={isSearchOverlayOpen}
         value={searchQuery}
-        onChange={setSearchQuery}
+        onChange={(value) => {
+          setSearchQuery(value);
+          onSearchPreview?.(value);
+        }}
         onSubmit={submitSearch}
         onClose={() => setIsSearchOverlayOpen(false)}
         inputRef={overlaySearchRef}
       />
     </>
+  );
+}
+
+function SearchResultsPanel({
+  results,
+  isLoading,
+  onSelect,
+}: {
+  results: CompanySearchResult[];
+  isLoading: boolean;
+  onSelect: (result: CompanySearchResult) => void;
+}) {
+  return (
+    <div className={styles.searchResults} role="listbox" aria-label="Company search results">
+      {isLoading ? (
+        <div className={styles.searchResultsEmpty}>Searching...</div>
+      ) : results.length === 0 ? (
+        <div className={styles.searchResultsEmpty}>No matching companies</div>
+      ) : (
+        results.map((result) => {
+          const symbol = getCompanySearchSymbol(result) ?? 'UNKNOWN';
+          const coverage = getCompanyCoverageState(result);
+          const listingLabel = getCompanyListingLabel(result);
+          const marketLabel = getCompanyMarketLabel(result);
+          return (
+            <button
+              type="button"
+              key={`${listingLabel ?? symbol}-${result.name ?? ''}`}
+              className={styles.searchResult}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onSelect(result)}
+              role="option"
+              aria-selected="false"
+            >
+              <span className={styles.searchResultMain}>
+                <span className={styles.searchResultSymbol}>{symbol}</span>
+                <span className={styles.searchResultName}>{result.name ?? 'Unknown company'}</span>
+              </span>
+              <span className={styles.searchResultMeta}>
+                {marketLabel && <span>{marketLabel}</span>}
+                {listingLabel && <span>{listingLabel}</span>}
+                <span
+                  className={`${styles.coverageBadge} ${
+                    coverage === 'valuation_ready' ? styles.coverageReady : styles.coverageLimited
+                  }`}
+                >
+                  {formatCoverageState(coverage)}
+                </span>
+              </span>
+            </button>
+          );
+        })
+      )}
+    </div>
   );
 }
 
