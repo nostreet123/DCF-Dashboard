@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from damodaran_sync.date_parser import ParsedDate, infer_date_from_filename, parse_link_label_as_of_date
-from damodaran_sync.download import HttpClient, get_default_http_client
+from damodaran_sync.download import HttpClient, get_default_http_client, validate_download_url
 
 CURRENT_PAGE_URL = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datacurrent.html"
 ARCHIVE_PAGE_URL = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/dataarchived.html"
@@ -38,6 +38,7 @@ class DiscoveredAsset:
     as_of_date_source: str | None
     as_of_granularity: str | None
     resolution_error: str | None
+    allowed_host_hints: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -140,10 +141,13 @@ def discover_page_assets(
     page_last_updated = extract_page_last_full_update(soup)
 
     assets: list[DiscoveredAsset] = []
+    page_host = urlparse(page_url).hostname
+    extra_allowed_hosts = {page_host} if page_host else set()
     for href, label in _extract_links(soup):
         absolute = urljoin(page_url, href)
         if not _is_supported_excel(absolute):
             continue
+        absolute = validate_download_url(absolute, extra_allowed_hosts=extra_allowed_hosts)
         file_name = _extract_file_name(absolute)
         as_of_date, as_of_source, as_of_granularity, error = _resolve_as_of_date(
             page_type=page_type,

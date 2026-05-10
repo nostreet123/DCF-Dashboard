@@ -5,12 +5,17 @@ from dataclasses import dataclass
 from pathlib import Path
 import math
 import numbers
+import os
 import re
 from typing import Iterable
 
 import pandas as pd
 
 PREFERRED_SHEET_NAMES = ["industry averages", "data", "sheet1", "sheet 1"]
+DEFAULT_MAX_EXCEL_BYTES = 25 * 1024 * 1024
+DEFAULT_MAX_SHEETS = 20
+DEFAULT_MAX_ROWS = 20_000
+DEFAULT_MAX_COLUMNS = 500
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,94 @@ def _count_non_empty(values: Iterable[object]) -> int:
     return sum(0 if _is_empty(value) else 1 for value in values)
 
 
+def _env_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _max_excel_bytes() -> int:
+    return _env_int("DAMODARAN_EXCEL_MAX_FILE_BYTES", DEFAULT_MAX_EXCEL_BYTES)
+
+
+def _max_excel_sheets() -> int:
+    return _env_int("DAMODARAN_EXCEL_MAX_SHEETS", DEFAULT_MAX_SHEETS)
+
+
+def _max_excel_rows() -> int:
+    return _env_int("DAMODARAN_EXCEL_MAX_ROWS", DEFAULT_MAX_ROWS)
+
+
+def _max_excel_columns() -> int:
+    return _env_int("DAMODARAN_EXCEL_MAX_COLUMNS", DEFAULT_MAX_COLUMNS)
+
+
+def _validate_file_size(file_path: Path) -> None:
+    max_bytes = _max_excel_bytes()
+    size = file_path.stat().st_size
+    if size > max_bytes:
+        raise ValueError(f"Excel file exceeds maximum size of {max_bytes} bytes")
+
+
+def _validate_sheet_count(sheet_names: list[str]) -> None:
+    max_sheets = _max_excel_sheets()
+    if len(sheet_names) > max_sheets:
+        raise ValueError(f"Excel workbook exceeds maximum sheet count of {max_sheets}")
+
+
+def _validate_frame_shape(frame: pd.DataFrame) -> None:
+    max_rows = _max_excel_rows()
+    max_columns = _max_excel_columns()
+    if len(frame.index) > max_rows:
+        raise ValueError(f"Excel sheet exceeds maximum row count of {max_rows}")
+    if len(frame.columns) > max_columns:
+        raise ValueError(f"Excel sheet exceeds maximum column count of {max_columns}")
+
+
+def _sheet_column_count(excel_file: pd.ExcelFile, sheet_name: str) -> int | None:
+    book = excel_file.book
+    try:
+        sheet = book[sheet_name]
+        column_count = getattr(sheet, "max_column", None)
+        if column_count:
+            return int(column_count)
+    except Exception:
+        pass
+    try:
+        sheet_by_name = getattr(book, "sheet_by_name")
+        sheet = sheet_by_name(sheet_name)
+        column_count = getattr(sheet, "ncols", None)
+        if column_count:
+            return int(column_count)
+    except Exception:
+        pass
+    return None
+
+
+def _read_excel_bounded(excel_file: pd.ExcelFile, sheet_name: str) -> pd.DataFrame:
+    max_columns = _max_excel_columns()
+    column_count = _sheet_column_count(excel_file, sheet_name)
+    read_kwargs: dict[str, object] = {
+        "sheet_name": sheet_name,
+        "header": None,
+        "dtype": object,
+        "nrows": _max_excel_rows() + 1,
+    }
+    if column_count is not None:
+        read_kwargs["usecols"] = range(min(column_count, max_columns + 1))
+    frame = pd.read_excel(
+        excel_file,
+        **read_kwargs,
+    )
+    _validate_frame_shape(frame)
+    return frame
+
+
 def _is_dimension_label(value: object) -> bool:
     if _is_empty(value):
         return False
@@ -54,6 +147,7 @@ def _is_dimension_label(value: object) -> bool:
 
 def _select_sheet(excel_file: pd.ExcelFile) -> str:
     sheet_names = list(excel_file.sheet_names)
+    _validate_sheet_count(sheet_names)
     normalized: dict[str, list[str]] = defaultdict(list)
     for name in sheet_names:
         normalized[_normalize_sheet_name(name)].append(name)
@@ -64,7 +158,7 @@ def _select_sheet(excel_file: pd.ExcelFile) -> str:
     best_name = sheet_names[0]
     best_count = -1
     for sheet_name in sheet_names:
-        frame = pd.read_excel(excel_file, sheet_name=sheet_name, header=None, dtype=object)
+        frame = _read_excel_bounded(excel_file, sheet_name)
         count = int(frame.apply(_count_non_empty, axis=1).gt(0).sum())
         if count > best_count:
             best_count = count
@@ -137,15 +231,17 @@ def parse_excel(path: str | Path) -> ParsedTable:
     file_path = Path(path)
     if not file_path.exists():
         raise FileNotFoundError(f"Excel file not found: {file_path}")
+    _validate_file_size(file_path)
     try:
         excel_file = pd.ExcelFile(file_path)
     except Exception as exc:
         raise ValueError(f"Failed to open Excel file {file_path}: {exc}") from exc
     sheet_candidates = list(excel_file.sheet_names)
+    _validate_sheet_count(sheet_candidates)
 
     try:
         sheet_name = _select_sheet(excel_file)
-        frame = pd.read_excel(excel_file, sheet_name=sheet_name, header=None, dtype=object)
+        frame = _read_excel_bounded(excel_file, sheet_name)
     except Exception as exc:
         raise ValueError(f"Failed to parse Excel file {file_path}: {exc}") from exc
 
