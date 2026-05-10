@@ -117,6 +117,10 @@ describe("browser valuation history routes", () => {
         createdAt: 1700000000000,
         symbol: "AAPL",
         traceStorage: "inline",
+        provenance: {
+          source: "private filing cache",
+          sourceLinks: [{ title: "Private artifact", url: "convex-storage:secret" }],
+        },
         trace: {
           base: { valuation: { fairValuePerShare: 145.12 } },
           bull: { valuation: { fairValuePerShare: 182.3 } },
@@ -133,7 +137,8 @@ describe("browser valuation history routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    const json = await response.json();
+    expect(json).toMatchObject({
       replay: {
         runId: "run-123",
         ticker: "AAPL",
@@ -145,5 +150,6 @@ describe("browser valuation history routes", () => {
         },
       },
     });
+    expect(json.replay.provenance).toBeUndefined();
   });
 });

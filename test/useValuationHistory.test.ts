@@ -85,12 +85,13 @@ describe("valuation history hook helpers", () => {
   });
 
   test("normalizes replay payload and derives optional Monte Carlo range", () => {
-    expect(
-      normalizeValuationReplay({
+    const replay = normalizeValuationReplay({
         run: {
           _id: "run-3",
           createdAt: 1700000002000,
           symbol: "MSFT",
+          inputs: { scenario: "bull" },
+          provenance: { sourceSystem: "User-reviewed import" },
           traceStorage: "inline",
           trace: {
             base: { valuation: { fairValuePerShare: 301.5 } },
@@ -102,11 +103,13 @@ describe("valuation history hook helpers", () => {
             },
           },
         },
-      }),
-    ).toEqual({
+      });
+
+    expect(replay).toMatchObject({
       runId: "run-3",
       ticker: "MSFT",
       createdAt: 1700000002000,
+      scenario: "bull",
       scenarios: {
         base: { fairValue: 301.5 },
         bull: { fairValue: 360.2 },
@@ -115,6 +118,10 @@ describe("valuation history hook helpers", () => {
       range: [270, 345],
       histogram: { binCenters: [280, 320], density: [0.5, 1] },
     });
+    expect(replay?.projections).toEqual([]);
+    expect(replay?.kpis).toEqual([]);
+    expect(replay?.statementHistory).toEqual([]);
+    expect(replay?.provenance?.source).toBe("User-reviewed import");
   });
 
   test("maps raw 429 identity failures to friendly history copy", () => {

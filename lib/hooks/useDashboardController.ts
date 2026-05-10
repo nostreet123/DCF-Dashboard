@@ -53,8 +53,9 @@ export function resolveDisplayedValuationData({
   replaySnapshot: ValuationReplaySnapshot | null;
 }) {
   if (replaySnapshot) {
+    const replayScenario = replaySnapshot.scenario ?? scenario;
     return {
-      currentValue: replaySnapshot.scenarios[scenario].fairValue,
+      currentValue: replaySnapshot.scenarios[replayScenario].fairValue,
       valuationRange: replaySnapshot.range,
       histogram: replaySnapshot.histogram,
     };
@@ -132,6 +133,16 @@ const getDemoReplay = (
       Math.round(run.value * 1.28 * 100) / 100,
     ],
     histogram: mockHistogram,
+    sensitivityMatrix: mockSensitivityMatrix,
+    sensitivity: {
+      growthOffsets: [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+      waccOffsets: [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+    },
+    projections: mockProjectionRows,
+    kpis: mockKpis,
+    statementHistory: mockStatementHistory,
+    monteCarloSummary: mockMonteCarloSummary,
+    provenance: mockProvenance,
   };
 };
 
@@ -507,7 +518,7 @@ export function useDashboardController() {
     liveResult: resultForDisplay,
     replaySnapshot: replay,
   });
-  const detailsForDisplay = replay && !isDemoMode ? null : resultForDisplay;
+  const detailsForDisplay = replay && !isDemoMode ? replay : resultForDisplay;
 
   return {
     activeCompanyId,
@@ -550,7 +561,7 @@ export function useDashboardController() {
     selectedSearchCompany,
     selectedRunId,
     setScenario,
-    sensitivityMatrix: replay && !isDemoMode ? undefined : resultForDisplay?.sensitivityMatrix,
+    sensitivityMatrix: replay && !isDemoMode ? replay.sensitivityMatrix : resultForDisplay?.sensitivityMatrix,
     valuationRange,
     workspaceMode,
   };
