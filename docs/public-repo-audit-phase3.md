@@ -29,17 +29,37 @@ Then choose one of the golden paths below.
 
 ## Golden Path 1: Demo The UI
 
-No env vars are required for the mock-backed dashboard demo.
+The default dashboard uses live API routes. For the Mac-like EDGAR path, run the Python engine and point the web app at it:
+
+Terminal 1:
 
 ```bash
-npm run dev
+SEC_USER_AGENT='Your Name your.email@example.com' DCF_ENGINE_ALLOW_UNSIGNED=1 npm run dev:engine
+```
+
+Terminal 2:
+
+```bash
+DCF_ENGINE_URL=http://127.0.0.1:8000 DCF_ENGINE_ALLOW_UNSIGNED=1 DCF_RATE_LIMIT_ALLOW_LOCALHOST=1 npm run dev
+```
+
+For a UI-only mock-backed dashboard demo, opt in explicitly:
+
+```bash
+NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
 ```
 
 Open `http://127.0.0.1:3000`.
 
-Meaningful result to expect:
+Meaningful live result to expect:
+
+- searching a US ticker routes through the local Python service and EDGAR-backed company APIs
+- the dashboard renders valuation output from the Python engine
+
+Meaningful mock result to expect:
 
 - the dashboard renders with mock valuation cards
+
 - the search box finds mock companies like `AAPL`, `MSFT`, or `GOOGL`
 - changing drawers/tabs works without Convex or the Python service
 

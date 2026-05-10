@@ -38,6 +38,8 @@ describe("playwright web server config", () => {
     expect(result?.command).toBe("npm run build && npm run start -- --port 3000");
     expect(result?.reuseExistingServer).toBe(true);
     expect(result?.url).toBe("http://localhost:3000");
+    expect(result?.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS).toBe("1");
+    expect(result?.env.VALUATION_HISTORY_BROWSER_READS).toBe("1");
   });
 
   test("supports explicit dev mode for local interactive runs", () => {
