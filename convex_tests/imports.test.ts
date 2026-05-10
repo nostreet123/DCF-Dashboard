@@ -99,4 +99,25 @@ describe("imports queries", () => {
     await expect(t.query(api.imports.getImportedFacts, { listingId: "   " })).resolves.toBeNull();
     await expect(t.query(api.imports.getImportedFacts, { listingId: "XTKS:7203" })).resolves.toBeNull();
   });
+
+  test("listBySymbol returns only valuation-ready imports", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("importedFacts", makeImportedFacts({ updatedAt: 1_000 }));
+      await ctx.db.insert(
+        "importedFacts",
+        makeImportedFacts({
+          coverageState: "detail_only",
+          updatedAt: 2_000,
+        }),
+      );
+    });
+
+    const results = await t.query(api.imports.listBySymbol, { symbol: "VOD", limit: 5 });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.coverageState).toBe("valuation_ready");
+    expect(results[0]?.updatedAt).toBe(1_000);
+  });
 });
