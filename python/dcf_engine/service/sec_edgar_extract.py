@@ -30,14 +30,7 @@ def select_unit(
     return next(iter(units.values()))
 
 
-def _annual_period_year(entry: dict[str, Any]) -> int | None:
-    end = entry.get("end")
-    if isinstance(end, str) and len(end) >= 4:
-        try:
-            return int(end[:4])
-        except ValueError:
-            return None
-
+def _fiscal_year(entry: dict[str, Any]) -> int | None:
     fy = entry.get("fy")
     if fy is None:
         return None
@@ -45,6 +38,21 @@ def _annual_period_year(entry: dict[str, Any]) -> int | None:
         return int(fy)
     except (TypeError, ValueError):
         return None
+
+
+def _annual_period_year(entry: dict[str, Any], *, prefer_fiscal_year: bool = False) -> int | None:
+    fiscal_year = _fiscal_year(entry)
+    if prefer_fiscal_year and fiscal_year is not None:
+        return fiscal_year
+
+    end = entry.get("end")
+    if isinstance(end, str) and len(end) >= 4:
+        try:
+            return int(end[:4])
+        except ValueError:
+            return None
+
+    return fiscal_year
 
 
 def _is_annual_entry(entry: dict[str, Any]) -> bool:
@@ -68,6 +76,8 @@ def extract_annual_values(
     facts: dict[str, Any],
     tag: str,
     preferred_units: list[str],
+    *,
+    prefer_fiscal_year: bool = False,
 ) -> dict[int, AnnualValue]:
     fact_namespaces = facts.get("facts", {})
     tag_data = fact_namespaces.get("us-gaap", {}).get(tag)
@@ -98,7 +108,7 @@ def extract_annual_values(
         except (TypeError, ValueError):
             continue
 
-        year = _annual_period_year(entry)
+        year = _annual_period_year(entry, prefer_fiscal_year=prefer_fiscal_year)
         if year is None:
             continue
 
@@ -236,12 +246,18 @@ def build_statements(
             ),
         )
 
-    shares = extract_annual_values(facts, "CommonStockSharesOutstanding", ["shares"])
+    shares = extract_annual_values(
+        facts,
+        "CommonStockSharesOutstanding",
+        ["shares"],
+        prefer_fiscal_year=True,
+    )
     if not shares:
         shares = extract_annual_values(
             facts,
             "EntityCommonStockSharesOutstanding",
             ["shares"],
+            prefer_fiscal_year=True,
         )
     if not shares:
         shares = extract_annual_values(

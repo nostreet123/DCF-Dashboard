@@ -42,6 +42,7 @@ export const getImportedFacts = query({
       .withIndex("by_listingId_updatedAt", (q: any) =>
         q.eq("listingId", listingId),
       )
+      .filter((q) => q.eq(q.field("coverageState"), "valuation_ready"))
       .order("desc")
       .first();
   },
