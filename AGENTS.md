@@ -14,6 +14,20 @@
 - **Purpose**: Track assistant mistakes and your preferences
 - **Update cadence**: After each meaningful task
 - **Retention**: Append entries; do not remove history unless explicitly asked
+- **Archive**: Older entries live in `docs/assistant-log-archive.md`; keep the
+  root log short and current.
+
+## Agent Context Budget
+
+- Start with `AGENT_INDEX.md` for task routing and focused validation.
+- Avoid broad reads of generated, vendored, cache, and workspace-output paths:
+  `.worktrees/**`, `.next/**`, `.bun-home/**`, `node_modules/**`,
+  `__pycache__/**`, `.pytest_cache/**`, `convex/_generated/**`, and browser or
+  coverage output.
+- Do not inspect `.agents/skills/**` unless the user names a skill or the task
+  is skill/plugin maintenance.
+- Use `docs/agent-context-policy.md` when choosing what to include in agent
+  context.
 
 ## ExecPlans / Specs
 
@@ -41,6 +55,11 @@ cd python && python -m damodaran_sync.cli sync-current  # Run sync
 bunx convex deploy                    # Deploy Convex
 bun test convex_tests                 # Run Bun unit tests
 cd python && pytest                   # Run all tests
+npm run harness:verify                # Agent/PR verification harness
+npm run test:ui:focused               # Focused dashboard/UI unit tests
+npm run test:api:focused              # Focused DCF API route tests
+npm run test:py:engine                # Focused Python DCF engine tests
+npm run test:py:sync                  # Focused Damodaran sync tests
 ```
 
 ## Component Map
@@ -126,6 +145,8 @@ rg "class.*BaseModel" python/dcf_engine/
 rg "def test_" python/tests/test_<module>.py
 ```
 
+For task-specific source and test routes, use `AGENT_INDEX.md`.
+
 ## Security & Secrets
 
 - **Never commit**: `.env`, tokens, credentials
@@ -140,9 +161,8 @@ rg "def test_" python/tests/test_<module>.py
 
 ```bash
 # Run from repo root
-bun test convex_tests                 # Bun unit tests pass
-cd python && pytest && cd ..      # All tests pass
-bunx convex typecheck             # Convex types valid
+npm run harness:verify                # Invariants, Bun tests, pytest, Convex typecheck, build, lint
+npm run harness:e2e:smoke             # Targeted Chromium Playwright smoke
 ```
 
 - All tests pass locally
