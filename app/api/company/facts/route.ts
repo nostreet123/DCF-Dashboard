@@ -29,6 +29,7 @@ type EdgarFacts = {
   name?: string | null;
   cik?: string | null;
   currency?: string | null;
+  filingCurrency?: string | null;
   source?: string | null;
   updated_at: number;
   statements: EdgarStatement[];
@@ -90,6 +91,9 @@ const shouldReadImportedFacts = (listingId: string | null): boolean => {
   return !secListingMicPrefixes.has(micPrefix);
 };
 
+const isNonSecListing = (listingId: string | null): boolean =>
+  shouldReadImportedFacts(listingId);
+
 const readImportedFacts = async (
   symbol: string,
   listingId: string | null,
@@ -116,6 +120,20 @@ const readImportedFacts = async (
   const importedDoc = imported;
   const record = facts as Record<string, unknown>;
   const statements = Array.isArray(record.statements) ? record.statements : [];
+  const filingCurrency =
+    typeof record.filingCurrency === "string"
+      ? record.filingCurrency
+      : typeof record.filing_currency === "string"
+        ? record.filing_currency
+        : typeof importedDoc.filingCurrency === "string"
+          ? importedDoc.filingCurrency
+          : null;
+  const currency =
+    typeof record.currency === "string"
+      ? record.currency
+      : typeof importedDoc.currency === "string"
+        ? importedDoc.currency
+        : filingCurrency;
   return {
     symbol,
     name:
@@ -125,12 +143,8 @@ const readImportedFacts = async (
           ? importedDoc.name
           : null,
     cik: null,
-    currency:
-      typeof record.currency === "string"
-        ? record.currency
-        : typeof importedDoc.currency === "string"
-          ? importedDoc.currency
-          : null,
+    currency,
+    filingCurrency,
     source: "import",
     updated_at: typeof importedDoc.updatedAt === "number" ? importedDoc.updatedAt : Date.now(),
     statements: statements.flatMap((statement) => {
@@ -159,9 +173,7 @@ const readImportedFacts = async (
         currency:
           typeof item.currency === "string"
             ? item.currency
-            : typeof record.currency === "string"
-              ? record.currency
-              : null,
+            : currency,
         revenue: typeof item.revenue === "number" ? item.revenue : null,
         operating_income:
           typeof item.operatingIncome === "number"
@@ -251,9 +263,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const importedFacts = await readImportedFacts(symbol, readListingIdFromQuery(request));
+    const listingId = readListingIdFromQuery(request);
+    const importedFacts = await readImportedFacts(symbol, listingId);
     if (importedFacts) {
       return noStoreJson(importedFacts);
+    }
+    if (isNonSecListing(listingId)) {
+      return errorResponse(
+        "IMPORT_REQUIRED",
+        "Approved imported facts are required before valuing this listing.",
+        409,
+      );
     }
     const facts = await fetchFacts(symbol);
     return noStoreJson(facts);

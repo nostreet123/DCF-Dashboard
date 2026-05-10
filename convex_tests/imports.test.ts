@@ -68,6 +68,27 @@ describe("imports queries", () => {
     expect(result?.facts.statements).toEqual([{ period_end: "2026-03-31", revenue: 2 }]);
   });
 
+  test("getImportedFacts skips newer non-ready imports for listing", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("importedFacts", makeImportedFacts({ updatedAt: 1_000 }));
+      await ctx.db.insert(
+        "importedFacts",
+        makeImportedFacts({
+          coverageState: "import_required",
+          facts: { statements: [{ period_end: "2026-03-31", revenue: 2 }] },
+          updatedAt: 2_000,
+        }),
+      );
+    });
+
+    const result = await t.query(api.imports.getImportedFacts, { listingId: "XLON:VOD" });
+
+    expect(result?.coverageState).toBe("valuation_ready");
+    expect(result?.updatedAt).toBe(1_000);
+  });
+
   test("getImportedFacts returns null for blank or missing listings", async () => {
     const t = convexTest(schema, modules);
 

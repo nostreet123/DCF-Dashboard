@@ -212,12 +212,13 @@ export function useDashboardController() {
     }
     void compute({
       symbol: activeTicker,
+      listingId: activeCompanyId,
       scenario,
       assumptions: scenarioAssumptions,
     }).catch(() => {
       // useDcfCompute stores the error for rendering.
     });
-  }, [activeTicker, compute, isDemoMode, retryToken, scenario, scenarioAssumptions]);
+  }, [activeCompanyId, activeTicker, compute, isDemoMode, retryToken, scenario, scenarioAssumptions]);
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {

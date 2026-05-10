@@ -185,6 +185,39 @@ def test_extract_annual_values_keys_comparatives_by_period_end_year() -> None:
     assert cash[2025].value == 52569000000
 
 
+def test_extract_annual_share_values_can_key_by_fiscal_year() -> None:
+    facts = {
+        "facts": {
+            "dei": {
+                "EntityCommonStockSharesOutstanding": {
+                    "units": {
+                        "shares": [
+                            {
+                                "fy": 2025,
+                                "fp": "FY",
+                                "form": "10-K",
+                                "filed": "2026-02-15",
+                                "end": "2026-01-31",
+                                "val": 1000,
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    shares = extract_annual_values(
+        facts,
+        "EntityCommonStockSharesOutstanding",
+        ["shares"],
+        prefer_fiscal_year=True,
+    )
+
+    assert shares[2025].value == 1000
+    assert 2026 not in shares
+
+
 def test_extract_annual_values_ignores_quarterly_durations_marked_fy() -> None:
     facts = {
         "facts": {

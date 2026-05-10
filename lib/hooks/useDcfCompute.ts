@@ -168,6 +168,9 @@ const fetchJson = async <T>(url: string, init: RequestInit, label: string): Prom
     timeoutController.abort();
   }, DCF_FETCH_TIMEOUT_MS);
   const abortFromParent = () => timeoutController.abort();
+  if (parentSignal?.aborted) {
+    timeoutController.abort();
+  }
   parentSignal?.addEventListener('abort', abortFromParent, { once: true });
 
   try {

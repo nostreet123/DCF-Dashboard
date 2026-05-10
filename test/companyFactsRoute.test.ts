@@ -198,13 +198,14 @@ describe("company facts route auth boundaries", () => {
         name: "Vodafone Group Public Limited Company",
         currency: "GBP",
         updatedAt: 2_000,
+        filingCurrency: "GBP",
         facts: {
+          currency: undefined,
           statements: [
             {
               period_end: "2025-03-31",
               period_type: "FY",
               filing_date: "2025-07-01",
-              currency: "GBP",
               revenue: 37_448_000_000,
               operating_income: 5_000_000_000,
               operating_margin: 0.1335,
@@ -232,10 +233,30 @@ describe("company facts route auth boundaries", () => {
       { name: "imports:getImportedFacts", args: { listingId: "XLON:VOD" } },
     ]);
     expect(payload.source).toBe("import");
+    expect(payload.currency).toBe("GBP");
+    expect(payload.filingCurrency).toBe("GBP");
     expect(payload.statements[0]).toMatchObject({
       period_type: "FY",
       filing_date: "2025-07-01",
+      currency: "GBP",
       shares_outstanding: 24_100_000_000,
     });
+  });
+
+  test("GET fails closed for non-SEC listings without approved imports", async () => {
+    ConvexHttpClient.prototype.query = async () => null;
+    globalThis.fetch = async () => {
+      throw new Error("EDGAR should not be called for a non-SEC selected listing");
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/facts?symbol=SHOP&listingId=XTSE:SHOP", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.46" },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.code).toBe("IMPORT_REQUIRED");
   });
 });
