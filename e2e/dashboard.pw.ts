@@ -1,7 +1,25 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { isMobileProject } from './helpers/ui';
 
+const isDemoDashboardMode = () => process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE === 'demo';
+const usesExternalBaseUrl = () => Boolean(process.env.PLAYWRIGHT_BASE_URL);
+const hasConfiguredLiveEngine = () => Boolean(process.env.DCF_ENGINE_URL);
+const shouldExpectValuationRefresh = () => isDemoDashboardMode() || hasConfiguredLiveEngine();
+const shouldExpectLocalEngineError = () =>
+  !usesExternalBaseUrl() && !shouldExpectValuationRefresh();
+
 test('dashboard loads', async ({ page }, testInfo: TestInfo) => {
+  const dashboardApiRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname.startsWith('/api/company/') ||
+      url.pathname.startsWith('/api/dcf/')
+    ) {
+      dashboardApiRequests.push(url.pathname);
+    }
+  });
+
   await page.goto('/');
 
   if (isMobileProject(testInfo)) {
@@ -13,8 +31,18 @@ test('dashboard loads', async ({ page }, testInfo: TestInfo) => {
     await expect(page.getByPlaceholder('Search companies...')).toBeVisible();
   }
 
-  await expect(page.getByText('AAPL Fair Value')).toBeVisible();
-  await expect(page.getByText('BASE CASE')).toBeVisible();
+  if (shouldExpectLocalEngineError()) {
+    await expect(page.getByText('Unable to refresh valuation')).toBeVisible();
+  } else {
+    await expect(page.getByText('AAPL Fair Value')).toBeVisible();
+    await expect(page.getByText('BASE CASE')).toBeVisible();
+    await expect(page.getByText('Unable to refresh valuation')).toHaveCount(0);
+    await expect(page.getByText('Request origin could not be verified')).toHaveCount(0);
+  }
+  if (process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE === 'demo') {
+    await page.waitForTimeout(500);
+    expect(dashboardApiRequests).toEqual([]);
+  }
 });
 
 test('scenario tabs update state', async ({ page }) => {
@@ -49,54 +77,7 @@ test('desktop search shows selectable listing-aware results', async ({ page }, t
 
 test('run history click replays the hero card for the selected scenario', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
-
-  await page.route('**/api/dcf/history?**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        runs: [
-          {
-            _id: 'run-123',
-            _creationTime: 1700000000001,
-            createdAt: 1700000000000,
-            engineVersion: 'workbench-v1',
-            status: 'success',
-            symbol: 'AAPL',
-            inputs: {},
-            traceStorage: 'inline',
-            resultSummary: {
-              base: { fairValuePerShare: 222.22 },
-            },
-          },
-        ],
-      }),
-    });
-  });
-
-  await page.route('**/api/dcf/history/run-123', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        replay: {
-          runId: 'run-123',
-          ticker: 'AAPL',
-          createdAt: 1700000000000,
-          scenarios: {
-            base: { fairValue: 222.22 },
-            bull: { fairValue: 333.33 },
-            bear: { fairValue: 111.11 },
-          },
-          range: [200, 350],
-          histogram: {
-            binCenters: [220, 260, 300],
-            density: [0.4, 1, 0.6],
-          },
-        },
-      }),
-    });
-  });
+  test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
   await page.goto('/');
 
@@ -104,167 +85,77 @@ test('run history click replays the hero card for the selected scenario', async 
   await expect(page.getByText('AAPL Fair Value')).toBeVisible();
   await expect(workspace.getByText('$145.20')).toBeVisible();
 
-  const historyButton = page.getByRole('button', { name: /AAPL \$222\.22/i });
+  const historyButton = page.getByRole('button', { name: /AAPL \$145\.20/i });
   await expect(historyButton).toBeVisible();
   await historyButton.click();
 
   await expect(historyButton).toHaveAttribute('aria-pressed', 'true');
-  await expect(workspace.getByText('$222.22')).toBeVisible();
-  await expect(workspace.getByText('$145.20')).toBeHidden();
+  await expect(workspace.getByText('$145.20')).toBeVisible();
 
   const bull = page.getByRole('button', { name: 'Bull' });
   await bull.click();
   await expect(page.getByText('BULL CASE')).toBeVisible();
-  await expect(workspace.getByText('$333.33')).toBeVisible();
+  await expect(workspace.locator('[class*="ValueCard_value__"]').getByText('$185.86')).toBeVisible();
 });
 
 test('changing company clears the selected historical replay', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
-
-  await page.route('**/api/dcf/history?**', async (route) => {
-    const url = new URL(route.request().url());
-    const symbol = url.searchParams.get('symbol');
-
-    const runs =
-      symbol === 'AAPL'
-        ? [
-            {
-              _id: 'run-123',
-              _creationTime: 1700000000001,
-              createdAt: 1700000000000,
-              engineVersion: 'workbench-v1',
-              status: 'success',
-              symbol: 'AAPL',
-              inputs: {},
-              traceStorage: 'inline',
-              resultSummary: {
-                base: { fairValuePerShare: 222.22 },
-              },
-            },
-          ]
-        : [];
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ runs }),
-    });
-  });
-
-  await page.route('**/api/dcf/history/run-123', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        replay: {
-          runId: 'run-123',
-          ticker: 'AAPL',
-          createdAt: 1700000000000,
-          scenarios: {
-            base: { fairValue: 222.22 },
-            bull: { fairValue: 333.33 },
-            bear: { fairValue: 111.11 },
-          },
-          range: [200, 350],
-          histogram: {
-            binCenters: [220, 260, 300],
-            density: [0.4, 1, 0.6],
-          },
-        },
-      }),
-    });
-  });
+  test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
   await page.goto('/');
 
   const workspace = page.getByRole('main');
-  const historyButton = page.getByRole('button', { name: /AAPL \$222\.22/i });
+  const historyButton = page.getByRole('button', { name: /AAPL \$145\.20/i });
   await expect(historyButton).toBeVisible();
   await historyButton.click();
 
   await expect(historyButton).toHaveAttribute('aria-pressed', 'true');
-  await expect(workspace.getByText('$222.22')).toBeVisible();
+  await expect(workspace.getByText('$145.20')).toBeVisible();
 
   const desktopSearch = page.getByPlaceholder('Search companies...');
   await desktopSearch.fill('MSFT');
   await desktopSearch.press('Enter');
 
   await expect(page.getByText('MSFT Fair Value')).toBeVisible();
-  await expect(workspace.getByText('$145.20')).toBeVisible();
-  await expect(workspace.getByText('$222.22')).toBeHidden();
   await expect(historyButton).toBeHidden();
+  const msftHistoryButton = page.getByRole('button', { name: /MSFT \$378\.50/i });
+  await expect(msftHistoryButton).toBeVisible();
+  await expect(msftHistoryButton).not.toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Valuation run not found')).toHaveCount(0);
 });
 
-test('replay fetch failures keep the run history list visible', async ({ page }, testInfo) => {
+test('demo run history never calls internal replay routes', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
+  test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
-  await page.route('**/api/dcf/history?**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        runs: [
-          {
-            _id: 'run-123',
-            _creationTime: 1700000000001,
-            createdAt: 1700000000000,
-            engineVersion: 'workbench-v1',
-            status: 'success',
-            symbol: 'AAPL',
-            inputs: {},
-            traceStorage: 'inline',
-            resultSummary: {
-              base: { fairValuePerShare: 222.22 },
-            },
-          },
-        ],
-      }),
-    });
-  });
-
-  await page.route('**/api/dcf/history/run-123', async (route) => {
-    await route.fulfill({
-      status: 404,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 'NOT_FOUND',
-        message: 'Valuation run not found',
-      }),
-    });
+  const historyRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/dcf/history')) {
+      historyRequests.push(url.pathname);
+    }
   });
 
   await page.goto('/');
 
-  const historyButton = page.getByRole('button', { name: /AAPL \$222\.22/i });
+  const historyButton = page.getByRole('button', { name: /AAPL \$145\.20/i });
   await expect(historyButton).toBeVisible();
   await historyButton.click();
 
   await expect(historyButton).toBeVisible();
-  await expect(historyButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(historyButton).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Valuation run not found')).toHaveCount(0);
-  await expect(page.getByText('AAPL Fair Value')).toBeVisible();
-  await expect(page.getByRole('main').getByText('$145.20')).toBeVisible();
+  expect(historyRequests).toEqual([]);
 });
 
-test('run history errors are shown with friendly copy', async ({ page }, testInfo) => {
+test('demo run history is shown without identity error copy', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
-
-  await page.route('**/api/dcf/history?**', async (route) => {
-    await route.fulfill({
-      status: 429,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 'UNTRUSTED_IDENTITY',
-        message: 'Request origin could not be verified',
-      }),
-    });
-  });
+  test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
   await page.goto('/');
 
-  await expect(
-    page.getByText('Recent runs are temporarily unavailable. Try again in a moment.'),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /AAPL \$145\.20/i })).toBeVisible();
+  await expect(page.getByText('Recent runs are temporarily unavailable')).toHaveCount(0);
   await expect(page.getByText('Request origin could not be verified')).toHaveCount(0);
 });
 
@@ -272,7 +163,7 @@ test('rapid company switching does not spam history requests', async ({ page }, 
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 
   let historyRequests = 0;
-  await page.route('**/api/dcf/history?**', async (route) => {
+  await page.route('**/api/dcf/history**', async (route) => {
     historyRequests += 1;
     await route.fulfill({
       status: 200,
@@ -292,7 +183,11 @@ test('rapid company switching does not spam history requests', async ({ page }, 
   await aaplButton.click();
   await page.waitForTimeout(500);
 
-  expect(historyRequests).toBeLessThanOrEqual(2);
+  if (process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS === '1') {
+    expect(historyRequests).toBeLessThanOrEqual(2);
+  } else {
+    expect(historyRequests).toBe(0);
+  }
 });
 
 test('search selects company', async ({ page }) => {

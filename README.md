@@ -14,19 +14,23 @@ Most DCF workflows live in spreadsheets, scattered notes, and one-off scenario t
 
 ## What Works Today
 
-- Mock-backed UI demo with no environment variables required
+- Live EDGAR-backed dashboard mode by default when the Python service is configured
+- Explicit mock-backed UI demo that needs only `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo`, with no external services or secrets required
 - FastAPI compute service for direct DCF runs
 - Base, bull, and bear scenario valuation output
 - Sensitivity analysis and financial projection views
 - Optional Monte Carlo summaries and mini-distribution plots
 - Optional Convex persistence for saved runs, company facts, and replay flows
+- Live global company search with coverage states for valuation-ready, import-required, and detail-only listings
+- CSV/XLSX/PDF import review paths that preserve approved artifacts and facts through Convex when configured
+- Server-only AI scenario analysis via Hugging Face configuration
 
 ## Prototype Vs. Stable
 
 Stable enough for public preview:
 
 - local install and smoke checks
-- mock demo mode
+- explicit mock demo mode
 - direct compute flow
 - public repo governance and security defaults
 
@@ -53,10 +57,22 @@ Monte Carlo is optional and is exposed as a scenario-expansion layer on top of t
 
 Supported query modes for the API routes:
 
-- `mc=fast`: 1,000 simulations
-- `mc=default`: 2,000 simulations
-- `mc=high`: 10,000 simulations
+- `mc=fast`: 5,000 simulations
+- `mc=default`: 25,000 simulations
+- `mc=high`: 100,000 simulations
 - `mc=off`: no Monte Carlo output
+
+## Web Feature Parity
+
+The web app implements the Mac prototype parity surface as web-native routes and components. The Python DCF engine remains the valuation source of truth; Swift valuation code is not ported.
+
+- Search uses `CoverageState` to branch listings into immediate valuation, import review, or source-detail views.
+- Approved imports persist reviewed facts and artifact references in Convex, then compute from those facts immediately.
+- Rich run output includes scenario values, KPIs, statement history, projections, sensitivity offsets, Monte Carlo summaries, and provenance.
+- AI scenario analysis uses server-side `HUGGING_FACE_API_KEY` and `HUGGING_FACE_MODEL`; secrets never go to the browser. For maximum-reasoning DeepSeek demos, set `HUGGING_FACE_MODEL=deepseek-ai/DeepSeek-V4-Pro:fastest`, `HUGGING_FACE_REASONING_EFFORT=xhigh`, `HUGGING_FACE_RESPONSE_FORMAT=json_object`, `HUGGING_FACE_MAX_INPUT_BYTES=4000000`, `HUGGING_FACE_MAX_OUTPUT_TOKENS=8192`, and `HUGGING_FACE_PROVIDER_TIMEOUT_MS=90000` so the app can pass a 384K-token-scale context budget while bounding slow provider attempts. The `:fastest` suffix is a Hugging Face router provider-selection policy on the model id, not part of the JSON schema. Public demos can set per-IP/daily AI caps and an optional admin bypass via `DCF_DEMO_ADMIN_TOKEN_SHA256`, which stores only a SHA-256 digest of your admin token.
+- Settings status reports SEC user-agent, AI, Convex/history/import readiness, and active data mode.
+
+The parity checklist lives in [`docs/web-feature-parity-checklist.md`](docs/web-feature-parity-checklist.md).
 
 ## Five-Minute Quickstart
 
@@ -72,24 +88,43 @@ python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
 ```
 
 Bun is used only as the test runner under the npm scripts. `npm` is the canonical JavaScript package manager for this repo.
+If Bun is not installed globally, the repo harness installs the pinned Bun version into ignored `.bun-home/` automatically.
 
 Fastest paths after install:
 
-- UI demo: `npm run dev` then open `http://127.0.0.1:3000`
+- Live EDGAR UI: start the Python engine, then start Next.js with `DCF_ENGINE_URL=http://127.0.0.1:8000`
+- Mock UI demo: `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev`
 - Compute demo: `npm run demo:compute`
 - Repo alive smoke check: `npm run smoke:alive`
+- Agent/PR verification: `npm run harness:verify`
 
 Full onboarding and golden paths live in [`docs/public-repo-audit-phase3.md`](docs/public-repo-audit-phase3.md).
 
 ## Demo Paths
 
-### UI Demo
+### Live EDGAR UI
 
 ```bash
+# Terminal 1
+. .venv/bin/activate
+SEC_USER_AGENT='Your Name your.email@example.com' \
+DCF_ENGINE_ALLOW_UNSIGNED=1 \
+npm run dev:engine
+
+# Terminal 2
+DCF_ENGINE_URL=http://127.0.0.1:8000 \
+DCF_ENGINE_ALLOW_UNSIGNED=1 \
+DCF_RATE_LIMIT_ALLOW_LOCALHOST=1 \
 npm run dev
 ```
 
-This path uses mock-backed data by default, so contributors can see a working dashboard without configuring external services.
+This path uses live dashboard API routes by default, matching the Mac prototype’s EDGAR-backed behavior.
+
+For a UI-only mock demo without the Python service, run:
+
+```bash
+NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
+```
 
 ### Direct Compute Flow
 
@@ -108,13 +143,24 @@ curl -s -X POST http://127.0.0.1:8000/dcf/compute \
 npm run smoke:alive
 ```
 
+### Agent / PR Verification
+
+```bash
+. .venv/bin/activate
+npm run harness:verify
+```
+
+This runs repository invariant checks, Bun tests, pytest, Convex typecheck, a production build, and lint. For a targeted browser smoke check, run `npm run harness:e2e:smoke`.
+
 ## Optional Services And Environment
 
-UI-only demo mode works without env vars. Optional services become relevant when you want persistence, replay history, or production-like service-to-service auth.
+Explicit UI-only demo mode works with `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` and no external services or secrets. The default dashboard path is live and expects the Python service plus EDGAR configuration; optional services become relevant when you want persistence, replay history, or production-like service-to-service auth.
 
 Public-safe client/runtime values:
 
 - `NEXT_PUBLIC_CONVEX_URL`
+- `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` for explicit mock-backed dashboard mode
+- `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1` only when browser-readable saved-run history is enabled server-side
 - non-secret tuning flags described in [`.env.example`](.env.example)
 
 Never expose:
@@ -131,6 +177,7 @@ Operational values that should stay private even if they are not credentials:
 - `DCF_ENGINE_URL`
 - `DCF_TRUSTED_PROXY_CIDRS`
 - `SEC_USER_AGENT`
+- `VALUATION_HISTORY_BROWSER_READS`
 
 ## API Notes
 
@@ -138,17 +185,25 @@ DCF compute routes:
 
 - `POST /api/dcf/preview`: compute only
 - `POST /api/dcf/run`: compute plus optional persistence to Convex
+- `GET /api/company/detail?id=...`: official listing metadata and source links
+- `POST /api/company/import/parse`: multipart CSV/XLSX/PDF import parsing
+- `POST /api/company/import/approve`: persist reviewed facts and compute imported valuation
+- `POST /api/ai/scenario-analysis`: strict server-only AI assumptions and rationale
+- `GET /api/settings/status`: data and integration readiness summary
 
 Security defaults:
 
 - Next.js signs FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured.
 - FastAPI rejects unsigned requests by default.
-- In signed mode, FastAPI also requires `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` so replay protection and `/dcf/compute` rate limiting use shared Convex state across workers and replicas.
+- Signed FastAPI requests use Convex-backed nonce replay protection when `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` are configured.
 - Set `DCF_ENGINE_ALLOW_UNSIGNED=1` only for trusted local development.
+- Set `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1` only for single-process private/dev FastAPI runs without Convex-backed replay protection.
 - FastAPI docs are disabled by default and can be enabled locally with `DCF_ENGINE_EXPOSE_DOCS=1`.
 
 ## Tests
 
+- `npm run harness:verify`
+- `npm run harness:e2e:smoke`
 - `npm test`
 - `npm run lint`
 - `npm run build`

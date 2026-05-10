@@ -14,8 +14,11 @@ const eslintConfig = [
   {
     ignores: [
       ".agents/**",
+      ".bun-home/**",
       ".next/**",
+      ".tmp/**",
       ".venv/**",
+      ".worktrees/**",
       "next-env.d.ts",
       "python/**",
       "convex/**",
