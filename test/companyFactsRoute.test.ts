@@ -105,22 +105,11 @@ describe("company facts route auth boundaries", () => {
     expect(response.status).toBe(400);
   });
 
-  test("GET uses official SEC facts for SEC listings even when imported facts exist", async () => {
+  test("GET falls back to official SEC facts for SEC listings without approved imports", async () => {
     const queryCalls: unknown[] = [];
     ConvexHttpClient.prototype.query = async (name, args) => {
       queryCalls.push({ name, args });
-      return {
-        facts: {
-          statements: [
-            {
-              periodEnd: "2020-12-31",
-              periodType: "FY",
-              revenue: 1,
-              sharesOutstanding: 1,
-            },
-          ],
-        },
-      };
+      return null;
     };
     globalThis.fetch = async () =>
       new Response(
@@ -149,7 +138,12 @@ describe("company facts route auth boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toContain("no-store");
-    expect(queryCalls).toEqual([]);
+    expect(queryCalls).toEqual([
+      {
+        name: "imports:getImportedFacts",
+        args: { listingId: "XNAS:AAPL" },
+      },
+    ]);
     expect(payload.source).toBe("edgar");
     expect(payload.statements[0].period_end).toBe("2025-09-27");
   });
@@ -186,7 +180,12 @@ describe("company facts route auth boundaries", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(queryCalls).toEqual([]);
+    expect(queryCalls).toEqual([
+      {
+        name: "imports:getImportedFacts",
+        args: { listingId: "XNYS:IBM" },
+      },
+    ]);
     expect(payload.source).toBe("edgar");
   });
 
@@ -258,5 +257,49 @@ describe("company facts route auth boundaries", () => {
 
     expect(response.status).toBe(409);
     expect(payload.code).toBe("IMPORT_REQUIRED");
+  });
+
+  test("GET returns latest approved import by symbol when listing id is absent", async () => {
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      if (String(name) !== "imports:listBySymbol") {
+        return null;
+      }
+      return [
+        {
+          name: "Vodafone Group Public Limited Company",
+          currency: "GBP",
+          updatedAt: 2_000,
+          facts: {
+            statements: [
+              {
+                period_end: "2025-03-31",
+                period_type: "FY",
+                revenue: 37_448_000_000,
+                shares_outstanding: 24_100_000_000,
+              },
+            ],
+          },
+        },
+      ];
+    };
+    globalThis.fetch = async () => {
+      throw new Error("EDGAR should not be called when approved imported facts exist");
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/facts?symbol=VOD", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.46" },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(queryCalls).toEqual([
+      { name: "imports:listBySymbol", args: { symbol: "VOD", limit: 1 } },
+    ]);
+    expect(payload.source).toBe("import");
+    expect(payload.statements[0].period_end).toBe("2025-03-31");
   });
 });
