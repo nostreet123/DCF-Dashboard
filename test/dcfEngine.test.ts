@@ -98,6 +98,17 @@ describe("fetchDcfEngine", () => {
     );
   });
 
+  test("throws on empty success payloads", async () => {
+    globalThis.fetch = createMockFetch(async () =>
+      new Response(null, {
+        status: 204,
+      }));
+
+    await expect(fetchDcfEngine("/dcf/compute")).rejects.toThrow(
+      "Unexpected empty DCF engine response (204)",
+    );
+  });
+
   test("signs outbound GET requests when internal engine key is configured", async () => {
     process.env.DCF_ENGINE_INTERNAL_KEY = "engine-secret";
     let capturedRequest: Request | undefined;

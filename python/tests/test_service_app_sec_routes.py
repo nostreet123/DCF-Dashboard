@@ -43,6 +43,7 @@ def _valid_dcf_payload() -> dict[str, object]:
 @pytest.fixture(autouse=True)
 def _allow_unsigned_engine_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DCF_ENGINE_ALLOW_UNSIGNED", "1")
+    monkeypatch.setenv("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES", "1")
 
 
 def test_sec_search_wraps_requests_exception(
@@ -391,6 +392,42 @@ def test_dcf_compute_requires_signed_internal_auth_when_engine_key_is_set(
     monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
     response = client.post("/dcf/compute", json=_valid_dcf_payload())
     assert response.status_code == 401
+
+
+def test_dcf_compute_auth_runs_before_body_parsing_when_engine_key_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+
+    response = client.post(
+        "/dcf/compute",
+        data="{bad json",
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_signed_internal_auth_requires_shared_nonce_store_unless_explicitly_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    monkeypatch.delenv("CONVEX_URL", raising=False)
+    monkeypatch.delenv("DAMODARAN_SYNC_TOKEN", raising=False)
+    monkeypatch.delenv("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES", raising=False)
+    import json
+
+    encoded = json.dumps(_valid_dcf_payload())
+    headers = _signed_headers("engine-secret", "POST", "/dcf/compute", encoded)
+
+    response = client.post(
+        "/dcf/compute",
+        data=encoded,
+        headers=headers | {"content-type": "application/json"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Shared nonce store is not configured"
 
 
 def test_dcf_compute_rejects_replayed_nonce_when_engine_key_is_set(
