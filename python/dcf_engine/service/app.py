@@ -13,6 +13,14 @@ import requests
 
 from dcf_engine.service.convex_security import ConvexSecurityStateClient
 from dcf_engine.service.internal_auth import require_internal_request
+from dcf_engine.service.company_contracts import (
+    CompanyDetail,
+    OfficialSearchResponse,
+)
+from dcf_engine.service.official_markets import (
+    fetch_official_detail,
+    search_official_companies,
+)
 from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
 from dcf_engine.workbench.run import run_workbench
 from dcf_engine.workbench.schema import WorkbenchRequest, WorkbenchResponse
@@ -38,6 +46,10 @@ SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 _MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 _INTERNAL_AUTH_PATHS = {
+    "/sec/search",
+    "/sec/facts",
+    "/company/search",
+    "/company/detail",
     "/dcf/compute",
 }
 
@@ -196,6 +208,43 @@ def sec_search(
         logger.exception("SEC search failed")
         raise HTTPException(status_code=500, detail=SEC_SEARCH_FAILURE_DETAIL) from exc
     return {"results": results}
+
+
+@app.get(
+    "/company/search",
+    response_model=OfficialSearchResponse,
+    response_model_by_alias=True,
+)
+def company_search(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+    _: None = Depends(require_internal_request),
+) -> OfficialSearchResponse:
+    try:
+        return OfficialSearchResponse(
+            results=search_official_companies(q, limit=limit),
+        )
+    except (RuntimeError, requests.RequestException) as exc:
+        logger.exception("Official company search failed")
+        raise HTTPException(status_code=500, detail=SEC_SEARCH_FAILURE_DETAIL) from exc
+
+
+@app.get(
+    "/company/detail",
+    response_model=CompanyDetail,
+    response_model_by_alias=True,
+)
+def company_detail(
+    id: str = Query(..., min_length=1),
+    _: None = Depends(require_internal_request),
+) -> CompanyDetail:
+    try:
+        return fetch_official_detail(id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Unknown listing") from exc
+    except (RuntimeError, requests.RequestException) as exc:
+        logger.exception("Official company detail failed")
+        raise HTTPException(status_code=500, detail="Company detail failed") from exc
 
 
 @app.get("/sec/facts")

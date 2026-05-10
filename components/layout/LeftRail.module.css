@@ -72,11 +72,11 @@
 
 .companyItem.selected {
   background: var(--accent-gold);
-  color: #0a0a0b;
+  color: var(--on-accent);
 }
 
 .companyItem.selected .companyTicker {
-  color: #0a0a0b;
+  color: var(--on-accent);
 }
 
 .companyItem.selected .companyName {
@@ -125,6 +125,12 @@
   transform: translateY(1px) scale(0.99);
 }
 
+.regionBtnSelected {
+  color: var(--on-accent);
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
 .regionBtn:disabled {
   cursor: not-allowed;
   color: var(--text-tertiary);
@@ -169,9 +175,9 @@
 }
 
 .historyItemSelected {
-  border-color: rgba(212, 168, 83, 0.65);
-  background: rgba(212, 168, 83, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(212, 168, 83, 0.18);
+  border-color: color-mix(in srgb, var(--accent-gold) 65%, var(--border));
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-gold) 18%, transparent);
 }
 
 .historyItem:active {
