@@ -1,0 +1,72 @@
+{
+  "name": "dcf-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": ">=22 <25",
+    "npm": ">=11 <12",
+    "bun": ">=1.3.10 <2"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "dev:engine": "PYTHONPATH=python python -m uvicorn dcf_engine.service.app:app --host 127.0.0.1 --port 8000",
+    "build": "next build",
+    "start": "next start",
+    "demo:compute": "python scripts/run_workbench_demo.py examples/workbench-demo-request.json",
+    "lint": "eslint .",
+    "smoke:alive": "bash scripts/smoke_alive.sh",
+    "harness:verify": "bash scripts/harness_verify.sh",
+    "harness:e2e:smoke": "bash scripts/harness_e2e_smoke.sh",
+    "convex:typecheck": "bunx convex typecheck",
+    "test:convex:focused": "scripts/ensure_bun.sh bun test convex_tests/buildIdLifecycle.test.ts",
+    "test:ui:focused": "scripts/ensure_bun.sh bun test test/dashboardDisplayState.test.ts test/useDcfCompute.test.ts",
+    "test:api:focused": "scripts/ensure_bun.sh bun test test/dcfEngine.test.ts test/dcfRunRouteAuth.test.ts test/rateLimitRoutes.test.ts",
+    "test:security:focused": "scripts/ensure_bun.sh bun test test/dcfRunRouteAuth.test.ts test/rateLimitRoutes.test.ts && bash scripts/run_pytest.sh python/tests/test_service_app_sec_routes.py python/tests/test_mirror_security.py",
+    "test:py:engine": "bash scripts/run_pytest.sh python/tests/test_engine_golden_acme.py python/tests/test_engine_smoke.py python/tests/test_bridge.py python/tests/test_discounting.py",
+    "test:py:sync": "bash scripts/run_pytest.sh python/tests/test_download_conditional.py python/tests/test_excel_parse.py python/tests/test_sync_manifest_hash.py python/tests/test_sync_batching.py",
+    "test": "bun test",
+    "test:e2e:install": "playwright install",
+    "test:e2e": "PLAYWRIGHT_PORT=3101 playwright test --project=chromium",
+    "test:e2e:mobile": "PLAYWRIGHT_PORT=3101 playwright test --project=mobile-chromium",
+    "test:e2e:iphone": "PLAYWRIGHT_PORT=3101 playwright test --project=iphone-15-pro-max",
+    "test:e2e:iphone:update-visual": "PLAYWRIGHT_PORT=3101 playwright test --project=iphone-15-pro-max --update-snapshots=all e2e/visual.pw.ts",
+    "test:e2e:ui": "PLAYWRIGHT_PORT=3101 PLAYWRIGHT_WEB_SERVER_MODE=dev playwright test --ui --ui-host=0.0.0.0 --ui-port=9323 --workers=1",
+    "test:e2e:headed": "PLAYWRIGHT_PORT=3101 PLAYWRIGHT_WEB_SERVER_MODE=dev node scripts/with_display.cjs -- playwright test --headed --workers=1",
+    "test:e2e:qa": "PLAYWRIGHT_PORT=3101 PLAYWRIGHT_WEB_SERVER_MODE=dev PLAYWRIGHT_SLOWMO=150 node scripts/with_display.cjs -- playwright test --headed --workers=1"
+  },
+  "dependencies": {
+    "@radix-ui/react-icons": "1.3.2",
+    "clsx": "2.1.1",
+    "convex": "1.33.1",
+    "next": "15.5.14",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.5",
+    "@playwright/test": "1.58.2",
+    "@types/node": "25.5.0",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "bun-types": "1.3.10",
+    "convex-test": "0.0.41",
+    "eslint": "9.39.4",
+    "eslint-config-next": "15.5.14",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "flat-cache": {
+      "flatted": "3.4.2"
+    },
+    "tinyglobby": {
+      "picomatch": "4.0.4"
+    },
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.13"
+    },
+    "minimatch@10.2.4": {
+      "brace-expansion": "5.0.5"
+    }
+  }
+}

@@ -1,0 +1,152 @@
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--spacing-lg);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: var(--spacing-xs) 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.badge {
+  flex: 0 0 auto;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-gold) 14%, var(--surface-elevated));
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sourceList,
+.statusGrid,
+.fieldGrid,
+.artifactList {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.sourceList,
+.artifactList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sourceList a {
+  color: var(--accent-teal);
+  overflow-wrap: anywhere;
+}
+
+.statusGrid {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.statusItem,
+.artifactItem {
+  min-height: 3rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+}
+
+.statusItem span,
+.artifactItem span {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 0.76rem;
+}
+
+.statusItem strong,
+.artifactItem strong {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+
+.uploadRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.fileInput {
+  min-width: min(100%, 18rem);
+  color: var(--text-secondary);
+}
+
+.button {
+  min-height: 2.5rem;
+  padding: 0 var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.buttonPrimary {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
+  color: var(--on-accent);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fieldGrid {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin-bottom: var(--spacing-lg);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+}
+
+.fieldLabel input {
+  min-height: 2.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  padding: 0 var(--spacing-sm);
+}
+
+.note {
+  margin: 0 0 var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.error {
+  color: var(--accent-coral);
+}

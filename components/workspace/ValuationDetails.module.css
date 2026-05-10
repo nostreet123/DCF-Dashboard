@@ -1,0 +1,157 @@
+.section {
+  padding: var(--spacing-xl) 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--text-tertiary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-xl) + 2px);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+  padding: var(--spacing-lg);
+}
+
+.historyPanel {
+  grid-column: 1 / -1;
+}
+
+.panelTitle {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+}
+
+.kpiItem {
+  min-width: 0;
+}
+
+.kpiLabel,
+.kpiScore,
+.statList dt {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.kpiValue {
+  display: block;
+  margin-top: var(--spacing-xs);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiScore {
+  margin-top: 2px;
+}
+
+.statList {
+  display: grid;
+  gap: var(--spacing-md);
+  margin: 0;
+}
+
+.statList div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: var(--spacing-md);
+  align-items: baseline;
+}
+
+.statList dd {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.historyTableWrapper {
+  overflow-x: auto;
+}
+
+.historyTable {
+  min-width: 760px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.historyTable th,
+.historyTable td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.historyTable th:first-child,
+.historyTable td:first-child {
+  text-align: left;
+}
+
+.historyTable thead th {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.historyTable tbody th,
+.historyTable tbody td {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.historyTable tbody tr:last-child th,
+.historyTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .grid,
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: var(--spacing-md);
+  }
+}

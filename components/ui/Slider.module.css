@@ -1,0 +1,142 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.track {
+  position: relative;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+}
+
+.input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent-gold) 68%, transparent);
+  outline-offset: 4px;
+}
+
+.input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-gold) 78%, transparent);
+  outline-offset: 4px;
+}
+
+.input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  cursor: pointer;
+  border: 2px solid var(--bg-canvas);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.input:focus::-webkit-slider-thumb,
+.input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-gold) 22%, transparent);
+}
+
+.input::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.input::-webkit-slider-thumb:active {
+  transform: scale(0.95);
+}
+
+.input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  cursor: pointer;
+  border: 2px solid var(--bg-canvas);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.input:focus::-moz-range-thumb,
+.input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-gold) 22%, transparent);
+}
+
+.input::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
+.range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+@media (min-width: 1280px) and (max-height: 860px) {
+  .container {
+    gap: 0.35rem;
+  }
+
+  .label,
+  .value {
+    font-size: 0.88rem;
+  }
+
+  .track {
+    min-height: 1.85rem;
+  }
+
+  .input::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .range {
+    font-size: 0.7rem;
+  }
+}

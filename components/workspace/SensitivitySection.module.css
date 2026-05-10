@@ -1,0 +1,69 @@
+.section {
+  padding: var(--spacing-xl) 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--text-tertiary);
+}
+
+.content {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.yAxisLabel {
+  flex-shrink: 0;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heatmapContainer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-xl) + 2px);
+  padding: var(--spacing-lg);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+}
+
+.xAxisLabel {
+  text-align: center;
+  margin-top: var(--spacing-md);
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 768px) {
+  .heatmapContainer {
+    justify-content: flex-start;
+  }
+}

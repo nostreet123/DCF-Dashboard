@@ -1,0 +1,352 @@
+/* ==========================================================================
+   DCF Dashboard - Global Styles
+   Theme-aware CSS custom properties for dark/light modes
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties - Dark Theme (Default)
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Base colors */
+  --bg-base: #0a0a0b;
+  --bg-canvas: #070708;
+  --surface: rgba(18, 17, 15, 0.88);
+  --surface-raised: rgba(15, 14, 12, 0.96);
+  --surface-elevated: rgba(10, 10, 9, 0.94);
+  --surface-hover: rgba(34, 31, 28, 0.94);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Text colors */
+  --text-primary: #efe7db;
+  --text-secondary: #b8aea1;
+  --text-tertiary: #7d746b;
+
+  /* Accent and semantic colors */
+  --accent-gold: #d1a45d;
+  --accent-teal: #88a89f;
+  --accent-coral: #b56e68;
+
+  /* Heatmap gradient */
+  --heatmap-low: #8a545b;
+  --heatmap-mid: #c69d5a;
+  --heatmap-high: #7f9580;
+
+  /* Chart colors */
+  --chart-line: #d1a45d;
+  --chart-area: rgba(209, 164, 93, 0.18);
+  --chart-grid: rgba(255, 255, 255, 0.05);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 26px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 62px rgba(0, 0, 0, 0.6);
+
+  /* Layout */
+  --topbar-height: 56px;
+  --left-rail-width: 240px;
+  --right-panel-width: 300px;
+
+  /* Typography */
+  --font-sans: 'Geist', 'Segoe UI', sans-serif;
+  --font-serif: 'Geist', 'Segoe UI', sans-serif;
+  --font-mono: 'Courier New', monospace;
+}
+
+/* --------------------------------------------------------------------------
+   Light Theme Overrides
+   -------------------------------------------------------------------------- */
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Base colors */
+  --bg-base: #dcd7ce;
+  --bg-canvas: #d4cfc5;
+  --surface: #faf7f1;
+  --surface-raised: #ffffff;
+  --surface-elevated: #f3efe6;
+  --surface-hover: #f0ebdf;
+  --border: rgba(36, 29, 20, 0.18);
+  --border-strong: rgba(36, 29, 20, 0.28);
+
+  /* Text colors */
+  --text-primary: #231d17;
+  --text-secondary: #53473a;
+  --text-tertiary: #786a5b;
+
+  /* Accent and semantic colors */
+  --accent-gold: #8f734f;
+  --accent-teal: #6f9188;
+  --accent-coral: #a86660;
+
+  /* Heatmap gradient */
+  --heatmap-low: #bb737b;
+  --heatmap-mid: #cca25f;
+  --heatmap-high: #7f9b77;
+
+  /* Chart colors */
+  --chart-line: #8f734f;
+  --chart-area: rgba(143, 115, 79, 0.15);
+  --chart-grid: rgba(0, 0, 0, 0.09);
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(35, 28, 20, 0.08);
+  --shadow-md: 0 10px 24px rgba(35, 28, 20, 0.12);
+  --shadow-lg: 0 22px 52px rgba(35, 28, 20, 0.18);
+}
+
+/* --------------------------------------------------------------------------
+   Base Styles
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-sans);
+  background: radial-gradient(circle at 18% -12%, rgba(209, 164, 93, 0.12), transparent 36%),
+    radial-gradient(circle at 82% 2%, rgba(255, 255, 255, 0.035), transparent 34%),
+    var(--bg-canvas);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.26;
+  background-image: linear-gradient(transparent 95%, rgba(255, 255, 255, 0.03) 100%);
+  background-size: 100% 4px;
+  z-index: -1;
+}
+
+/* --------------------------------------------------------------------------
+   Typography
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* Monospace for numbers */
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Hero value styling */
+.hero-value {
+  font-family: var(--font-mono);
+  font-size: 3.5rem;
+  font-weight: 500;
+  color: var(--accent-gold);
+  letter-spacing: -0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Layout Utilities
+   -------------------------------------------------------------------------- */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: var(--left-rail-width) 1fr var(--right-panel-width);
+  grid-template-rows: var(--topbar-height) 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+  gap: 0;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.left-rail {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.workspace {
+  grid-column: 2;
+  grid-row: 2;
+  overflow-y: auto;
+}
+
+.right-panel {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* --------------------------------------------------------------------------
+   Surface Styles
+   -------------------------------------------------------------------------- */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.surface-glass {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* --------------------------------------------------------------------------
+   Interactive Elements
+   -------------------------------------------------------------------------- */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-teal);
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar Styling
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-height) 1fr;
+  }
+
+  .left-rail,
+  .right-panel {
+    display: none;
+  }
+
+  .workspace {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --topbar-height: 48px;
+  }
+
+  .hero-value {
+    font-size: 2.5rem;
+  }
+}

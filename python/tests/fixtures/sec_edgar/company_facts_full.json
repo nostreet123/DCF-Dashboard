@@ -1,0 +1,44 @@
+{
+  "facts": {
+    "us-gaap": {
+      "Revenues": {
+        "units": {
+          "USD": [
+            {"fy": 2023, "fp": "FY", "val": 95, "end": "2023-12-31", "filed": "2024-02-10"},
+            {"fy": 2024, "fp": "Q1", "val": 30, "end": "2024-03-31", "filed": "2024-04-30"},
+            {"fy": 2024, "fp": "FY", "val": 100, "end": "2024-12-31", "filed": "2025-02-01"},
+            {"fy": 2024, "fp": "FY", "val": 105, "end": "2024-12-31", "filed": "2025-02-20"}
+          ]
+        }
+      },
+      "CashAndCashEquivalentsAtCarryingValue": {
+        "units": {
+          "USD": [
+            {"fy": 2024, "fp": "FY", "val": 25, "end": "2024-12-31", "filed": "2025-02-20"}
+          ]
+        }
+      },
+      "DebtCurrent": {
+        "units": {
+          "USD": [
+            {"fy": 2024, "fp": "FY", "val": 10, "end": "2024-12-31", "filed": "2025-02-20"}
+          ]
+        }
+      },
+      "LongTermDebtNoncurrent": {
+        "units": {
+          "USD": [
+            {"fy": 2024, "fp": "FY", "val": 40, "end": "2024-12-31", "filed": "2025-02-21"}
+          ]
+        }
+      },
+      "CommonStockSharesOutstanding": {
+        "units": {
+          "shares": [
+            {"fy": 2024, "fp": "FY", "val": 15, "end": "2024-12-31", "filed": "2025-02-22"}
+          ]
+        }
+      }
+    }
+  }
+}

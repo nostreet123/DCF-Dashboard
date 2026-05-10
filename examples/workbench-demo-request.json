@@ -1,0 +1,40 @@
+{
+  "baseYear": 2024,
+  "periods": 3,
+  "revenueT0": 100,
+  "cash": 10,
+  "debt": 20,
+  "sharesOutstanding": 10,
+  "base": {
+    "revenueGrowth": 0.08,
+    "ebitMargin": 0.2,
+    "taxRate": 0.25,
+    "salesToCapital": 2,
+    "wacc": 0.09,
+    "gStable": 0.02,
+    "waccStable": 0.08
+  },
+  "bull": {
+    "revenueGrowth": 0.1,
+    "ebitMargin": 0.24,
+    "taxRate": 0.22,
+    "salesToCapital": 2.5,
+    "wacc": 0.08,
+    "gStable": 0.025,
+    "waccStable": 0.075
+  },
+  "bear": {
+    "revenueGrowth": 0.05,
+    "ebitMargin": 0.16,
+    "taxRate": 0.28,
+    "salesToCapital": 1.5,
+    "wacc": 0.1,
+    "gStable": 0.015,
+    "waccStable": 0.085
+  },
+  "monteCarlo": {
+    "runs": 250,
+    "seed": 123,
+    "bins": 25
+  }
+}

@@ -1,0 +1,216 @@
+.rail {
+  width: 100%;
+  min-height: 0;
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+}
+
+.docked {
+  width: var(--left-rail-width);
+  height: calc(100vh - var(--topbar-height));
+  height: calc(100dvh - var(--topbar-height));
+  background: var(--surface-raised);
+  border-right: 1px solid var(--border);
+}
+
+.drawer {
+  height: 100%;
+  background: transparent;
+  border-right: 0;
+}
+
+.section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.sectionTitle {
+  font-family: var(--font-sans);
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--spacing-lg) 0;
+}
+
+.companyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.companyItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  border-radius: var(--radius-md);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.companyItem:hover {
+  background: var(--surface-hover);
+}
+
+.companyItem:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.companyItem.selected {
+  background: var(--accent-gold);
+  color: var(--on-accent);
+}
+
+.companyItem.selected .companyTicker {
+  color: var(--on-accent);
+}
+
+.companyItem.selected .companyName {
+  color: rgba(10, 10, 11, 0.7);
+}
+
+.companyTicker {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+  min-width: 48px;
+}
+
+.companyName {
+  font-size: 0.91rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.regionSelector {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.regionBtn {
+  flex: 1;
+  min-height: 2.75rem;
+  padding: var(--spacing-sm);
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.regionBtn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+.regionBtnSelected {
+  color: var(--on-accent);
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
+.regionBtn:disabled {
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+  opacity: 0.72;
+}
+
+.regionHelp {
+  margin-top: var(--spacing-sm);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.historyItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.historyItem:hover {
+  border-color: var(--accent-gold);
+}
+
+.historyItemSelected {
+  border-color: color-mix(in srgb, var(--accent-gold) 65%, var(--border));
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-gold) 18%, transparent);
+}
+
+.historyItem:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.historyTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.historyTicker {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.historyValue {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--accent-gold);
+}
+
+.historyTime {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.empty {
+  font-size: 0.88rem;
+  color: var(--text-tertiary);
+  padding: var(--spacing-md);
+  text-align: center;
+}

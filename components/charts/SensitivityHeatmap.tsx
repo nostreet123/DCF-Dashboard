@@ -1,0 +1,238 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useTheme } from '@/lib/contexts/ThemeContext';
+import { getHeatmapColorForValue } from '@/lib/utils/heatmapGradient';
+import { formatCompactCurrency, formatCurrency } from '@/lib/utils/formatters';
+
+interface SensitivityHeatmapProps {
+  /** 2D array of values (rows = WACC offsets, columns = growth offsets) */
+  data: number[][];
+  /** Growth rate offset labels (e.g., [-2, -1, 0, 1, 2]) */
+  growthOffsets: number[];
+  /** WACC offset labels (e.g., [-2, -1, 0, 1, 2]) */
+  waccOffsets: number[];
+  /** Active scenario revenue growth in percentage points */
+  baseGrowthRate?: number;
+  /** Active scenario WACC in percentage points */
+  baseWaccRate?: number;
+  /** Custom value formatter */
+  formatValue?: (value: number) => string;
+  /** Additional CSS classes */
+  className?: string;
+}
+
+function formatSensitivityCellValue(value: number): string {
+  return Math.abs(value) >= 1000 ? formatCompactCurrency(value) : formatCurrency(value);
+}
+
+/**
+ * A sensitivity analysis heatmap.
+ * Shows how valuation changes with different growth and WACC assumptions.
+ * Uses burgundy (low) → amber (mid) → sage (high) gradient.
+ */
+export function SensitivityHeatmap({
+  data,
+  growthOffsets,
+  waccOffsets,
+  baseGrowthRate,
+  baseWaccRate,
+  formatValue = formatSensitivityCellValue,
+  className,
+}: SensitivityHeatmapProps) {
+  const { theme } = useTheme();
+
+  const { cells } = useMemo(() => {
+    if (!data?.length || !data[0]?.length) {
+      return { min: 0, max: 0, cells: [] };
+    }
+
+    // Flatten to find min/max
+    const allValues = data.flat();
+    const minVal = Math.min(...allValues);
+    const maxVal = Math.max(...allValues);
+
+    // Build cell data
+    const cellData: Array<{
+      row: number;
+      col: number;
+      value: number;
+      color: string;
+    }> = [];
+
+    for (let row = 0; row < data.length; row++) {
+      for (let col = 0; col < data[row].length; col++) {
+        const value = data[row][col];
+        const color = getHeatmapColorForValue(value, minVal, maxVal, theme);
+        cellData.push({ row, col, value, color });
+      }
+    }
+
+    return { min: minVal, max: maxVal, cells: cellData };
+  }, [data, theme]);
+
+  if (!data?.length || !growthOffsets?.length || !waccOffsets?.length) {
+    return null;
+  }
+
+  const numRows = data.length;
+  const numCols = data[0]?.length || 0;
+  const cellSize = 56;
+  const labelWidth = 48;
+  const labelHeight = 24;
+  const gap = 2;
+  const footerHeight = 18;
+
+  const gridWidth = numCols * (cellSize + gap) - gap;
+  const gridHeight = numRows * (cellSize + gap) - gap;
+  const totalWidth = labelWidth + 8 + gridWidth;
+  const totalHeight = labelHeight + 8 + gridHeight + footerHeight;
+
+  const zeroGrowthIndex = findZeroOffsetIndex(growthOffsets);
+  const zeroWaccIndex = findZeroOffsetIndex(waccOffsets);
+
+  // Determine text color based on background brightness
+  const getTextColor = (bgColor: string): string => {
+    // Simple luminance check
+    const hex = bgColor.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (theme === 'light') {
+      return '#201a13';
+    }
+
+    return luminance > 0.52 ? '#17130f' : '#ede8de';
+  };
+
+  return (
+    <div className={className} style={{ width: '100%', maxWidth: `${totalWidth}px` }}>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+        preserveAspectRatio="xMinYMin meet"
+        style={{ display: 'block', width: '100%', height: 'auto', maxWidth: `${totalWidth}px` }}
+      >
+        {/* Column headers (Growth offsets) */}
+        <g
+          fill="var(--text-secondary)"
+          fontSize="10"
+          fontFamily="var(--font-mono)"
+          textAnchor="middle"
+        >
+          {growthOffsets.map((offset, i) => (
+            <text
+              key={`col-${i}`}
+              x={labelWidth + 8 + i * (cellSize + gap) + cellSize / 2}
+              y={labelHeight - 6}
+            >
+              {formatAxisPercentage(baseGrowthRate !== undefined ? baseGrowthRate + offset : offset, {
+                signed: baseGrowthRate === undefined,
+              })}
+            </text>
+          ))}
+        </g>
+
+        {/* Row headers (WACC offsets) */}
+        <g
+          fill="var(--text-secondary)"
+          fontSize="10"
+          fontFamily="var(--font-mono)"
+          textAnchor="end"
+          dominantBaseline="middle"
+        >
+          {waccOffsets.map((offset, i) => (
+            <text
+              key={`row-${i}`}
+              x={labelWidth - 4}
+              y={labelHeight + 8 + i * (cellSize + gap) + cellSize / 2}
+            >
+              {formatAxisPercentage(baseWaccRate !== undefined ? baseWaccRate + offset : offset, {
+                signed: baseWaccRate === undefined,
+              })}
+            </text>
+          ))}
+        </g>
+
+        {/* Heatmap cells */}
+        <g>
+          {cells.map(({ row, col, value, color }) => {
+            const x = labelWidth + 8 + col * (cellSize + gap);
+            const y = labelHeight + 8 + row * (cellSize + gap);
+            const textColor = getTextColor(color);
+            const isCenter = row === zeroWaccIndex && col === zeroGrowthIndex;
+            const growthLabel = formatAxisPercentage(
+              baseGrowthRate !== undefined
+                ? baseGrowthRate + (growthOffsets[col] ?? 0)
+                : (growthOffsets[col] ?? 0),
+              { signed: baseGrowthRate === undefined },
+            );
+            const waccLabel = formatAxisPercentage(
+              baseWaccRate !== undefined ? baseWaccRate + (waccOffsets[row] ?? 0) : (waccOffsets[row] ?? 0),
+              { signed: baseWaccRate === undefined },
+            );
+
+            return (
+              <g key={`cell-${row}-${col}`}>
+                <title>
+                  {`Growth ${growthLabel}, WACC ${waccLabel}: ${formatValue(value)}`}
+                </title>
+                <rect
+                  x={x}
+                  y={y}
+                  width={cellSize}
+                  height={cellSize}
+                  rx={4}
+                  fill={color}
+                  stroke={isCenter ? 'var(--accent-gold)' : 'none'}
+                  strokeWidth={isCenter ? 2 : 0}
+                />
+                <text
+                  x={x + cellSize / 2}
+                  y={y + cellSize / 2}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={textColor}
+                  fontSize="11"
+                  fontFamily="var(--font-mono)"
+                  fontWeight={isCenter ? 600 : 400}
+                >
+                  {formatValue(value)}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+
+        <g
+          fill="var(--text-tertiary)"
+          fontSize="11"
+          fontFamily="var(--font-mono)"
+          dominantBaseline="middle"
+        >
+          <text x={labelWidth + 8} y={totalHeight - 7} textAnchor="start">
+            {'\u2190 Lower Growth'}
+          </text>
+          <text x={totalWidth} y={totalHeight - 7} textAnchor="end">
+            {'Higher Growth \u2192'}
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function findZeroOffsetIndex(offsets: number[]): number {
+  const index = offsets.findIndex((offset) => Math.abs(offset) < 0.000001);
+  return index >= 0 ? index : Math.floor(offsets.length / 2);
+}
+
+function formatAxisPercentage(value: number, options: { signed: boolean }): string {
+  const rounded = Math.round(value * 10) / 10;
+  const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  if (options.signed && rounded > 0) {
+    return `+${formatted}%`;
+  }
+  return `${formatted}%`;
+}

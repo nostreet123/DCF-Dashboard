@@ -1,0 +1,28 @@
+{
+  "facts": {
+    "us-gaap": {
+      "CashAndCashEquivalentsAtCarryingValue": {
+        "units": {
+          "EUR": [
+            {"fy": 2022, "fp": "FY", "val": 11, "end": "2022-12-31", "filed": "2023-01-30"},
+            {"fy": 2023, "fp": "FY", "val": 12, "end": "2023-12-31", "filed": "2024-01-30"}
+          ]
+        }
+      },
+      "LongTermDebt": {
+        "units": {
+          "EUR": [
+            {"fy": 2023, "fp": "FY", "val": 33, "end": "2023-12-31", "filed": "2024-01-30"}
+          ]
+        }
+      },
+      "EntityCommonStockSharesOutstanding": {
+        "units": {
+          "shares": [
+            {"fy": 2023, "fp": "FY", "val": 7, "end": "2023-12-31", "filed": "2024-01-31"}
+          ]
+        }
+      }
+    }
+  }
+}
