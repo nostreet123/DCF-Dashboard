@@ -516,6 +516,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_listingId", ["listingId"])
+    .index("by_listingId_updatedAt", ["listingId", "updatedAt"])
     .index("by_symbol_updatedAt", ["symbol", "updatedAt"])
     .index("by_country_updatedAt", ["country", "updatedAt"]),
 

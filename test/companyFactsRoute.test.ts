@@ -153,4 +153,89 @@ describe("company facts route auth boundaries", () => {
     expect(payload.source).toBe("edgar");
     expect(payload.statements[0].period_end).toBe("2025-09-27");
   });
+
+  test("GET uses official SEC facts for non-Nasdaq SEC listings", async () => {
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      return null;
+    };
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          symbol: "IBM",
+          source: "edgar",
+          updated_at: 1,
+          statements: [
+            {
+              period_end: "2025-12-31",
+              period_type: "FY",
+              revenue: 1,
+              shares_outstanding: 1,
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const response = await GET(
+      new Request("http://localhost/api/company/facts?symbol=IBM&listingId=XNYS:IBM", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.44" },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(queryCalls).toEqual([]);
+    expect(payload.source).toBe("edgar");
+  });
+
+  test("GET returns imported facts for non-SEC listings with snake_case fields", async () => {
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      return {
+        name: "Vodafone Group Public Limited Company",
+        currency: "GBP",
+        updatedAt: 2_000,
+        facts: {
+          statements: [
+            {
+              period_end: "2025-03-31",
+              period_type: "FY",
+              filing_date: "2025-07-01",
+              currency: "GBP",
+              revenue: 37_448_000_000,
+              operating_income: 5_000_000_000,
+              operating_margin: 0.1335,
+              cash: 6_000_000_000,
+              debt: 60_000_000_000,
+              shares_outstanding: 24_100_000_000,
+            },
+          ],
+        },
+      };
+    };
+    globalThis.fetch = async () => {
+      throw new Error("EDGAR should not be called for imported facts");
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/facts?symbol=VOD&listingId=XLON:VOD", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.45" },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(queryCalls).toEqual([
+      { name: "imports:getImportedFacts", args: { listingId: "XLON:VOD" } },
+    ]);
+    expect(payload.source).toBe("import");
+    expect(payload.statements[0]).toMatchObject({
+      period_type: "FY",
+      filing_date: "2025-07-01",
+      shares_outstanding: 24_100_000_000,
+    });
+  });
 });
