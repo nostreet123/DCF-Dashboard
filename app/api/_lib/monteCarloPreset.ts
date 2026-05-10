@@ -3,9 +3,9 @@ import { createHash } from "crypto";
 export type MonteCarloPreset = "off" | "fast" | "default" | "high";
 
 const PRESET_MAP: Record<Exclude<MonteCarloPreset, "off">, { runs: number; bins: number }> = {
-  fast: { runs: 1000, bins: 60 },
-  default: { runs: 2000, bins: 80 },
-  high: { runs: 10000, bins: 100 },
+  fast: { runs: 5000, bins: 80 },
+  default: { runs: 25000, bins: 120 },
+  high: { runs: 100000, bins: 160 },
 };
 
 type MonteCarloDependence = {

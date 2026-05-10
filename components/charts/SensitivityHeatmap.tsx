@@ -3,23 +3,31 @@
 import { useMemo } from 'react';
 import { useTheme } from '@/lib/contexts/ThemeContext';
 import { getHeatmapColorForValue } from '@/lib/utils/heatmapGradient';
-import { formatCurrency } from '@/lib/utils/formatters';
+import { formatCompactCurrency, formatCurrency } from '@/lib/utils/formatters';
 
 interface SensitivityHeatmapProps {
-  /** 2D array of values (rows = WACC offsets, cols = growth offsets) */
+  /** 2D array of values (rows = WACC offsets, columns = growth offsets) */
   data: number[][];
   /** Growth rate offset labels (e.g., [-2, -1, 0, 1, 2]) */
   growthOffsets: number[];
   /** WACC offset labels (e.g., [-2, -1, 0, 1, 2]) */
   waccOffsets: number[];
+  /** Active scenario revenue growth in percentage points */
+  baseGrowthRate?: number;
+  /** Active scenario WACC in percentage points */
+  baseWaccRate?: number;
   /** Custom value formatter */
   formatValue?: (value: number) => string;
   /** Additional CSS classes */
   className?: string;
 }
 
+function formatSensitivityCellValue(value: number): string {
+  return Math.abs(value) >= 1000 ? formatCompactCurrency(value) : formatCurrency(value);
+}
+
 /**
- * A 5x5 sensitivity analysis heatmap.
+ * A sensitivity analysis heatmap.
  * Shows how valuation changes with different growth and WACC assumptions.
  * Uses burgundy (low) → amber (mid) → sage (high) gradient.
  */
@@ -27,7 +35,9 @@ export function SensitivityHeatmap({
   data,
   growthOffsets,
   waccOffsets,
-  formatValue = formatCurrency,
+  baseGrowthRate,
+  baseWaccRate,
+  formatValue = formatSensitivityCellValue,
   className,
 }: SensitivityHeatmapProps) {
   const { theme } = useTheme();
@@ -78,6 +88,9 @@ export function SensitivityHeatmap({
   const totalWidth = labelWidth + 8 + gridWidth;
   const totalHeight = labelHeight + 8 + gridHeight + footerHeight;
 
+  const zeroGrowthIndex = findZeroOffsetIndex(growthOffsets);
+  const zeroWaccIndex = findZeroOffsetIndex(waccOffsets);
+
   // Determine text color based on background brightness
   const getTextColor = (bgColor: string): string => {
     // Simple luminance check
@@ -114,7 +127,9 @@ export function SensitivityHeatmap({
               x={labelWidth + 8 + i * (cellSize + gap) + cellSize / 2}
               y={labelHeight - 6}
             >
-              {offset > 0 ? `+${offset}%` : `${offset}%`}
+              {formatAxisPercentage(baseGrowthRate !== undefined ? baseGrowthRate + offset : offset, {
+                signed: baseGrowthRate === undefined,
+              })}
             </text>
           ))}
         </g>
@@ -133,7 +148,9 @@ export function SensitivityHeatmap({
               x={labelWidth - 4}
               y={labelHeight + 8 + i * (cellSize + gap) + cellSize / 2}
             >
-              {offset > 0 ? `+${offset}%` : `${offset}%`}
+              {formatAxisPercentage(baseWaccRate !== undefined ? baseWaccRate + offset : offset, {
+                signed: baseWaccRate === undefined,
+              })}
             </text>
           ))}
         </g>
@@ -144,10 +161,23 @@ export function SensitivityHeatmap({
             const x = labelWidth + 8 + col * (cellSize + gap);
             const y = labelHeight + 8 + row * (cellSize + gap);
             const textColor = getTextColor(color);
-            const isCenter = row === Math.floor(numRows / 2) && col === Math.floor(numCols / 2);
+            const isCenter = row === zeroWaccIndex && col === zeroGrowthIndex;
+            const growthLabel = formatAxisPercentage(
+              baseGrowthRate !== undefined
+                ? baseGrowthRate + (growthOffsets[col] ?? 0)
+                : (growthOffsets[col] ?? 0),
+              { signed: baseGrowthRate === undefined },
+            );
+            const waccLabel = formatAxisPercentage(
+              baseWaccRate !== undefined ? baseWaccRate + (waccOffsets[row] ?? 0) : (waccOffsets[row] ?? 0),
+              { signed: baseWaccRate === undefined },
+            );
 
             return (
               <g key={`cell-${row}-${col}`}>
+                <title>
+                  {`Growth ${growthLabel}, WACC ${waccLabel}: ${formatValue(value)}`}
+                </title>
                 <rect
                   x={x}
                   y={y}
@@ -191,4 +221,18 @@ export function SensitivityHeatmap({
       </svg>
     </div>
   );
+}
+
+function findZeroOffsetIndex(offsets: number[]): number {
+  const index = offsets.findIndex((offset) => Math.abs(offset) < 0.000001);
+  return index >= 0 ? index : Math.floor(offsets.length / 2);
+}
+
+function formatAxisPercentage(value: number, options: { signed: boolean }): string {
+  const rounded = Math.round(value * 10) / 10;
+  const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  if (options.signed && rounded > 0) {
+    return `+${formatted}%`;
+  }
+  return `${formatted}%`;
 }

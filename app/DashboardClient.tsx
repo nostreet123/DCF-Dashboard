@@ -123,6 +123,7 @@ function DashboardShell() {
               ticker={activeTicker}
               histogram={histogram}
               range={valuationRange}
+              assumptions={assumptions}
             />
           )}
 

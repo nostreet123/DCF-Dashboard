@@ -122,7 +122,7 @@ class WorkbenchRequest(WorkbenchBaseModel):
         description="Active dashboard scenario used for sensitivity and KPI context.",
     )
     base_year: int = Field(..., alias="baseYear", description="Base year for t=0.")
-    periods: int = Field(10, ge=1, description="Forecast periods.")
+    periods: int = Field(10, ge=1, le=50, description="Forecast periods.")
     currency: str | None = Field(None, description="Reporting currency.")
     revenue_t0: float = Field(..., alias="revenueT0", description="Base revenue.")
     cash: float = Field(0.0, description="Cash balance.")

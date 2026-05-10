@@ -66,8 +66,8 @@ describe("monteCarloPreset", () => {
     const result = parseMonteCarloPreset(request, payload);
     assert.equal(result.preset, "default");
     assert.ok(result.monteCarlo);
-    assert.equal(result.monteCarlo.runs, 2000);
-    assert.equal(result.monteCarlo.bins, 80);
+    assert.equal(result.monteCarlo.runs, 25000);
+    assert.equal(result.monteCarlo.bins, 120);
     const withoutRequestId = parseMonteCarloPreset(request, { ...payload, requestId: undefined });
     assert.equal(result.monteCarlo.seed, withoutRequestId.monteCarlo?.seed);
   });
