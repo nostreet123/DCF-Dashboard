@@ -5,11 +5,13 @@ import {
   MagnifyingGlassIcon,
   MixerHorizontalIcon,
 } from '@radix-ui/react-icons';
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ModeToggle } from '@/components/ui/ModeToggle';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { Sparkline } from '@/components/charts/Sparkline';
+import { getCompanyLogoUrl } from '@/lib/companyLogos';
 import {
   formatCoverageState,
   getCompanyCoverageState,
@@ -73,14 +75,21 @@ export function TopBar({
   const overlaySearchRef = useRef<HTMLInputElement>(null);
   const shortcutLabel = getSearchShortcutLabel();
 
-  const submitSearch = () => {
-    onSearch?.(searchQuery);
+  const submitSearch = (query = searchQuery) => {
+    onSearch?.(query);
     setIsDesktopResultsOpen(false);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submitSearch();
+    const form = e.currentTarget;
+    if (!(form instanceof HTMLFormElement)) {
+      submitSearch();
+      return;
+    }
+    const formData = new FormData(form);
+    const submittedQuery = formData.get('company-search');
+    submitSearch(typeof submittedQuery === 'string' ? submittedQuery : searchQuery);
   };
 
   useEffect(() => {
@@ -200,6 +209,9 @@ export function TopBar({
             <input
               ref={desktopSearchRef}
               type="text"
+              name="company-search"
+              aria-label="Search companies"
+              autoComplete="off"
               placeholder="Search companies..."
               value={searchQuery}
               onChange={(e) => {
@@ -212,11 +224,17 @@ export function TopBar({
                 }
               }}
               className={styles.searchInput}
-              autoComplete="off"
             />
             <kbd className={styles.searchKbd} suppressHydrationWarning>
               {shortcutLabel}
             </kbd>
+            <button
+              type="submit"
+              className={styles.searchSubmit}
+              aria-label="Search companies"
+            >
+              <MagnifyingGlassIcon width={15} height={15} aria-hidden="true" />
+            </button>
             {isDesktopResultsOpen && searchQuery.trim().length >= 2 && (
               <SearchResultsPanel
                 results={searchResults}
@@ -304,21 +322,18 @@ function SearchResultsPanel({
               role="option"
               aria-selected="false"
             >
-              <span className={styles.searchResultMain}>
-                <span className={styles.searchResultSymbol}>{symbol}</span>
-                <span className={styles.searchResultName}>{result.name ?? 'Unknown company'}</span>
+              <span className={styles.searchResultIdentity}>
+                <SearchResultLogo result={result} symbol={symbol} />
               </span>
-              <span className={styles.searchResultMeta}>
-                {marketLabel && <span>{marketLabel}</span>}
-                {listingLabel && <span>{listingLabel}</span>}
-                <span
-                  className={`${styles.coverageBadge} ${
-                    coverage === 'valuation_ready' ? styles.coverageReady : styles.coverageLimited
-                  }`}
-                >
-                  {formatCoverageState(coverage)}
+              <span className={styles.searchResultBody}>
+                <span className={styles.searchResultName}>{result.name ?? 'Unknown company'}</span>
+                <span className={styles.searchResultMeta}>
+                  {[marketLabel, listingLabel, formatCoverageState(coverage)]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
               </span>
+              <span className={styles.searchResultSymbol}>{symbol}</span>
             </button>
           );
         })
@@ -356,4 +371,37 @@ function getSearchShortcutLabel(): string {
   }
 
   return getSearchShortcutLabelForPlatform(`${navigator.platform} ${navigator.userAgent}`);
+}
+
+function SearchResultLogo({
+  result,
+  symbol,
+}: {
+  result: CompanySearchResult;
+  symbol: string;
+}) {
+  const [hasLogo, setHasLogo] = useState(true);
+  const logoUrl = result.logoUrl ?? getCompanyLogoUrl(symbol);
+  const fallbackText = symbol.slice(0, 2).toUpperCase();
+
+  if (!logoUrl || !hasLogo) {
+    return (
+      <span className={styles.searchResultLogoFallback} aria-hidden="true">
+        {fallbackText}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      className={styles.searchResultLogo}
+      src={logoUrl}
+      alt={`${symbol} logo`}
+      width={28}
+      height={28}
+      loading="eager"
+      referrerPolicy="no-referrer"
+      onError={() => setHasLogo(false)}
+    />
+  );
 }
