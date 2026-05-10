@@ -10,11 +10,18 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalInternalKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+const noopPreconnect: typeof fetch.preconnect = () => {};
 
 let restoreSecurityMock: (() => void) | null = null;
 let fallbackMutation:
   | ((name: string, args: Record<string, unknown>) => unknown)
   | null = null;
+
+function createMockFetch(
+  impl: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): typeof fetch {
+  return Object.assign(impl, { preconnect: noopPreconnect });
+}
 
 beforeEach(() => {
   process.env.DCF_ENGINE_URL = "http://example.test";
@@ -68,7 +75,7 @@ afterEach(() => {
 });
 
 describe("dcf run persistence auth", () => {
-  test("skips persistence when internal header is missing", async () => {
+  test("rejects run requests when internal header is missing", async () => {
     let valuationMutationCalls = 0;
     fallbackMutation = (name) => {
       if (name === "valuations:create") {
@@ -77,11 +84,11 @@ describe("dcf run persistence auth", () => {
       }
       return {};
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(JSON.stringify({ base: {}, bull: {}, bear: {}, kpis: {} }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      });
+      }));
 
     const response = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
@@ -94,7 +101,7 @@ describe("dcf run persistence auth", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(401);
     expect(valuationMutationCalls).toBe(0);
   });
 
@@ -107,11 +114,11 @@ describe("dcf run persistence auth", () => {
       }
       return {};
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(JSON.stringify({ base: {}, bull: {}, bear: {}, kpis: {} }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      });
+      }));
 
     const body = JSON.stringify({ requestId: "req-2" });
     const authHeaders = createInternalPersistenceHeaders({
@@ -136,5 +143,44 @@ describe("dcf run persistence auth", () => {
 
     expect(response.status).toBe(200);
     expect(valuationMutationCalls).toBe(1);
+  });
+
+  test("fails when authorized persistence cannot write the valuation", async () => {
+    fallbackMutation = (name) => {
+      if (name === "valuations:create") {
+        throw new Error("write failed");
+      }
+      return {};
+    };
+    globalThis.fetch = createMockFetch(async () =>
+      new Response(JSON.stringify({ base: {}, bull: {}, bear: {}, kpis: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+
+    const body = JSON.stringify({ requestId: "req-3" });
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "internal-key",
+      method: "POST",
+      url: "http://localhost/api/dcf/run",
+      body,
+      nonce: "dcf-run-persistence-failure-test",
+      timestampMs: Date.now(),
+    });
+    const response = await dcfRunPost(
+      new Request("http://localhost/api/dcf/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-vercel-forwarded-for": "203.0.113.62",
+          ...authHeaders,
+        },
+        body,
+      }),
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json.code).toBe("PERSISTENCE_ERROR");
   });
 });

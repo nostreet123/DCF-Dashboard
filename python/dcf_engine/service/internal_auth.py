@@ -4,6 +4,7 @@ from functools import lru_cache
 import hashlib
 import hmac
 import os
+import threading
 import time
 from urllib.parse import urlsplit
 
@@ -19,6 +20,10 @@ INTERNAL_NONCE_HEADER = "x-dcf-internal-nonce"
 INTERNAL_MAX_SKEW_MS = 5 * 60 * 1000
 NONCE_TTL_MS = INTERNAL_MAX_SKEW_MS
 SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
+SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL = "Shared nonce store is not configured"
+
+_nonce_lock = threading.Lock()
+_seen_nonces: dict[str, int] = {}
 
 
 def _internal_key() -> str | None:
@@ -30,6 +35,14 @@ def _internal_key() -> str | None:
 
 def _allow_unsigned_requests() -> bool:
     return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1"
+
+
+def _allow_process_local_nonces() -> bool:
+    return os.getenv("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES") == "1"
+
+
+def _shared_nonce_store_configured() -> bool:
+    return bool(os.getenv("CONVEX_URL") and os.getenv("DAMODARAN_SYNC_TOKEN"))
 
 
 def _canonical_path(request: Request) -> str:
@@ -55,6 +68,22 @@ def _shared_security_client() -> ConvexSecurityStateClient:
     return ConvexSecurityStateClient()
 
 
+def _prune_expired_nonces(now_ms: int) -> None:
+    expired = [nonce for nonce, expires_at in _seen_nonces.items() if expires_at <= now_ms]
+    for nonce in expired:
+        _seen_nonces.pop(nonce, None)
+
+
+def _reserve_process_local_nonce(nonce: str, now_ms: int) -> bool:
+    with _nonce_lock:
+        _prune_expired_nonces(now_ms)
+        expires_at = _seen_nonces.get(nonce)
+        if expires_at is not None and expires_at > now_ms:
+            return False
+        _seen_nonces[nonce] = now_ms + NONCE_TTL_MS
+        return True
+
+
 def _reserve_nonce_shared(nonce: str) -> bool:
     return _shared_security_client().reserve_nonce(nonce, NONCE_TTL_MS)
 
@@ -62,7 +91,41 @@ def _reserve_nonce_shared(nonce: str) -> bool:
 def _mark_nonce_used_shared(nonce: str) -> bool:
     return _shared_security_client().mark_nonce_used(nonce, NONCE_TTL_MS)
 
+
+async def _reserve_nonce(nonce: str, now_ms: int) -> bool:
+    if not _shared_nonce_store_configured():
+        if _allow_process_local_nonces():
+            return _reserve_process_local_nonce(nonce, now_ms)
+        raise HTTPException(status_code=503, detail=SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL)
+    try:
+        return await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
+    except ValueError as exc:
+        if _allow_process_local_nonces():
+            return _reserve_process_local_nonce(nonce, now_ms)
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
+
+
+async def _mark_nonce_used(nonce: str) -> bool:
+    if not _shared_nonce_store_configured():
+        if _allow_process_local_nonces():
+            return True
+        raise HTTPException(status_code=503, detail=SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL)
+    try:
+        return await anyio.to_thread.run_sync(_mark_nonce_used_shared, nonce)
+    except ValueError as exc:
+        if _allow_process_local_nonces():
+            return True
+        raise HTTPException(status_code=503, detail="Service not configured") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
+
+
 async def require_internal_request(request: Request) -> None:
+    if getattr(request.state, "internal_request_verified", False):
+        return
+
     secret = _internal_key()
     if secret is None:
         if _allow_unsigned_requests():
@@ -101,21 +164,8 @@ async def require_internal_request(request: Request) -> None:
     if not hmac.compare_digest(signature, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    try:
-        reserved = await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
-
-    if not reserved:
+    if not await _reserve_nonce(nonce, now_ms):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    try:
-        marked = await anyio.to_thread.run_sync(_mark_nonce_used_shared, nonce)
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail="Service not configured") from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
-    if not marked:
+    if not await _mark_nonce_used(nonce):
         raise HTTPException(status_code=401, detail="Unauthorized")

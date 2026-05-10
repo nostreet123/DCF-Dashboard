@@ -11,6 +11,7 @@ Use this checklist when deploying changes that depend on:
 - `INTERNAL_PERSISTENCE_KEY`
 - `CONVEX_URL`
 - `DAMODARAN_SYNC_TOKEN`
+- `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES`
 - `SEC_USER_AGENT`
 
 The goal is to avoid:
@@ -51,6 +52,7 @@ These secrets serve different roles and should remain distinct:
 - `DAMODARAN_SYNC_TOKEN`
 - `SEC_USER_AGENT`
 - `DCF_TRUSTED_PROXY_MODE` and `DCF_TRUSTED_PROXY_CIDRS` if proxy trust is needed
+- Leave `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES` unset in staging/production
 - Leave `DCF_ENGINE_EXPOSE_DOCS` unset in staging/production
 
 ### Client/browser-exposed runtime
@@ -66,8 +68,9 @@ These secrets serve different roles and should remain distinct:
 2. Update staging environment variables.
    - Set `DCF_ENGINE_INTERNAL_KEY` in both Next.js and FastAPI.
    - Confirm the values match exactly.
-   - Set `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` in FastAPI.
+   - Confirm `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` are present for FastAPI replay protection.
    - Confirm `SEC_USER_AGENT` is present for FastAPI.
+   - Confirm `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES` is unset.
    - Confirm `DCF_ENGINE_EXPOSE_DOCS` is unset.
 
 3. Deploy Next.js first.
@@ -112,8 +115,8 @@ Run these after deployment.
 - [ ] `DCF_ENGINE_INTERNAL_KEY` is set in both Next.js and FastAPI
 - [ ] `DCF_ENGINE_INTERNAL_KEY` values match exactly
 - [ ] `DCF_ENGINE_INTERNAL_KEY` is different from `INTERNAL_PERSISTENCE_KEY`
-- [ ] `CONVEX_URL` is set in FastAPI
-- [ ] `DAMODARAN_SYNC_TOKEN` is set in FastAPI
+- [ ] `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` are set in FastAPI for shared replay protection
+- [ ] `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES` is unset outside single-process private/dev runs
 - [ ] `SEC_USER_AGENT` is set in FastAPI
 - [ ] `DCF_ENGINE_EXPOSE_DOCS` is unset
 - [ ] `DCF_ENGINE_URL` points to the intended FastAPI service
@@ -131,6 +134,7 @@ Likely causes:
 
 - `DCF_ENGINE_INTERNAL_KEY` missing in Next.js
 - `DCF_ENGINE_INTERNAL_KEY` mismatch between Next.js and FastAPI
+- `CONVEX_URL` or `DAMODARAN_SYNC_TOKEN` missing in FastAPI replay protection
 - `DCF_ENGINE_URL` points to the wrong FastAPI instance
 - FastAPI is missing `CONVEX_URL` or `DAMODARAN_SYNC_TOKEN`
 

@@ -5,6 +5,7 @@ import { GET as companyFactsGet } from "../app/api/company/facts/route";
 import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
 import { POST as dcfRunPost } from "../app/api/dcf/run/route";
 import { GET as companySearchGet } from "../app/api/company/search/route";
+import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
@@ -16,9 +17,11 @@ const originalRunLimit = process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE;
 const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
+const originalInternalKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalIdentityMode = process.env.RATE_LIMIT_IDENTITY_MODE;
 const originalIdentitySource = process.env.RATE_LIMIT_IDENTITY_SOURCE;
+const originalAllowLocalhost = process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
 const originalQuery = ConvexHttpClient.prototype.query;
 const noopPreconnect: typeof fetch.preconnect = () => {};
 
@@ -39,8 +42,10 @@ beforeEach(() => {
   process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = "1";
   process.env.CONVEX_URL = "https://example.convex.cloud";
   process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
+  process.env.INTERNAL_PERSISTENCE_KEY = "internal-key";
   delete process.env.RATE_LIMIT_IDENTITY_MODE;
   delete process.env.RATE_LIMIT_IDENTITY_SOURCE;
+  delete process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
   const securityMock = installSecurityMutationsMock();
   restoreSecurityMock = securityMock.restore;
   ConvexHttpClient.prototype.query = async () => [];
@@ -76,6 +81,11 @@ afterEach(() => {
   } else {
     process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
   }
+  if (originalInternalKey === undefined) {
+    delete process.env.INTERNAL_PERSISTENCE_KEY;
+  } else {
+    process.env.INTERNAL_PERSISTENCE_KEY = originalInternalKey;
+  }
   if (originalIdentityMode === undefined) {
     delete process.env.RATE_LIMIT_IDENTITY_MODE;
   } else {
@@ -85,6 +95,11 @@ afterEach(() => {
     delete process.env.RATE_LIMIT_IDENTITY_SOURCE;
   } else {
     process.env.RATE_LIMIT_IDENTITY_SOURCE = originalIdentitySource;
+  }
+  if (originalAllowLocalhost === undefined) {
+    delete process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
+  } else {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = originalAllowLocalhost;
   }
   if (originalDcfEngineUrl === undefined) {
     delete process.env.DCF_ENGINE_URL;
@@ -201,6 +216,25 @@ describe("route rate limiting", () => {
     expect(payload.code).toBe("RATE_LIMIT_UNAVAILABLE");
   });
 
+  test("falls back to local buckets in development when configured Convex is unavailable", async () => {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
+    ConvexHttpClient.prototype.mutation = async () => {
+      throw new Error("Convex local unavailable");
+    };
+
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL"),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=MSFT"),
+    );
+    const secondPayload = await second.json();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+    expect(secondPayload.code).toBe("RATE_LIMITED");
+  });
+
   test("uses x-vercel-forwarded-for even when spoofed x-real-ip is present", async () => {
     const vercelIp = "203.0.113.14";
     const first = await companySearchGet(
@@ -291,23 +325,63 @@ describe("route rate limiting", () => {
     expect(second.status).toBe(429);
   });
 
+  test("allows localhost only when the explicit local dev bypass is enabled", async () => {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
+    const first = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL"),
+    );
+    const second = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=MSFT"),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("allows 0.0.0.0 dev-server URLs when the explicit local dev bypass is enabled", async () => {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
+    const response = await companySearchGet(
+      new Request("http://0.0.0.0/api/company/search?q=AAPL"),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   test("rate limits dcf run route using x-vercel-forwarded-for", async () => {
+    const body = JSON.stringify({});
     const headers = {
       "Content-Type": "application/json",
       "x-vercel-forwarded-for": "203.0.113.71",
+      ...createInternalPersistenceHeaders({
+        secret: "internal-key",
+        method: "POST",
+        url: "http://localhost/api/dcf/run",
+        body,
+        nonce: "rate-limit-run-1",
+      }),
     };
     const first = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
         method: "POST",
         headers,
-        body: JSON.stringify({}),
+        body,
       }),
     );
     const second = await dcfRunPost(
       new Request("http://localhost/api/dcf/run", {
         method: "POST",
-        headers,
-        body: JSON.stringify({}),
+        headers: {
+          "Content-Type": "application/json",
+          "x-vercel-forwarded-for": "203.0.113.71",
+          ...createInternalPersistenceHeaders({
+            secret: "internal-key",
+            method: "POST",
+            url: "http://localhost/api/dcf/run",
+            body,
+            nonce: "rate-limit-run-2",
+          }),
+        },
+        body,
       }),
     );
 
