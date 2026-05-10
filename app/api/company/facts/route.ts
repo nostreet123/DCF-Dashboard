@@ -16,6 +16,8 @@ type EdgarStatement = {
   filing_date?: string | null;
   currency?: string | null;
   revenue?: number | null;
+  operating_income?: number | null;
+  operating_margin?: number | null;
   cash?: number | null;
   debt?: number | null;
   shares_outstanding?: number | null;
@@ -25,7 +27,7 @@ type EdgarStatement = {
 type EdgarFacts = {
   symbol: string;
   name?: string | null;
-  cik: string;
+  cik?: string | null;
   currency?: string | null;
   source?: string | null;
   updated_at: number;
@@ -35,6 +37,11 @@ type EdgarFacts = {
 const readSymbolFromQuery = (request: Request): string | null => {
   const { searchParams } = new URL(request.url);
   return searchParams.get("symbol")?.trim() ?? null;
+};
+
+const readListingIdFromQuery = (request: Request): string | null => {
+  const { searchParams } = new URL(request.url);
+  return searchParams.get("listingId")?.trim() ?? searchParams.get("id")?.trim() ?? null;
 };
 
 const readSymbolFromBody = async (request: Request): Promise<string | null> => {
@@ -59,6 +66,98 @@ const fetchFacts = async (symbol: string): Promise<EdgarFacts> => {
     `/sec/facts?symbol=${encodeURIComponent(symbol)}`,
     { method: "GET" },
   );
+};
+
+const noStoreJson = (payload: unknown, init?: ResponseInit) =>
+  NextResponse.json(payload, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      ...init?.headers,
+    },
+  });
+
+const shouldReadImportedFacts = (listingId: string | null): boolean =>
+  Boolean(listingId && !listingId.toUpperCase().startsWith("XNAS:"));
+
+const readImportedFacts = async (
+  symbol: string,
+  listingId: string | null,
+): Promise<EdgarFacts | null> => {
+  const convexClient = getConvexClient();
+  if (!convexClient) {
+    return null;
+  }
+
+  let imported: Record<string, unknown> | null = null;
+  if (shouldReadImportedFacts(listingId)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    imported = await (convexClient as any).query("imports:getImportedFacts" as any, {
+      listingId,
+    });
+  }
+  if (!imported) {
+    return null;
+  }
+  const facts = imported.facts;
+  if (!facts || typeof facts !== "object" || Array.isArray(facts)) {
+    return null;
+  }
+  const importedDoc = imported;
+  const record = facts as Record<string, unknown>;
+  const statements = Array.isArray(record.statements) ? record.statements : [];
+  return {
+    symbol,
+    name:
+      typeof record.name === "string"
+        ? record.name
+        : typeof importedDoc.name === "string"
+          ? importedDoc.name
+          : null,
+    cik: null,
+    currency:
+      typeof record.currency === "string"
+        ? record.currency
+        : typeof importedDoc.currency === "string"
+          ? importedDoc.currency
+          : null,
+    source: "import",
+    updated_at: typeof importedDoc.updatedAt === "number" ? importedDoc.updatedAt : Date.now(),
+    statements: statements.flatMap((statement) => {
+      if (!statement || typeof statement !== "object" || Array.isArray(statement)) {
+        return [];
+      }
+      const item = statement as Record<string, unknown>;
+      const periodEnd = item.periodEnd ?? item.period_end;
+      if (typeof periodEnd !== "string") {
+        return [];
+      }
+      return [{
+        period_end: periodEnd,
+        period_type: typeof item.periodType === "string" ? item.periodType : "FY",
+        filing_date: typeof item.filingDate === "string" ? item.filingDate : null,
+        currency: typeof item.currency === "string" ? item.currency : typeof record.currency === "string" ? record.currency : null,
+        revenue: typeof item.revenue === "number" ? item.revenue : null,
+        operating_income:
+          typeof item.operatingIncome === "number"
+            ? item.operatingIncome
+            : typeof item.operating_income === "number"
+              ? item.operating_income
+              : null,
+        operating_margin:
+          typeof item.operatingMargin === "number"
+            ? item.operatingMargin
+            : typeof item.operating_margin === "number"
+              ? item.operating_margin
+              : null,
+        cash: typeof item.cash === "number" ? item.cash : null,
+        debt: typeof item.debt === "number" ? item.debt : null,
+        shares_outstanding:
+          typeof item.sharesOutstanding === "number" ? item.sharesOutstanding : null,
+        source: "import",
+      }];
+    }).sort((a, b) => b.period_end.localeCompare(a.period_end)),
+  };
 };
 
 const persistFacts = async (facts: EdgarFacts): Promise<void> => {
@@ -90,6 +189,8 @@ const persistFacts = async (facts: EdgarFacts): Promise<void> => {
     filingDate: statement.filing_date ?? undefined,
     currency: statement.currency ?? facts.currency ?? "USD",
     revenue: statement.revenue ?? undefined,
+    operatingIncome: statement.operating_income ?? undefined,
+    operatingMargin: statement.operating_margin ?? undefined,
     cash: statement.cash ?? undefined,
     debt: statement.debt ?? undefined,
     sharesOutstanding: statement.shares_outstanding ?? undefined,
@@ -121,8 +222,12 @@ export async function GET(request: Request) {
   }
 
   try {
+    const importedFacts = await readImportedFacts(symbol, readListingIdFromQuery(request));
+    if (importedFacts) {
+      return noStoreJson(importedFacts);
+    }
     const facts = await fetchFacts(symbol);
-    return NextResponse.json(facts);
+    return noStoreJson(facts);
   } catch (error) {
     console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;

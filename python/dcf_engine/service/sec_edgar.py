@@ -19,6 +19,7 @@ from dcf_engine.service.sec_edgar_http import (
     TransientHttpError,
     get_json,
 )
+from dcf_engine.service.sec_filing_shares import fetch_berkshire_equivalent_class_a_shares
 from dcf_engine.service.sec_edgar_models import (
     EdgarCompanyFacts,
     EdgarSearchResult,
@@ -101,6 +102,24 @@ def _search_result_from_entry(entry: dict[str, Any]) -> EdgarSearchResult:
     )
 
 
+def _search_rank(ticker: str, title: str, symbol_query: str, name_query: str) -> tuple[int, str]:
+    ticker_lower = ticker.lower()
+    ticker_root = ticker.split("-", 1)[0].split(".", 1)[0]
+    if ticker == symbol_query:
+        return (0, ticker)
+    if ticker_root == symbol_query:
+        return (1, ticker)
+    if ticker.startswith(symbol_query):
+        return (2, ticker)
+    if ticker_lower.startswith(name_query):
+        return (3, ticker)
+    if symbol_query in ticker:
+        return (4, ticker)
+    if title.lower().startswith(name_query):
+        return (5, ticker)
+    return (6, ticker)
+
+
 def search_companies(query: str, limit: int = 10) -> list[EdgarSearchResult]:
     raw = query.strip()
     if not raw:
@@ -109,17 +128,17 @@ def search_companies(query: str, limit: int = 10) -> list[EdgarSearchResult]:
     entries = load_company_tickers()
     symbol_query = raw.upper()
     name_query = raw.lower()
-    matches: list[EdgarSearchResult] = []
+    ranked_matches: list[tuple[tuple[int, str], EdgarSearchResult]] = []
     for entry in entries:
         ticker = str(entry.get("ticker", "")).upper()
         title = str(entry.get("title") or entry.get("name") or "")
         if symbol_query not in ticker and name_query not in title.lower():
             continue
-        matches.append(_search_result_from_entry(entry))
-        if len(matches) >= limit:
-            break
+        result = _search_result_from_entry(entry)
+        ranked_matches.append((_search_rank(ticker, title, symbol_query, name_query), result))
 
-    return matches
+    ranked_matches.sort(key=lambda match: match[0])
+    return [result for _, result in ranked_matches[:limit]]
 
 
 def fetch_company_facts(symbol: str) -> EdgarCompanyFacts:
@@ -136,6 +155,17 @@ def fetch_company_facts(symbol: str) -> EdgarCompanyFacts:
     url = SEC_COMPANY_FACTS_URL.format(cik=cik)
     facts = get_json(url)
     statements = build_statements(facts, normalized)
+    if (
+        normalized in {"BRK-A", "BRK-B"}
+        and statements
+        and statements[0].shares_outstanding is None
+    ):
+        class_a_equivalent_shares = fetch_berkshire_equivalent_class_a_shares(cik)
+        if class_a_equivalent_shares is not None:
+            if normalized == "BRK-B":
+                statements[0].shares_outstanding = class_a_equivalent_shares * 1500
+            else:
+                statements[0].shares_outstanding = class_a_equivalent_shares
 
     return EdgarCompanyFacts(
         symbol=normalized,

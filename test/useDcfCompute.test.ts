@@ -45,8 +45,20 @@ const FACTS_PAYLOAD = {
   currency: "USD",
   statements: [
     {
+      period_end: "2025-12-31",
+      period_type: "FY",
+      filing_date: "2026-02-01",
+      revenue: 120,
+      operating_income: 36,
+      operating_margin: 0.3,
+      cash: 11,
+      debt: 19,
+      shares_outstanding: 9,
+    },
+    {
       period_end: "2024-12-31",
       period_type: "FY",
+      filing_date: "2025-02-01",
       revenue: 100,
       cash: 10,
       debt: 20,
@@ -80,11 +92,19 @@ const COMPUTE_PAYLOAD = {
       { key: "margin", label: "EBIT Margin", value: 22, score: 75, direction: "higher", unit: "%" },
     ],
     history: [
-      { periodEnd: "2024-12-31", revenue: 100, cash: 10, debt: 20, sharesOutstanding: 10 },
+      {
+        periodEnd: "2024-12-31",
+        revenue: 100,
+        operatingIncome: 22,
+        operatingMargin: 0.22,
+        cash: 10,
+        debt: 20,
+        sharesOutstanding: 10,
+      },
     ],
   },
   monteCarlo: {
-    runs: 2000,
+    runs: 25000,
     summary: {
       min: 20,
       max: 70,
@@ -243,12 +263,17 @@ describe("useDcfCompute concurrency", () => {
       { year: 2026, revenue: 121, ebit: 24.2, nopat: 18.15, freeCashFlow: 13.2 },
     ]);
     expect(result.kpis[0]).toMatchObject({ key: "margin", label: "EBIT Margin" });
-    expect(result.statementHistory[0]).toMatchObject({ periodEnd: "2024-12-31" });
+    expect(result.statementHistory[0]).toMatchObject({
+      periodEnd: "2024-12-31",
+      operatingIncome: 22,
+      operatingMargin: 0.22,
+    });
     expect(result.monteCarloSummary?.median).toBe(43);
     expect(result.provenance).toMatchObject({
       symbol: "AAPL",
       currency: "USD",
-      latestPeriodEnd: "2024-12-31",
+      latestPeriodEnd: "2025-12-31",
+      latestFilingDate: "2026-02-01",
     });
   });
 

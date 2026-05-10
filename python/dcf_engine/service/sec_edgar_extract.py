@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from dcf_engine.service.sec_edgar_models import EdgarStatement
@@ -29,12 +30,56 @@ def select_unit(
     return next(iter(units.values()))
 
 
+def _annual_period_year(entry: dict[str, Any]) -> int | None:
+    end = entry.get("end")
+    if isinstance(end, str) and len(end) >= 4:
+        try:
+            return int(end[:4])
+        except ValueError:
+            return None
+
+    fy = entry.get("fy")
+    if fy is None:
+        return None
+    try:
+        return int(fy)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_annual_entry(entry: dict[str, Any]) -> bool:
+    if entry.get("fp") != "FY":
+        return False
+
+    start = entry.get("start")
+    end = entry.get("end")
+    if not isinstance(start, str) or not isinstance(end, str):
+        return True
+
+    try:
+        duration_days = (date.fromisoformat(end) - date.fromisoformat(start)).days + 1
+    except ValueError:
+        return False
+
+    return duration_days >= 300
+
+
 def extract_annual_values(
     facts: dict[str, Any],
     tag: str,
     preferred_units: list[str],
 ) -> dict[int, AnnualValue]:
-    tag_data = facts.get("facts", {}).get("us-gaap", {}).get(tag)
+    fact_namespaces = facts.get("facts", {})
+    tag_data = fact_namespaces.get("us-gaap", {}).get(tag)
+    if not tag_data:
+        tag_data = fact_namespaces.get("dei", {}).get(tag)
+    if not tag_data:
+        for namespace in fact_namespaces.values():
+            if not isinstance(namespace, dict):
+                continue
+            tag_data = namespace.get(tag)
+            if tag_data:
+                break
     if not tag_data:
         return {}
 
@@ -42,10 +87,7 @@ def extract_annual_values(
     entries = select_unit(units, preferred_units)
     by_year: dict[int, AnnualValue] = {}
     for entry in entries:
-        fy = entry.get("fy")
-        if fy is None:
-            continue
-        if entry.get("fp") != "FY":
+        if not _is_annual_entry(entry):
             continue
 
         value = entry.get("val")
@@ -56,7 +98,10 @@ def extract_annual_values(
         except (TypeError, ValueError):
             continue
 
-        year = int(fy)
+        year = _annual_period_year(entry)
+        if year is None:
+            continue
+
         end = entry.get("end")
         filed = entry.get("filed")
         current = by_year.get(year)
@@ -64,6 +109,18 @@ def extract_annual_values(
             by_year[year] = AnnualValue(fy=year, value=numeric_value, end=end, filed=filed)
 
     return by_year
+
+
+def merge_missing_values(
+    primary: dict[int, AnnualValue],
+    fallback: dict[int, AnnualValue],
+) -> dict[int, AnnualValue]:
+    if not primary:
+        return dict(fallback)
+    merged = dict(primary)
+    for year, value in fallback.items():
+        merged.setdefault(year, value)
+    return merged
 
 
 def combine_values(
@@ -93,6 +150,7 @@ def combine_values(
 def _period_end_for_year(
     year: int,
     revenue_value: AnnualValue | None,
+    operating_income_value: AnnualValue | None,
     cash_value: AnnualValue | None,
     debt_value: AnnualValue | None,
     shares_value: AnnualValue | None,
@@ -100,6 +158,8 @@ def _period_end_for_year(
     return (
         revenue_value.end
         if revenue_value and revenue_value.end
+        else operating_income_value.end
+        if operating_income_value and operating_income_value.end
         else cash_value.end
         if cash_value and cash_value.end
         else debt_value.end
@@ -112,6 +172,7 @@ def _period_end_for_year(
 
 def _filing_date_for_year(
     revenue_value: AnnualValue | None,
+    operating_income_value: AnnualValue | None,
     cash_value: AnnualValue | None,
     debt_value: AnnualValue | None,
     shares_value: AnnualValue | None,
@@ -119,6 +180,8 @@ def _filing_date_for_year(
     return (
         revenue_value.filed
         if revenue_value and revenue_value.filed
+        else operating_income_value.filed
+        if operating_income_value and operating_income_value.filed
         else cash_value.filed
         if cash_value and cash_value.filed
         else debt_value.filed
@@ -133,9 +196,24 @@ def build_statements(
     facts: dict[str, Any],
     symbol: str,
 ) -> list[EdgarStatement]:
-    revenue = extract_annual_values(facts, "Revenues", ["USD"])
-    if not revenue:
-        revenue = extract_annual_values(facts, "SalesRevenueNet", ["USD"])
+    revenue = extract_annual_values(
+        facts,
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        ["USD"],
+    )
+    revenue = merge_missing_values(
+        revenue,
+        extract_annual_values(facts, "SalesRevenueNet", ["USD"]),
+    )
+    revenue = merge_missing_values(
+        revenue,
+        extract_annual_values(facts, "Revenues", ["USD"]),
+    )
+    operating_income = extract_annual_values(facts, "OperatingIncomeLoss", ["USD"])
+    operating_income = merge_missing_values(
+        operating_income,
+        extract_annual_values(facts, "IncomeLossFromOperations", ["USD"]),
+    )
 
     cash = extract_annual_values(
         facts,
@@ -148,12 +226,27 @@ def build_statements(
             "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
             ["USD"],
         )
+    else:
+        cash = merge_missing_values(
+            cash,
+            extract_annual_values(
+                facts,
+                "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+                ["USD"],
+            ),
+        )
 
     shares = extract_annual_values(facts, "CommonStockSharesOutstanding", ["shares"])
     if not shares:
         shares = extract_annual_values(
             facts,
             "EntityCommonStockSharesOutstanding",
+            ["shares"],
+        )
+    if not shares:
+        shares = extract_annual_values(
+            facts,
+            "WeightedAverageNumberOfSharesOutstandingBasic",
             ["shares"],
         )
 
@@ -167,21 +260,31 @@ def build_statements(
     if not years:
         logger.warning("No revenue data found for %s", symbol)
         years = sorted(
-            set(cash.keys()) | set(debt.keys()) | set(shares.keys()),
+            set(operating_income.keys())
+            | set(cash.keys())
+            | set(debt.keys())
+            | set(shares.keys()),
             reverse=True,
         )
 
     statements: list[EdgarStatement] = []
     for year in years[:5]:
         revenue_value = revenue.get(year)
+        operating_income_value = operating_income.get(year)
         cash_value = cash.get(year)
         debt_value = debt.get(year)
         shares_value = shares.get(year)
+        operating_margin = (
+            operating_income_value.value / revenue_value.value
+            if revenue_value and revenue_value.value and operating_income_value
+            else None
+        )
         statements.append(
             EdgarStatement(
                 period_end=_period_end_for_year(
                     year,
                     revenue_value,
+                    operating_income_value,
                     cash_value,
                     debt_value,
                     shares_value,
@@ -189,12 +292,17 @@ def build_statements(
                 period_type="FY",
                 filing_date=_filing_date_for_year(
                     revenue_value,
+                    operating_income_value,
                     cash_value,
                     debt_value,
                     shares_value,
                 ),
                 currency="USD",
                 revenue=revenue_value.value if revenue_value else None,
+                operating_income=operating_income_value.value
+                if operating_income_value
+                else None,
+                operating_margin=operating_margin,
                 cash=cash_value.value if cash_value else None,
                 debt=debt_value.value if debt_value else None,
                 shares_outstanding=shares_value.value if shares_value else None,

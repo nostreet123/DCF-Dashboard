@@ -141,6 +141,14 @@ def build_kpi_history(
         KpiHistoryPoint(
             period_end=statement.period_end,
             revenue=statement.revenue,
+            operating_income=statement.operating_income,
+            operating_margin=(
+                statement.operating_margin
+                if statement.operating_margin is not None
+                else statement.operating_income / statement.revenue
+                if statement.operating_income is not None and statement.revenue
+                else None
+            ),
             cash=statement.cash,
             debt=statement.debt,
             shares_outstanding=statement.shares_outstanding,

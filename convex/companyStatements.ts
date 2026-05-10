@@ -12,6 +12,8 @@ const statementValidator = v.object({
   filingDate: v.optional(v.string()),
   currency: v.optional(v.string()),
   revenue: v.optional(v.number()),
+  operatingIncome: v.optional(v.number()),
+  operatingMargin: v.optional(v.number()),
   cash: v.optional(v.number()),
   debt: v.optional(v.number()),
   sharesOutstanding: v.optional(v.number()),
@@ -63,6 +65,8 @@ export const upsertBatch = mutation({
         filingDate: v.optional(v.string()),
         currency: v.optional(v.string()),
         revenue: v.optional(v.number()),
+        operatingIncome: v.optional(v.number()),
+        operatingMargin: v.optional(v.number()),
         cash: v.optional(v.number()),
         debt: v.optional(v.number()),
         sharesOutstanding: v.optional(v.number()),
@@ -110,6 +114,12 @@ export const upsertBatch = mutation({
       if (statement.revenue !== undefined) {
         update.revenue = statement.revenue;
       }
+      if (statement.operatingIncome !== undefined) {
+        update.operatingIncome = statement.operatingIncome;
+      }
+      if (statement.operatingMargin !== undefined) {
+        update.operatingMargin = statement.operatingMargin;
+      }
       if (statement.cash !== undefined) {
         update.cash = statement.cash;
       }
@@ -133,6 +143,8 @@ export const upsertBatch = mutation({
         filingDate: statement.filingDate,
         currency: statement.currency,
         revenue: statement.revenue,
+        operatingIncome: statement.operatingIncome,
+        operatingMargin: statement.operatingMargin,
         cash: statement.cash,
         debt: statement.debt,
         sharesOutstanding: statement.sharesOutstanding,

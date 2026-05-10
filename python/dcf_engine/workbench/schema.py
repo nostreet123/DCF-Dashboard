@@ -31,12 +31,12 @@ class ScenarioAssumptions(WorkbenchBaseModel):
 
 class SensitivitySpec(WorkbenchBaseModel):
     growth_offsets: list[float] = Field(
-        default_factory=lambda: [-0.02, -0.01, 0.0, 0.01, 0.02],
+        default_factory=lambda: [-0.04, -0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.04],
         alias="growthOffsets",
         description="Offsets applied to revenue growth.",
     )
     wacc_offsets: list[float] = Field(
-        default_factory=lambda: [-0.02, -0.01, 0.0, 0.01, 0.02],
+        default_factory=lambda: [-0.04, -0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.04],
         alias="waccOffsets",
         description="Offsets applied to WACC.",
     )
@@ -75,7 +75,7 @@ class MonteCarloSpec(WorkbenchBaseModel):
     runs: int = Field(
         2000,
         ge=100,
-        le=20_000,
+        le=100_000,
         description="Number of Monte Carlo simulations.",
     )
     seed: int | None = Field(
@@ -97,6 +97,16 @@ class MonteCarloSpec(WorkbenchBaseModel):
 class StatementInput(WorkbenchBaseModel):
     period_end: str = Field(..., alias="periodEnd", description="Period end date.")
     revenue: float | None = Field(None, description="Revenue.")
+    operating_income: float | None = Field(
+        None,
+        alias="operatingIncome",
+        description="Operating income.",
+    )
+    operating_margin: float | None = Field(
+        None,
+        alias="operatingMargin",
+        description="Operating margin.",
+    )
     cash: float | None = Field(None, description="Cash balance.")
     debt: float | None = Field(None, description="Debt balance.")
     shares_outstanding: float | None = Field(
@@ -107,6 +117,10 @@ class StatementInput(WorkbenchBaseModel):
 
 
 class WorkbenchRequest(WorkbenchBaseModel):
+    scenario: Literal["base", "bull", "bear"] = Field(
+        "base",
+        description="Active dashboard scenario used for sensitivity and KPI context.",
+    )
     base_year: int = Field(..., alias="baseYear", description="Base year for t=0.")
     periods: int = Field(10, ge=1, description="Forecast periods.")
     currency: str | None = Field(None, description="Reporting currency.")
@@ -165,6 +179,16 @@ class KpiValue(WorkbenchBaseModel):
 class KpiHistoryPoint(WorkbenchBaseModel):
     period_end: str = Field(..., alias="periodEnd", description="Period end date.")
     revenue: float | None = Field(None, description="Revenue.")
+    operating_income: float | None = Field(
+        None,
+        alias="operatingIncome",
+        description="Operating income.",
+    )
+    operating_margin: float | None = Field(
+        None,
+        alias="operatingMargin",
+        description="Operating margin.",
+    )
     cash: float | None = Field(None, description="Cash.")
     debt: float | None = Field(None, description="Debt.")
     shares_outstanding: float | None = Field(
@@ -196,7 +220,7 @@ class SensitivityResult(WorkbenchBaseModel):
         default_factory=list, alias="waccOffsets", description="WACC offsets."
     )
     values: list[list[float]] = Field(
-        default_factory=list, description="Heatmap values."
+        default_factory=list, description="Heatmap values; rows are WACC offsets and columns are growth offsets."
     )
 
 

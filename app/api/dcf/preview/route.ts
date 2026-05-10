@@ -13,6 +13,15 @@ import {
   sanitizePayload,
 } from "@/app/api/_lib/monteCarloPreset";
 
+const noStoreJson = (payload: unknown, init?: ResponseInit) =>
+  NextResponse.json(payload, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      ...init?.headers,
+    },
+  });
+
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:dcf:preview",
@@ -55,7 +64,7 @@ export async function POST(request: Request) {
       method: "POST",
       body: JSON.stringify(responsePayload),
     });
-    return NextResponse.json(result);
+    return noStoreJson(result);
   } catch (error) {
     console.error("DCF preview failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;

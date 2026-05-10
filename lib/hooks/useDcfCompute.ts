@@ -3,9 +3,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Assumptions, Scenario } from '@/lib/workbench/scenarioProfiles';
 import { readFairValue } from '@/lib/valuationHistory';
+import {
+  buildWorkbenchPayloadFromFacts,
+  getLatestAnnualStatement,
+} from '@/lib/workbench/factsPayload';
 
 export interface DcfInputs {
   symbol: string;
+  listingId?: string | null;
   scenario: Scenario;
   assumptions: Record<Scenario, Assumptions>;
 }
@@ -50,6 +55,8 @@ export interface KpiValue {
 export interface StatementHistoryPoint {
   periodEnd: string;
   revenue?: number | null;
+  operatingIncome?: number | null;
+  operatingMargin?: number | null;
   cash?: number | null;
   debt?: number | null;
   sharesOutstanding?: number | null;
@@ -116,6 +123,8 @@ type EdgarStatement = {
   filing_date?: string | null;
   currency?: string | null;
   revenue?: number | null;
+  operating_income?: number | null;
+  operating_margin?: number | null;
   cash?: number | null;
   debt?: number | null;
   shares_outstanding?: number | null;
@@ -130,12 +139,6 @@ type EdgarFacts = {
   source?: string | null;
   statements?: EdgarStatement[] | null;
 };
-
-const MODEL_DEFAULTS = {
-  periods: 10,
-  taxRate: 0.25,
-  salesToCapital: 2,
-} as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -154,91 +157,44 @@ const readErrorMessage = (payload: unknown): string | null => {
   return typeof candidate === 'string' ? candidate : null;
 };
 
+const DCF_FETCH_TIMEOUT_MS = 30_000;
+
 const fetchJson = async <T>(url: string, init: RequestInit, label: string): Promise<T> => {
-  const response = await fetch(url, init);
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(readErrorMessage(payload) ?? `${label} failed (${response.status})`);
+  const timeoutController = new AbortController();
+  const parentSignal = init.signal;
+  let didTimeout = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    didTimeout = true;
+    timeoutController.abort();
+  }, DCF_FETCH_TIMEOUT_MS);
+  const abortFromParent = () => timeoutController.abort();
+  parentSignal?.addEventListener('abort', abortFromParent, { once: true });
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: timeoutController.signal,
+    });
+    const payload = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok) {
+      throw new Error(readErrorMessage(payload) ?? `${label} failed (${response.status})`);
+    }
+    if (payload === null) {
+      throw new Error(`${label} returned an empty response`);
+    }
+    return payload as T;
+  } catch (error) {
+    if (didTimeout) {
+      throw new Error(`${label} timed out after ${Math.round(DCF_FETCH_TIMEOUT_MS / 1000)} seconds`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+    parentSignal?.removeEventListener('abort', abortFromParent);
   }
-  if (payload === null) {
-    throw new Error(`${label} returned an empty response`);
-  }
-  return payload as T;
 };
 
-const toRate = (percentage: number): number => percentage / 100;
-
-const toScenarioPayload = (assumptions: Assumptions) => ({
-  revenueGrowth: toRate(assumptions.revenueGrowth),
-  ebitMargin: toRate(assumptions.operatingMargin),
-  taxRate: MODEL_DEFAULTS.taxRate,
-  salesToCapital: MODEL_DEFAULTS.salesToCapital,
-  wacc: toRate(assumptions.discountRate),
-  gStable: toRate(assumptions.terminalGrowth),
-  waccStable: toRate(assumptions.discountRate),
-});
-
-const requireStatementNumber = (
-  statement: EdgarStatement,
-  key: keyof EdgarStatement,
-  symbol: string,
-): number => {
-  const value = readFiniteNumber(statement[key]);
-  if (value === null) {
-    throw new Error(`${symbol} facts are missing ${String(key).replace(/_/g, ' ')}`);
-  }
-  return value;
-};
-
-const getBaseYear = (statement: EdgarStatement, symbol: string): number => {
-  const rawPeriodEnd = statement.period_end;
-  if (!rawPeriodEnd) {
-    throw new Error(`${symbol} facts are missing period end`);
-  }
-  const year = Number(rawPeriodEnd.slice(0, 4));
-  if (!Number.isInteger(year)) {
-    throw new Error(`${symbol} facts include an invalid period end`);
-  }
-  return year;
-};
-
-const latestAnnualStatement = (facts: EdgarFacts): EdgarStatement => {
-  const statements = facts.statements ?? [];
-  const annual = statements
-    .filter((statement) => (statement.period_type ?? 'FY') === 'FY')
-    .sort((a, b) => String(b.period_end ?? '').localeCompare(String(a.period_end ?? '')));
-  const latest = annual[0];
-  if (!latest) {
-    throw new Error(`${facts.symbol} facts do not include annual statements`);
-  }
-  return latest;
-};
-
-const optionalStatementNumber = (value: unknown): number | undefined =>
-  readFiniteNumber(value) ?? undefined;
-
-export const buildWorkbenchPayload = (inputs: DcfInputs, facts: EdgarFacts) => {
-  const latest = latestAnnualStatement(facts);
-  return {
-    baseYear: getBaseYear(latest, facts.symbol),
-    periods: MODEL_DEFAULTS.periods,
-    currency: facts.currency ?? latest.currency ?? 'USD',
-    revenueT0: requireStatementNumber(latest, 'revenue', facts.symbol),
-    cash: requireStatementNumber(latest, 'cash', facts.symbol),
-    debt: requireStatementNumber(latest, 'debt', facts.symbol),
-    sharesOutstanding: requireStatementNumber(latest, 'shares_outstanding', facts.symbol),
-    base: toScenarioPayload(inputs.assumptions.base),
-    bull: toScenarioPayload(inputs.assumptions.bull),
-    bear: toScenarioPayload(inputs.assumptions.bear),
-    statements: (facts.statements ?? []).map((statement) => ({
-      periodEnd: statement.period_end,
-      revenue: optionalStatementNumber(statement.revenue),
-      cash: optionalStatementNumber(statement.cash),
-      debt: optionalStatementNumber(statement.debt),
-      sharesOutstanding: optionalStatementNumber(statement.shares_outstanding),
-    })),
-  };
-};
+export const buildWorkbenchPayload = buildWorkbenchPayloadFromFacts;
 
 const readHistogram = (value: unknown): DcfResult['histogram'] => {
   const histogram = isRecord(value) ? value : null;
@@ -352,6 +308,8 @@ const readStatementHistory = (value: unknown): StatementHistoryPoint[] => {
     return [{
       periodEnd,
       revenue: readFiniteNumber(item.revenue),
+      operatingIncome: readFiniteNumber(item.operatingIncome),
+      operatingMargin: readFiniteNumber(item.operatingMargin),
       cash: readFiniteNumber(item.cash),
       debt: readFiniteNumber(item.debt),
       sharesOutstanding: readFiniteNumber(item.sharesOutstanding),
@@ -422,7 +380,7 @@ export const normalizeDcfComputeResponse = (
   const p90 = readFiniteNumber(summary?.p90);
   const sensitivity = isRecord(payload?.sensitivity) ? payload.sensitivity : null;
   const kpis = isRecord(payload?.kpis) ? payload.kpis : null;
-  const latest = facts ? latestAnnualStatement(facts) : null;
+  const latest = facts ? getLatestAnnualStatement(facts) : null;
 
   return {
     fairValue,
@@ -452,8 +410,12 @@ const computeDcf = async (
   inputs: DcfInputs,
   signal: AbortSignal,
 ): Promise<DcfResult> => {
+  const searchParams = new URLSearchParams({ symbol: inputs.symbol });
+  if (inputs.listingId) {
+    searchParams.set('listingId', inputs.listingId);
+  }
   const facts = await fetchJson<EdgarFacts>(
-    `/api/company/facts?symbol=${encodeURIComponent(inputs.symbol)}`,
+    `/api/company/facts?${searchParams.toString()}`,
     { method: 'GET', signal },
     'Company facts request',
   );
