@@ -38,9 +38,9 @@ def _build_sensitivity(
     spec: SensitivitySpec,
 ) -> SensitivityResult:
     values: list[list[float]] = []
-    for growth_offset in spec.growth_offsets:
+    for wacc_offset in spec.wacc_offsets:
         row: list[float] = []
-        for wacc_offset in spec.wacc_offsets:
+        for growth_offset in spec.growth_offsets:
             adjusted = apply_offsets(inputs, growth_offset, wacc_offset)
             valuation, _ = engine.run(adjusted)
             row.append(valuation.fair_value_per_share)

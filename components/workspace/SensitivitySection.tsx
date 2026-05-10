@@ -10,6 +10,10 @@ interface SensitivitySectionProps {
   growthOffsets?: number[];
   /** WACC offsets */
   waccOffsets?: number[];
+  /** Active scenario revenue growth in percentage points */
+  baseGrowthRate?: number;
+  /** Active scenario WACC in percentage points */
+  baseWaccRate?: number;
   /** Additional CSS classes */
   className?: string;
 }
@@ -20,17 +24,23 @@ interface SensitivitySectionProps {
  */
 export function SensitivitySection({
   data,
-  growthOffsets = [-2, -1, 0, 1, 2],
-  waccOffsets = [-2, -1, 0, 1, 2],
+  growthOffsets = [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+  waccOffsets = [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+  baseGrowthRate,
+  baseWaccRate,
   className,
 }: SensitivitySectionProps) {
   // Default mock data if none provided
   const defaultData = [
-    [95, 105, 115, 125, 135],
-    [105, 118, 130, 142, 155],
-    [115, 130, 145, 160, 175],
-    [125, 142, 160, 178, 195],
-    [135, 155, 175, 195, 215],
+    [130, 140, 151, 163, 176, 190, 205, 221, 238],
+    [121, 130, 140, 151, 163, 176, 190, 205, 221],
+    [112, 121, 130, 140, 151, 163, 176, 190, 205],
+    [104, 112, 121, 130, 140, 151, 163, 176, 190],
+    [97, 104, 112, 121, 130, 140, 151, 163, 176],
+    [90, 97, 104, 112, 121, 130, 140, 151, 163],
+    [84, 90, 97, 104, 112, 121, 130, 140, 151],
+    [78, 84, 90, 97, 104, 112, 121, 130, 140],
+    [72, 78, 84, 90, 97, 104, 112, 121, 130],
   ];
 
   const sensitivityData = data || defaultData;
@@ -53,6 +63,8 @@ export function SensitivitySection({
             data={sensitivityData}
             growthOffsets={growthOffsets}
             waccOffsets={waccOffsets}
+            baseGrowthRate={baseGrowthRate}
+            baseWaccRate={baseWaccRate}
           />
         </div>
       </div>
