@@ -77,8 +77,18 @@ const noStoreJson = (payload: unknown, init?: ResponseInit) =>
     },
   });
 
-const shouldReadImportedFacts = (listingId: string | null): boolean =>
-  Boolean(listingId && !listingId.toUpperCase().startsWith("XNAS:"));
+const secListingMicPrefixes = new Set(["XNAS", "XNYS", "ARCX", "XASE"]);
+
+const shouldReadImportedFacts = (listingId: string | null): boolean => {
+  if (!listingId) {
+    return false;
+  }
+  const [micPrefix] = listingId.trim().toUpperCase().split(":", 1);
+  if (!micPrefix || micPrefix === listingId.trim().toUpperCase()) {
+    return false;
+  }
+  return !secListingMicPrefixes.has(micPrefix);
+};
 
 const readImportedFacts = async (
   symbol: string,
@@ -134,9 +144,24 @@ const readImportedFacts = async (
       }
       return [{
         period_end: periodEnd,
-        period_type: typeof item.periodType === "string" ? item.periodType : "FY",
-        filing_date: typeof item.filingDate === "string" ? item.filingDate : null,
-        currency: typeof item.currency === "string" ? item.currency : typeof record.currency === "string" ? record.currency : null,
+        period_type:
+          typeof item.periodType === "string"
+            ? item.periodType
+            : typeof item.period_type === "string"
+              ? item.period_type
+              : "FY",
+        filing_date:
+          typeof item.filingDate === "string"
+            ? item.filingDate
+            : typeof item.filing_date === "string"
+              ? item.filing_date
+              : null,
+        currency:
+          typeof item.currency === "string"
+            ? item.currency
+            : typeof record.currency === "string"
+              ? record.currency
+              : null,
         revenue: typeof item.revenue === "number" ? item.revenue : null,
         operating_income:
           typeof item.operatingIncome === "number"
@@ -153,7 +178,11 @@ const readImportedFacts = async (
         cash: typeof item.cash === "number" ? item.cash : null,
         debt: typeof item.debt === "number" ? item.debt : null,
         shares_outstanding:
-          typeof item.sharesOutstanding === "number" ? item.sharesOutstanding : null,
+          typeof item.sharesOutstanding === "number"
+            ? item.sharesOutstanding
+            : typeof item.shares_outstanding === "number"
+              ? item.shares_outstanding
+              : null,
         source: "import",
       }];
     }).sort((a, b) => b.period_end.localeCompare(a.period_end)),

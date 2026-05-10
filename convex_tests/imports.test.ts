@@ -1,0 +1,81 @@
+/// <reference types="bun-types" />
+import { describe, expect, test } from "bun:test";
+import { convexTest } from "convex-test";
+import { api } from "../convex/_generated/api";
+import schema from "../convex/schema";
+
+const modules: Record<string, () => Promise<any>> = {};
+const glob = new Bun.Glob("**/*.ts");
+const convexDir = `${import.meta.dir}/../convex`;
+for (const entry of glob.scanSync({ cwd: convexDir, absolute: false })) {
+  const key = `../convex/${entry}`;
+  const fullPath = `${convexDir}/${entry}`;
+  modules[key] = () => import(fullPath);
+}
+
+const makeImportedFacts = (overrides: Record<string, unknown> = {}) => ({
+  listingId: "XLON:VOD",
+  symbol: "VOD",
+  name: "Vodafone Group Public Limited Company",
+  exchangeMic: "XLON",
+  market: "London Stock Exchange",
+  country: "GB",
+  currency: "GBP",
+  coverageState: "valuation_ready" as const,
+  filingCurrency: "GBP",
+  facts: {
+    statements: [
+      {
+        period_end: "2025-03-31",
+        period_type: "FY",
+        revenue: 37_448_000_000,
+        shares_outstanding: 24_100_000_000,
+      },
+    ],
+  },
+  review: {},
+  provenance: {},
+  sourceLinks: [],
+  artifactIds: [],
+  approvedAt: 1_000,
+  updatedAt: 1_000,
+  ...overrides,
+});
+
+describe("imports queries", () => {
+  test("getImportedFacts returns latest imported facts for listing", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("importedFacts", makeImportedFacts({ updatedAt: 1_000 }));
+      await ctx.db.insert(
+        "importedFacts",
+        makeImportedFacts({
+          facts: { statements: [{ period_end: "2026-03-31", revenue: 2 }] },
+          updatedAt: 2_000,
+        }),
+      );
+      await ctx.db.insert(
+        "importedFacts",
+        makeImportedFacts({ listingId: "XTKS:7203", symbol: "7203", updatedAt: 3_000 }),
+      );
+    });
+
+    const result = await t.query(api.imports.getImportedFacts, { listingId: "XLON:VOD" });
+
+    expect(result?.listingId).toBe("XLON:VOD");
+    expect(result?.updatedAt).toBe(2_000);
+    expect(result?.facts.statements).toEqual([{ period_end: "2026-03-31", revenue: 2 }]);
+  });
+
+  test("getImportedFacts returns null for blank or missing listings", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("importedFacts", makeImportedFacts());
+    });
+
+    await expect(t.query(api.imports.getImportedFacts, { listingId: "   " })).resolves.toBeNull();
+    await expect(t.query(api.imports.getImportedFacts, { listingId: "XTKS:7203" })).resolves.toBeNull();
+  });
+});
