@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { ScenarioTabs } from '@/components/workspace/ScenarioTabs';
 import { ValueCard } from '@/components/workspace/ValueCard';
 import { ValueCardSkeleton } from '@/components/workspace/ValueCardSkeleton';
+import { AiAnalysisPanel } from '@/components/workspace/AiAnalysisPanel';
 import { SensitivitySection } from '@/components/workspace/SensitivitySection';
 import { SensitivitySectionSkeleton } from '@/components/workspace/SensitivitySectionSkeleton';
 import { MetricsTable } from '@/components/workspace/MetricsTable';
@@ -15,6 +16,7 @@ import { MetricsTableSkeleton } from '@/components/workspace/MetricsTableSkeleto
 import {
   CompanyDetailPanel,
   ImportWorkspace,
+  SettingsStatusPanel,
 } from '@/components/workspace/ParityPanels';
 import { ValuationDetails } from '@/components/workspace/ValuationDetails';
 import { WorkbenchProvider } from '@/lib/contexts/WorkbenchContext';
@@ -28,13 +30,16 @@ function DashboardShell() {
     activeTicker,
     assumptions,
     closeDrawers,
-    clearError,
     companyDetail,
+    clearError,
+    coverageFilter,
     currentValue,
     detailsForDisplay,
+    displayCurrency,
     displayScenario,
     error,
     handleAssumptionChange,
+    handleApplyAiAnalysis,
     handleApproveImport,
     handleImportParse,
     handleSearch,
@@ -56,6 +61,7 @@ function DashboardShell() {
     mockPriceHistory,
     openAssumptionsDrawer,
     openLibraryDrawer,
+    recentCompanies,
     runHistory,
     runHistoryError,
     scenario,
@@ -65,9 +71,17 @@ function DashboardShell() {
     selectedRunId,
     sensitivityMatrix,
     setScenario,
+    setCoverageFilter,
+    settingsStatus,
     valuationRange,
-    workspaceMode,
     valueCardAssumptions,
+    workspaceMode,
+    aiAnalysisStream,
+    aiAnalysisStatus,
+    aiAdminModeEnabled,
+    aiRationales,
+    aiTokenUsage,
+    handleAiAdminTokenChange,
   } = useDashboardController();
   const showLiveComputeState = !isReplayDisplay && isComputing;
   const blockingError = isReplayDisplay ? null : error;
@@ -75,25 +89,36 @@ function DashboardShell() {
     !blockingError && !showLiveComputeState && !isReplayLoading && currentValue !== null;
 
   const leftRailSharedProps = {
-    datasets: mockDatasets,
+    datasets: isDemoMode ? mockDatasets : undefined,
     runHistory,
+    recentCompanies,
     isRunHistoryLoading,
     runHistoryError: runHistoryError?.message ?? null,
     selectedRunId: selectedRunId ?? undefined,
     selectedCompanyId: activeCompanyId ?? undefined,
+    coverageFilter,
+    onCoverageFilterChange: setCoverageFilter,
   };
   const rightPanelSharedProps = {
     assumptions,
+    scenario,
     onAssumptionChange: handleAssumptionChange,
     isCalculating: showLiveComputeState,
+    onApplyAiAnalysis:
+      !isDemoMode && workspaceMode === 'valuation' && hasValuationData
+        ? handleApplyAiAnalysis
+        : undefined,
+    aiAnalysisStatus,
+    aiAdminModeEnabled,
+    onAiAdminTokenChange: isDemoMode ? undefined : handleAiAdminTokenChange,
   };
 
   return (
     <div className={styles.layout}>
       <TopBar
         ticker={activeTicker}
-        priceHistory={mockPriceHistory}
-        currentPrice={152.35}
+        priceHistory={isDemoMode ? mockPriceHistory : undefined}
+        currentPrice={isDemoMode ? 152.35 : undefined}
         onSearch={handleSearch}
         onSearchPreview={handleSearchPreview}
         searchResults={searchResults}
@@ -159,9 +184,21 @@ function DashboardShell() {
               ticker={activeTicker}
               histogram={histogram}
               range={valuationRange}
+              currency={displayCurrency}
               assumptions={valueCardAssumptions}
+              isCalculating={showLiveComputeState}
             />
           )}
+
+          {workspaceMode === 'valuation' && !isDemoMode ? (
+            <AiAnalysisPanel
+              className={`${styles.reveal} ${styles.revealDelay3}`}
+              status={aiAnalysisStatus}
+              rationales={aiRationales}
+              stream={aiAnalysisStream}
+              tokenUsage={aiTokenUsage}
+            />
+          ) : null}
 
           {workspaceMode !== 'valuation' ? null : showLiveComputeState ? (
             <SensitivitySectionSkeleton />
@@ -171,6 +208,8 @@ function DashboardShell() {
               data={sensitivityMatrix}
               growthOffsets={detailsForDisplay?.sensitivity?.growthOffsets}
               waccOffsets={detailsForDisplay?.sensitivity?.waccOffsets}
+              baseGrowthRate={assumptions.revenueGrowth}
+              baseWaccRate={assumptions.discountRate}
             />
           ) : (
             null
@@ -202,6 +241,13 @@ function DashboardShell() {
           ) : (
             null
           )}
+
+          {!isDemoMode ? (
+            <SettingsStatusPanel
+              className={`${styles.reveal} ${styles.revealDelay4}`}
+              status={settingsStatus}
+            />
+          ) : null}
         </div>
       </main>
 

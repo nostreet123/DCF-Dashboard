@@ -1,0 +1,243 @@
+.panel {
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 24%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-teal) 10%, transparent),
+      transparent 42%
+    ),
+    var(--surface-elevated);
+  padding: var(--spacing-lg);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--accent-teal);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.status {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.55rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.loading {
+  border-color: color-mix(in srgb, var(--accent-gold) 50%, var(--border));
+  color: var(--accent-gold);
+}
+
+.applied {
+  border-color: color-mix(in srgb, var(--accent-teal) 50%, var(--border));
+  color: var(--accent-teal);
+}
+
+.error {
+  border-color: color-mix(in srgb, var(--accent-coral) 50%, var(--border));
+  color: var(--accent-coral);
+}
+
+.progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.progressTrack {
+  position: relative;
+  height: 0.45rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 24%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 84%, var(--accent-gold));
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      var(--accent-gold),
+      color-mix(in srgb, var(--accent-teal) 55%, var(--accent-gold))
+    );
+  box-shadow: 0 0 1.2rem color-mix(in srgb, var(--accent-gold) 28%, transparent);
+  transition: width 500ms ease;
+}
+
+.progressFill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    color-mix(in srgb, white 34%, transparent),
+    transparent
+  );
+  animation: progressShimmer 1.6s linear infinite;
+}
+
+.progressLabel {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.stream {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stream li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.stream span {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.activeLine {
+  color: var(--text-primary);
+}
+
+.activeLine::after {
+  content: "";
+  width: 0.5rem;
+  height: 1rem;
+  margin-left: 0.2rem;
+  border-right: 2px solid var(--accent-gold);
+  animation: cursorBlink 1s steps(2, start) infinite;
+}
+
+.message {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.tokenStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-md);
+  padding: var(--spacing-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent-teal));
+}
+
+.tokenStats div {
+  min-width: 0;
+}
+
+.tokenStats dt {
+  margin: 0 0 0.18rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.tokenStats dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.rationales {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.rationale {
+  border-top: 1px solid var(--border);
+  padding-top: var(--spacing-sm);
+}
+
+.rationale:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.rationale h4 {
+  margin: 0 0 0.35rem;
+  color: var(--accent-teal);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.rationale p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.48;
+}
+
+@keyframes cursorBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes progressShimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (min-width: 1280px) {
+  .panel {
+    padding: var(--spacing-xl);
+  }
+}
+
+@media (max-width: 720px) {
+  .tokenStats {
+    grid-template-columns: 1fr;
+  }
+}
