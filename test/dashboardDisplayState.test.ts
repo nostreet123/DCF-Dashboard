@@ -70,6 +70,25 @@ describe("dashboard historical replay display state", () => {
     });
   });
 
+  test("uses the saved replay scenario when it differs from the active tab", () => {
+    expect(
+      resolveDisplayedValuationData({
+        scenario: "base",
+        liveResult: null,
+        replaySnapshot: {
+          runId: "run-bull",
+          createdAt: 1700000000000,
+          scenario: "bull",
+          scenarios: {
+            base: { fairValue: 145 },
+            bull: { fairValue: 182 },
+            bear: { fairValue: 110 },
+          },
+        },
+      }),
+    ).toMatchObject({ currentValue: 182 });
+  });
+
   test("does not fall back to mock range or histogram while replaying", () => {
     expect(
       resolveDisplayedValuationData({
