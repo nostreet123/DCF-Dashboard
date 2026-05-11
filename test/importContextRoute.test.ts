@@ -16,6 +16,7 @@ const originalNodeEnv = process.env.NODE_ENV;
 const originalQuery = ConvexHttpClient.prototype.query;
 const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
 const originalContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
+const originalImportContextRateLimit = process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE;
 let restoreSecurityMock: (() => void) | null = null;
 
 const sha256Hex = (value: string): string =>
@@ -45,6 +46,8 @@ afterEach(() => {
   else process.env.VALUATION_HISTORY_BROWSER_READS = originalBrowserReads;
   if (originalContextTokenHash === undefined) delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
   else process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalContextTokenHash;
+  if (originalImportContextRateLimit === undefined) delete process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE;
+  else process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE = originalImportContextRateLimit;
   process.env.NODE_ENV = originalNodeEnv;
 });
 
@@ -215,6 +218,27 @@ describe("company import context route", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("browser import context wrapper rate-limits failed token guesses", async () => {
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE = "2";
+
+    const statuses: number[] = [];
+    for (const token of ["bad-token-1", "bad-token-2", "bad-token-3"]) {
+      const response = await GET_BROWSER(
+        new Request("http://localhost/api/company/import/context/browser?symbol=AAPL", {
+          headers: {
+            "x-vercel-forwarded-for": "203.0.113.175",
+            "x-import-context-token": token,
+          },
+        }),
+      );
+      statuses.push(response.status);
+    }
+
+    expect(statuses).toEqual([401, 401, 429]);
   });
 
   test("rejects import context reads when internal auth backing store is not configured", async () => {
