@@ -35,7 +35,7 @@
   };
 
   const token = new URLSearchParams(window.location.search).get('token');
-  const stateEndpoint = '/api/state';
+  const stateEndpoint = token ? `/api/state?token=${encodeURIComponent(token)}` : '/api/state';
   const eventsEndpoint = token ? `/events?token=${encodeURIComponent(token)}` : '/events';
 
   let currentState = {
