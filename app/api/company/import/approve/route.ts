@@ -38,6 +38,25 @@ const REQUIRED_FIELDS: ParsedFieldName[] = [
   "sharesOutstanding",
 ];
 
+const normalizeNumericToken = (raw: string): string => {
+  let numeric = raw.replace(/[^0-9.,-]/g, "");
+  if (!numeric) {
+    return numeric;
+  }
+  const commaCount = (numeric.match(/,/g) ?? []).length;
+  const dotCount = (numeric.match(/\./g) ?? []).length;
+  if (commaCount > 0 && dotCount === 0) {
+    numeric = commaCount === 1 ? numeric.replace(",", ".") : numeric.replace(/,/g, "");
+  } else if (commaCount > 0 && dotCount > 0) {
+    const lastComma = numeric.lastIndexOf(",");
+    const lastDot = numeric.lastIndexOf(".");
+    numeric = lastComma > lastDot
+      ? numeric.replace(/\./g, "").replace(",", ".")
+      : numeric.replace(/,/g, "");
+  }
+  return numeric;
+};
+
 const readNumber = (raw: string | undefined): number | null => {
   if (!raw) {
     return null;
@@ -50,7 +69,7 @@ const readNumber = (raw: string | undefined): number | null => {
       : /\b(thousand|k)\b|\d\s*k\b/.test(normalized)
         ? 1_000
         : 1;
-  const value = Number(normalized.replace(/[^0-9.-]/g, ""));
+  const value = Number(normalizeNumericToken(normalized));
   return Number.isFinite(value) ? value * multiplier : null;
 };
 
