@@ -32,12 +32,21 @@ const formatKpiValue = (kpi: KpiValue): string => {
     return '—';
   }
   if (kpi.unit === '%') {
-    return `${kpi.value.toFixed(1)}%`;
+    const percentValue = Math.abs(kpi.value) <= 1 ? kpi.value * 100 : kpi.value;
+    return `${percentValue.toFixed(1)}%`;
   }
   if (kpi.unit === 'x') {
     return `${kpi.value.toFixed(1)}x`;
   }
   return formatOptionalNumber(kpi.value);
+};
+
+const formatOptionalPercent = (value: number | null | undefined): string => {
+  if (typeof value !== 'number') {
+    return '—';
+  }
+  const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+  return `${percentValue.toFixed(1)}%`;
 };
 
 export function ValuationDetails({
@@ -138,6 +147,8 @@ export function ValuationDetails({
                   <tr>
                     <th>Period</th>
                     <th>Revenue</th>
+                    <th>Op Income</th>
+                    <th>Op Margin</th>
                     <th>Cash</th>
                     <th>Debt</th>
                     <th>Shares</th>
@@ -148,6 +159,8 @@ export function ValuationDetails({
                     <tr key={point.periodEnd}>
                       <th scope="row">{point.periodEnd}</th>
                       <td>{formatOptionalCurrency(point.revenue)}</td>
+                      <td>{formatOptionalCurrency(point.operatingIncome)}</td>
+                      <td>{formatOptionalPercent(point.operatingMargin)}</td>
                       <td>{formatOptionalCurrency(point.cash)}</td>
                       <td>{formatOptionalCurrency(point.debt)}</td>
                       <td>{formatOptionalNumber(point.sharesOutstanding)}</td>
