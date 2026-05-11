@@ -2,10 +2,16 @@ import { createHash, timingSafeEqual } from "crypto";
 
 import { createInternalPersistenceHeaders } from "@/app/api/_lib/internalAuth";
 import { errorResponse } from "@/app/api/_lib/errors";
+import {
+  enforceRateLimit,
+  getRateLimitPerMinute,
+  rateLimitErrorResponse,
+} from "@/app/api/_lib/rateLimit";
 import { GET as getImportContext } from "@/app/api/company/import/context/route";
 
 const IMPORT_CONTEXT_TOKEN_HEADER = "x-import-context-token";
 const MAX_IMPORT_CONTEXT_TOKEN_BYTES = 256;
+const BROWSER_IMPORT_CONTEXT_RATE_LIMIT_KEY = "api:company:import:context:browser";
 const RATE_LIMIT_IDENTITY_HEADERS = [
   "x-vercel-forwarded-for",
   "cf-connecting-ip",
@@ -43,6 +49,16 @@ export async function GET(request: Request) {
   if (!browserImportContextReadsEnabled()) {
     return errorResponse("NOT_FOUND", "Not found", 404);
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    key: BROWSER_IMPORT_CONTEXT_RATE_LIMIT_KEY,
+    limit: getRateLimitPerMinute("API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE", 60),
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitErrorResponse(rateLimit);
+  }
+
   if (!isAuthorizedBrowserContextRequest(request)) {
     return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
