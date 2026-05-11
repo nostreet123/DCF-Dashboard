@@ -10,7 +10,6 @@ const RATE_LIMIT_IDENTITY_HEADERS = [
   "x-vercel-forwarded-for",
   "cf-connecting-ip",
   "x-real-ip",
-  "x-forwarded-for",
 ];
 
 const browserImportContextReadsEnabled = (): boolean =>
