@@ -1,7 +1,7 @@
 export type DashboardDataMode = 'demo' | 'live';
 
 export function getDashboardDataMode(): DashboardDataMode {
-  return process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE === 'live' ? 'live' : 'demo';
+  return process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE === 'demo' ? 'demo' : 'live';
 }
 
 export function areBrowserHistoryReadsEnabled(): boolean {
