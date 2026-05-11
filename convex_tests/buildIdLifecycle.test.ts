@@ -1,7 +1,6 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { convexTest } from "convex-test";
-import { ConvexError } from "convex/values";
 import { api } from "../convex/_generated/api";
 import schema from "../convex/schema";
 
@@ -151,6 +150,65 @@ describe("Build ID lifecycle", () => {
     expect(afterFinalizeList.rows).toHaveLength(2);
     expect(afterFinalizeList.rows[0].primaryKey).toBe("row-A");
     expect(afterFinalizeList.rows[1].primaryKey).toBe("row-B");
+  });
+
+  test("insertBatch treats reordered metrics as equivalent but rejects escaped-key collisions", async () => {
+    const t = convexTest(schema, modules);
+
+    const created = await t.mutation(api.snapshots.upsertByIdentity, {
+      syncToken: TEST_SYNC_TOKEN,
+      datasetKey: "ds-metrics-collision",
+      regionCode: "US",
+      asOfDate: "2025-01-15",
+      buildId: "build-metrics-001",
+      metadata: makeMetadata(),
+    });
+
+    const baseRow = {
+      rowIndex: 0,
+      primaryKey: "row-collision",
+      primaryKeyNorm: "row collision",
+    };
+
+    const initialInsert = await t.mutation(api.tableData.insertBatch, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-metrics-001",
+      rows: [
+        {
+          ...baseRow,
+          metrics: { b: 2, a: 1 },
+        },
+      ],
+    });
+    expect(initialInsert.inserted).toBe(1);
+
+    const equivalentInsert = await t.mutation(api.tableData.insertBatch, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-metrics-001",
+      rows: [
+        {
+          ...baseRow,
+          metrics: { a: 1, b: 2 },
+        },
+      ],
+    });
+    expect(equivalentInsert.inserted).toBe(0);
+
+    await expect(
+      t.mutation(api.tableData.insertBatch, {
+        syncToken: TEST_SYNC_TOKEN,
+        snapshotId: created.snapshotId,
+        buildId: "build-metrics-001",
+        rows: [
+          {
+            ...baseRow,
+            metrics: { 'a":1,"b': 2 },
+          },
+        ],
+      }),
+    ).rejects.toThrow("Row 0 already exists with different data");
   });
 
   test("rebuild path: new fileHash triggers rebuild, old rows are replaceable", async () => {
