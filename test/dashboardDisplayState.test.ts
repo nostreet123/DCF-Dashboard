@@ -27,14 +27,14 @@ describe("dashboard historical replay display state", () => {
     }
   });
 
-  test("defaults dashboard data mode to demo", () => {
+  test("defaults dashboard data mode to live", () => {
     delete process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
-    expect(getDashboardDataMode()).toBe("demo");
+    expect(getDashboardDataMode()).toBe("live");
   });
 
-  test("enables live dashboard data mode explicitly", () => {
-    process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE = "live";
-    expect(getDashboardDataMode()).toBe("live");
+  test("enables demo dashboard data mode explicitly", () => {
+    process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE = "demo";
+    expect(getDashboardDataMode()).toBe("demo");
   });
 
   test("requires an explicit public flag for browser history reads", () => {

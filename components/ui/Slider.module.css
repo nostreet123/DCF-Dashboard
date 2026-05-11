@@ -111,3 +111,32 @@
   color: var(--text-tertiary);
   font-family: var(--font-mono);
 }
+
+@media (min-width: 1280px) and (max-height: 860px) {
+  .container {
+    gap: 0.35rem;
+  }
+
+  .label,
+  .value {
+    font-size: 0.88rem;
+  }
+
+  .track {
+    min-height: 1.85rem;
+  }
+
+  .input::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .range {
+    font-size: 0.7rem;
+  }
+}

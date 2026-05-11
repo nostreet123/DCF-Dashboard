@@ -1,8 +1,10 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 
 import { GET } from "../app/api/company/import/context/route";
+import { GET as GET_BROWSER } from "../app/api/company/import/context/browser/route";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
@@ -12,7 +14,12 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
 const originalQuery = ConvexHttpClient.prototype.query;
+const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
+const originalContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
 let restoreSecurityMock: (() => void) | null = null;
+
+const sha256Hex = (value: string): string =>
+  createHash("sha256").update(value, "utf8").digest("hex");
 
 beforeEach(() => {
   resetRateLimitStateForTests();
@@ -34,6 +41,10 @@ afterEach(() => {
   else process.env.CONVEX_URL = originalConvexUrl;
   if (originalSyncToken === undefined) delete process.env.DAMODARAN_SYNC_TOKEN;
   else process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  if (originalBrowserReads === undefined) delete process.env.VALUATION_HISTORY_BROWSER_READS;
+  else process.env.VALUATION_HISTORY_BROWSER_READS = originalBrowserReads;
+  if (originalContextTokenHash === undefined) delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
+  else process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalContextTokenHash;
   process.env.NODE_ENV = originalNodeEnv;
 });
 
@@ -46,6 +57,18 @@ describe("company import context route", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("browser import context wrapper stays disabled unless browser reads are enabled", async () => {
+    delete process.env.VALUATION_HISTORY_BROWSER_READS;
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/import/context/browser?symbol=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.172" },
+      }),
+    );
+
+    expect(response.status).toBe(404);
   });
 
   test("returns approved imported facts and matching artifact metadata from Convex", async () => {
@@ -101,6 +124,60 @@ describe("company import context route", () => {
     ]);
     expect(payload.importedFacts).toEqual(importedFacts);
     expect(payload.artifacts).toEqual([artifacts[0]]);
+  });
+
+  test("browser import context wrapper signs internal context reads", async () => {
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    const importedFacts = {
+      listingId: "sec:0000320193:AAPL",
+      symbol: "AAPL",
+      artifactIds: ["artifact-1"],
+      facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
+    };
+    const artifacts = [
+      { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+      { artifactId: "artifact-2", status: "approved", originalFilename: "ignored.xlsx" },
+    ];
+    ConvexHttpClient.prototype.query = async (name) => {
+      if (String(name) === "imports:getImportedFacts") {
+        return importedFacts;
+      }
+      if (String(name) === "imports:listArtifactsForListing") {
+        return artifacts;
+      }
+      return null;
+    };
+
+    const response = await GET_BROWSER(
+      new Request(
+        "http://localhost/api/company/import/context/browser?listingId=sec%3A0000320193%3AAAPL&symbol=AAPL",
+        {
+          headers: {
+            "x-vercel-forwarded-for": "203.0.113.173",
+            "x-import-context-token": "correct-token",
+          },
+        },
+      ),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.importedFacts).toEqual(importedFacts);
+    expect(payload.artifacts).toEqual([artifacts[0]]);
+  });
+
+  test("browser import context wrapper requires a context token before signing", async () => {
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/import/context/browser?symbol=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.174" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
   });
 
   test("rejects import context reads when internal auth backing store is not configured", async () => {

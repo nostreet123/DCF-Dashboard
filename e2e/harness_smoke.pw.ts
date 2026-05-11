@@ -48,6 +48,29 @@ test('dashboard harness smoke', async ({ page }) => {
     });
   });
 
+  await page.route('**/api/company/search**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [
+          {
+            id: 'XNAS:MSFT',
+            symbol: 'MSFT',
+            name: 'Microsoft Corporation',
+            exchangeMic: 'XNAS',
+            market: 'Nasdaq',
+            country: 'US',
+            currency: 'USD',
+            coverageState: 'valuation_ready',
+            coverageReason: 'Valuation-ready fixture.',
+            sourceLinks: [],
+          },
+        ],
+      }),
+    });
+  });
+
   await page.route('**/api/dcf/preview?**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -76,7 +99,8 @@ test('dashboard harness smoke', async ({ page }) => {
   await expect(bull).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('BULL CASE')).toBeVisible();
 
-  await page.getByRole('button', { name: /MSFT.*Microsoft/i }).click();
+  await page.getByPlaceholder('Search companies...').fill('msft');
+  await page.getByRole('option', { name: /Microsoft Corporation.*MSFT/i }).click();
   await expect(page.getByRole('banner').getByText('MSFT')).toBeVisible();
   await expect(page.getByText('MSFT Fair Value')).toBeVisible();
 });

@@ -56,6 +56,7 @@ export type WorkbenchAction =
   | { type: 'set_selected_run_id'; id: string | null }
   | { type: 'select_company'; id: string | null; symbol: string | null }
   | { type: 'set_scenario'; scenario: Scenario }
+  | { type: 'set_scenario_assumptions'; assumptions: Record<Scenario, Assumptions> }
   | { type: 'update_assumption'; key: keyof Assumptions; value: number }
   | { type: 'set_result'; result: ValuationResult | null }
   | { type: 'set_is_computing'; isComputing: boolean }
@@ -82,6 +83,8 @@ export function workbenchReducer(
       };
     case 'set_scenario':
       return { ...state, scenario: action.scenario };
+    case 'set_scenario_assumptions':
+      return { ...state, assumptions: action.assumptions };
     case 'update_assumption':
       return {
         ...state,
@@ -112,6 +115,7 @@ interface WorkbenchActions {
   setSelectedRunId: (id: string | null) => void;
   selectCompany: (id: string | null, symbol: string | null) => void;
   setScenario: (scenario: Scenario) => void;
+  setScenarioAssumptions: (assumptions: Record<Scenario, Assumptions>) => void;
   updateAssumption: (key: keyof Assumptions, value: number) => void;
   setResult: (result: ValuationResult | null) => void;
   setIsComputing: (isComputing: boolean) => void;
@@ -146,6 +150,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'set_scenario', scenario });
   }, []);
 
+  const setScenarioAssumptions = useCallback((assumptions: Record<Scenario, Assumptions>) => {
+    dispatch({ type: 'set_scenario_assumptions', assumptions });
+  }, []);
+
   const updateAssumption = useCallback((key: keyof Assumptions, value: number) => {
     dispatch({ type: 'update_assumption', key, value });
   }, []);
@@ -174,6 +182,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setSelectedRunId,
       selectCompany,
       setScenario,
+      setScenarioAssumptions,
       updateAssumption,
       setResult,
       setIsComputing,
@@ -187,6 +196,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setIsComputing,
       setResult,
       setScenario,
+      setScenarioAssumptions,
       setSelectedCompanyId,
       setSelectedRunId,
       setSelectedSymbol,
