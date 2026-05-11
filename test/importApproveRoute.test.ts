@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 
 import { POST } from "../app/api/company/import/approve/route";
 import { POST as browserApprovePost } from "../app/api/company/import/approve/browser/route";
+import { DEFAULT_JSON_BODY_LIMIT_BYTES } from "../app/api/_lib/body";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
@@ -14,6 +15,8 @@ const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalBrowserWrites = process.env.IMPORT_APPROVAL_BROWSER_WRITES;
 const originalBrowserApprovalTokenHash = process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256;
+const originalBrowserApproveLimit = process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE;
+const originalImportApproveLimit = process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE;
 const originalFetch = globalThis.fetch;
 
 let restoreSecurityMock: (() => void) | null = null;
@@ -76,6 +79,16 @@ afterEach(() => {
     delete process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256;
   } else {
     process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = originalBrowserApprovalTokenHash;
+  }
+  if (originalBrowserApproveLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE;
+  } else {
+    process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE = originalBrowserApproveLimit;
+  }
+  if (originalImportApproveLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE;
+  } else {
+    process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE = originalImportApproveLimit;
   }
   globalThis.fetch = originalFetch;
 });
@@ -497,6 +510,115 @@ describe("company import approval route", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("browser approval wrapper rejects oversized bodies before full buffering", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const chunkSize = 64 * 1024;
+    const totalChunks = 6;
+    let producedBytes = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (producedBytes >= chunkSize * totalChunks) {
+          controller.close();
+          return;
+        }
+        producedBytes += chunkSize;
+        controller.enqueue(new Uint8Array(chunkSize));
+      },
+    });
+
+    const response = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.80",
+        },
+        body,
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(payload.code).toBe("PAYLOAD_TOO_LARGE");
+    expect(producedBytes).toBeGreaterThan(DEFAULT_JSON_BODY_LIMIT_BYTES);
+    expect(producedBytes).toBeLessThan(chunkSize * totalChunks);
+  });
+
+  test("browser approval wrapper rate limits before reading the request body", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE = "1";
+
+    const first = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.81",
+        },
+        body: "{}",
+      }),
+    );
+
+    const second = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": String(DEFAULT_JSON_BODY_LIMIT_BYTES + 1),
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.82",
+        },
+        body: "{}",
+      }),
+    );
+
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(429);
+  });
+
+  test("browser approval wrapper does not trust spoofed forwarded identity headers", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE = "10";
+    process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE = "1";
+
+    const first = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.90",
+          "x-real-ip": "203.0.113.91",
+        },
+        body: "{}",
+      }),
+    );
+    const second = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "198.51.100.90",
+          "x-real-ip": "198.51.100.91",
+        },
+        body: "{}",
+      }),
+    );
+
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(429);
   });
 
   test("browser approval wrapper signs the internal approval request", async () => {

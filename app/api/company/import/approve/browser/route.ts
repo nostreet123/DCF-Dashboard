@@ -1,11 +1,18 @@
 import { createHash, timingSafeEqual } from "crypto";
 
+import { BodyLimitError, readTextWithLimit } from "@/app/api/_lib/body";
 import { createInternalPersistenceHeaders } from "@/app/api/_lib/internalAuth";
 import { errorResponse } from "@/app/api/_lib/errors";
+import {
+  enforceGlobalRateLimit,
+  getRateLimitPerMinute,
+  rateLimitErrorResponse,
+} from "@/app/api/_lib/rateLimit";
 import { POST as approveImport } from "@/app/api/company/import/approve/route";
 
 const IMPORT_APPROVAL_TOKEN_HEADER = "x-import-approval-token";
 const MAX_IMPORT_APPROVAL_TOKEN_BYTES = 256;
+const INTERNAL_APPROVAL_CLIENT_IP = "127.0.0.1";
 const RATE_LIMIT_IDENTITY_HEADERS = [
   "x-vercel-forwarded-for",
   "cf-connecting-ip",
@@ -52,7 +59,25 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.text();
+  const rateLimit = await enforceGlobalRateLimit({
+    key: "api:company:import:approve:browser",
+    limit: getRateLimitPerMinute("API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE", 12),
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitErrorResponse(rateLimit);
+  }
+
+  let body: string;
+  try {
+    body = await readTextWithLimit(request);
+  } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return errorResponse("PAYLOAD_TOO_LARGE", error.message, 413);
+    }
+    return errorResponse("BAD_REQUEST", "Invalid request body", 400);
+  }
+
   const url = new URL("/api/company/import/approve", request.url).toString();
   const authHeaders = createInternalPersistenceHeaders({
     secret,
@@ -63,10 +88,7 @@ export async function POST(request: Request) {
   const headers = new Headers(authHeaders);
   headers.set("Content-Type", request.headers.get("Content-Type") ?? "application/json");
   for (const headerName of RATE_LIMIT_IDENTITY_HEADERS) {
-    const value = request.headers.get(headerName);
-    if (value) {
-      headers.set(headerName, value);
-    }
+    headers.set(headerName, INTERNAL_APPROVAL_CLIENT_IP);
   }
 
   return approveImport(
