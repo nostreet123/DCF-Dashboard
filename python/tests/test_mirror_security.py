@@ -78,6 +78,11 @@ def _private_example_resolution(*args, **kwargs):
     ]
 
 
+@pytest.fixture(autouse=True)
+def _safe_default_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+
+
 def test_mirror_manifest_rejects_unallowlisted_asset_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -163,9 +168,34 @@ def test_fetch_manifest_rejects_non_canonical_private_ipv4_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "2130706433")
+    monkeypatch.setattr(
+        download.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (
+                download.socket.AF_INET,
+                download.socket.SOCK_STREAM,
+                6,
+                "",
+                ("127.0.0.1", 443),
+            )
+        ],
+    )
 
     with pytest.raises(ValueError, match="not allowed"):
         fetch_manifest("https://2130706433/latest/meta-data", "current")
+
+
+def test_fetch_manifest_rejects_unresolved_manifest_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_getaddrinfo(*args, **kwargs):
+        raise download.socket.gaierror()
+
+    monkeypatch.setattr(download.socket, "getaddrinfo", fake_getaddrinfo)
+
+    with pytest.raises(ValueError, match="could not be resolved"):
+        fetch_manifest("https://mirror.example.com/manifest.json", "current")
 
 
 def test_fetch_manifest_disables_redirects(monkeypatch: pytest.MonkeyPatch) -> None:

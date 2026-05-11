@@ -280,7 +280,11 @@ def test_download_rejects_non_canonical_private_ipv4_hosts(
         )
 
 
-def test_download_allows_explicit_extra_mirror_host(tmp_path) -> None:
+def test_download_allows_explicit_extra_mirror_host(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
     response = DummyResponse(200, body=b"fresh")
     client = DummyClient([response])
 
@@ -341,6 +345,25 @@ def test_download_rejects_allowed_host_resolving_to_shared_address(
     with pytest.raises(ValueError, match="resolves to a disallowed address"):
         download.download_file(
             "https://example.com/shared.xls",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_download_rejects_allowed_host_that_cannot_be_resolved(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "unresolved.example")
+
+    def fake_getaddrinfo(*args, **kwargs):
+        raise download.socket.gaierror()
+
+    monkeypatch.setattr(download.socket, "getaddrinfo", fake_getaddrinfo)
+
+    with pytest.raises(ValueError, match="could not be resolved"):
+        download.download_file(
+            "https://unresolved.example/latest.xls",
             http_client=DummyClient([]),
             cache_dir=tmp_path,
         )

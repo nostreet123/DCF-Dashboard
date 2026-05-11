@@ -253,8 +253,8 @@ def _is_unsafe_ip_literal(hostname: str) -> bool:
 def _safe_resolved_addresses(hostname: str) -> list[str]:
     try:
         results = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        return []
+    except socket.gaierror as exc:
+        raise ValueError(f"Download URL host could not be resolved: {hostname}") from exc
     safe: list[str] = []
     for result in results:
         sockaddr = result[4]
@@ -269,6 +269,8 @@ def _safe_resolved_addresses(hostname: str) -> list[str]:
             raise ValueError(f"Download URL host resolves to a disallowed address: {hostname}")
         if raw_address not in safe:
             safe.append(raw_address)
+    if not safe:
+        raise ValueError(f"Download URL host could not be resolved: {hostname}")
     return safe
 
 
@@ -277,8 +279,6 @@ def _resolve_pinned_address(url: str) -> str:
     if not parsed.hostname:
         raise ValueError(f"Download URL must use https with a host: {url!r}")
     addresses = _safe_resolved_addresses(parsed.hostname)
-    if not addresses:
-        raise ValueError(f"Download URL host could not be resolved: {parsed.hostname}")
     return addresses[0]
 
 
