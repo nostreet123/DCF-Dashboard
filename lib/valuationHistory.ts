@@ -1,3 +1,5 @@
+import type { Assumptions, Scenario } from '@/lib/workbench/scenarioProfiles';
+
 export interface ValuationScenarioSummary {
   fairValuePerShare?: number;
   fair_value_per_share?: number;
@@ -59,7 +61,8 @@ export interface ValuationReplaySnapshot {
   runId: string;
   ticker?: string;
   createdAt: number;
-  scenario?: 'base' | 'bull' | 'bear';
+  scenario?: Scenario;
+  assumptions?: Partial<Record<Scenario, Assumptions>>;
   scenarios: {
     base: { fairValue: number };
     bull: { fairValue: number };
@@ -150,9 +153,49 @@ const asNumberMatrix = (value: unknown): number[][] | undefined =>
     ? value as number[][]
     : undefined;
 
-const readScenario = (value: unknown): 'base' | 'bull' | 'bear' => {
+const readScenario = (value: unknown): Scenario => {
   const scenario = asString(asRecord(value)?.scenario);
   return scenario === 'bull' || scenario === 'bear' ? scenario : 'base';
+};
+
+const toDisplayPercent = (value: number): number =>
+  Math.round((Math.abs(value) <= 1 ? value * 100 : value) * 100) / 100;
+
+const readAssumptionsForScenario = (value: unknown, scenario: Scenario): Assumptions | null => {
+  const inputs = asRecord(value);
+  const candidate = asRecord(inputs?.[scenario]);
+  if (!candidate) {
+    return null;
+  }
+  const revenueGrowth = asNumber(candidate.revenueGrowth) ?? asNumber(candidate.revenue_growth);
+  const operatingMargin = asNumber(candidate.ebitMargin) ?? asNumber(candidate.ebit_margin);
+  const discountRate = asNumber(candidate.wacc);
+  const terminalGrowth = asNumber(candidate.gStable) ?? asNumber(candidate.g_stable);
+  if (
+    revenueGrowth === null ||
+    operatingMargin === null ||
+    discountRate === null ||
+    terminalGrowth === null
+  ) {
+    return null;
+  }
+  return {
+    revenueGrowth: toDisplayPercent(revenueGrowth),
+    operatingMargin: toDisplayPercent(operatingMargin),
+    discountRate: toDisplayPercent(discountRate),
+    terminalGrowth: toDisplayPercent(terminalGrowth),
+  };
+};
+
+const readReplayAssumptions = (value: unknown): Partial<Record<Scenario, Assumptions>> | undefined => {
+  const assumptions: Partial<Record<Scenario, Assumptions>> = {};
+  for (const scenario of ['base', 'bull', 'bear'] as const) {
+    const scenarioAssumptions = readAssumptionsForScenario(value, scenario);
+    if (scenarioAssumptions) {
+      assumptions[scenario] = scenarioAssumptions;
+    }
+  }
+  return Object.keys(assumptions).length ? assumptions : undefined;
 };
 
 const readProjections = (scenarioResult: unknown): ValuationReplaySnapshot['projections'] => {
@@ -370,6 +413,7 @@ export function normalizeValuationReplay(value: unknown): ValuationReplaySnapsho
   const kpiWrapper = asRecord(trace.kpis);
   const provenance = asRecord(run.provenance);
   const replayScenario = readScenario(run.inputs);
+  const replayAssumptions = readReplayAssumptions(run.inputs);
   const scenarioTrace = trace[replayScenario] ?? trace.base;
 
   return {
@@ -377,6 +421,7 @@ export function normalizeValuationReplay(value: unknown): ValuationReplaySnapsho
     ticker: typeof run.symbol === 'string' ? run.symbol : undefined,
     createdAt,
     scenario: replayScenario,
+    assumptions: replayAssumptions,
     scenarios: {
       base: { fairValue: baseValue },
       bull: { fairValue: bullValue },

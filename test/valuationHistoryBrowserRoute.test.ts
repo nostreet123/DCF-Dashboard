@@ -116,14 +116,29 @@ describe("browser valuation history routes", () => {
         _id: "run-123",
         createdAt: 1700000000000,
         symbol: "AAPL",
+        inputs: {
+          scenario: "bull",
+          bull: {
+            revenueGrowth: 0.22,
+            ebitMargin: 0.31,
+            wacc: 0.0875,
+            gStable: 0.0325,
+          },
+        },
         traceStorage: "inline",
         provenance: {
           source: "private filing cache",
           sourceLinks: [{ title: "Private artifact", url: "convex-storage:secret" }],
         },
         trace: {
-          base: { valuation: { fairValuePerShare: 145.12 } },
-          bull: { valuation: { fairValuePerShare: 182.3 } },
+          base: {
+            valuation: { fairValuePerShare: 145.12 },
+            trace: { forecast: { years: [2025], revenue: [100], ebit: [20], nopat: [16], fcff: [12] } },
+          },
+          bull: {
+            valuation: { fairValuePerShare: 182.3 },
+            trace: { forecast: { years: [2025], revenue: [130], ebit: [32], nopat: [26], fcff: [21] } },
+          },
           bear: { valuation: { fairValuePerShare: 109.8 } },
         },
       },
@@ -151,5 +166,10 @@ describe("browser valuation history routes", () => {
       },
     });
     expect(json.replay.provenance).toBeUndefined();
+    expect(json.replay.statementHistory).toEqual([]);
+    expect(json.replay.projections).toEqual([]);
+    expect(json.replay.kpis).toEqual([]);
+    expect(json.replay.monteCarloSummary).toBeUndefined();
+    expect(json.replay.assumptions).toBeUndefined();
   });
 });

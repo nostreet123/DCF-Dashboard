@@ -90,7 +90,15 @@ describe("valuation history hook helpers", () => {
           _id: "run-3",
           createdAt: 1700000002000,
           symbol: "MSFT",
-          inputs: { scenario: "bull" },
+          inputs: {
+            scenario: "bull",
+            bull: {
+              revenueGrowth: 0.22,
+              ebitMargin: 0.31,
+              wacc: 0.0875,
+              gStable: 0.0325,
+            },
+          },
           provenance: { sourceSystem: "User-reviewed import" },
           traceStorage: "inline",
           trace: {
@@ -117,6 +125,14 @@ describe("valuation history hook helpers", () => {
       },
       range: [270, 345],
       histogram: { binCenters: [280, 320], density: [0.5, 1] },
+      assumptions: {
+        bull: {
+          revenueGrowth: 22,
+          operatingMargin: 31,
+          discountRate: 8.75,
+          terminalGrowth: 3.25,
+        },
+      },
     });
     expect(replay?.projections).toEqual([]);
     expect(replay?.kpis).toEqual([]);
