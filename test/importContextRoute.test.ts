@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ConvexHttpClient } from "convex/browser";
 
 import { GET } from "../app/api/company/import/context/route";
+import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
+const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
@@ -14,6 +16,7 @@ let restoreSecurityMock: (() => void) | null = null;
 
 beforeEach(() => {
   resetRateLimitStateForTests();
+  process.env.INTERNAL_PERSISTENCE_KEY = "secret";
   process.env.CONVEX_URL = "https://example.convex.cloud";
   process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
   const securityMock = installSecurityMutationsMock();
@@ -25,6 +28,8 @@ afterEach(() => {
   ConvexHttpClient.prototype.query = originalQuery;
   restoreSecurityMock?.();
   restoreSecurityMock = null;
+  if (originalInternalPersistenceKey === undefined) delete process.env.INTERNAL_PERSISTENCE_KEY;
+  else process.env.INTERNAL_PERSISTENCE_KEY = originalInternalPersistenceKey;
   if (originalConvexUrl === undefined) delete process.env.CONVEX_URL;
   else process.env.CONVEX_URL = originalConvexUrl;
   if (originalSyncToken === undefined) delete process.env.DAMODARAN_SYNC_TOKEN;
@@ -33,6 +38,16 @@ afterEach(() => {
 });
 
 describe("company import context route", () => {
+  test("rejects unauthenticated import context reads", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/company/import/context?symbol=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.169" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
   test("returns approved imported facts and matching artifact metadata from Convex", async () => {
     const importedFacts = {
       listingId: "sec:0000320193:AAPL",
@@ -57,11 +72,19 @@ describe("company import context route", () => {
       return null;
     };
 
+    const url = "http://localhost/api/company/import/context?listingId=sec%3A0000320193%3AAAPL&symbol=AAPL";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      nonce: "import-context-auth-test",
+      timestampMs: Date.now(),
+    });
+
     const response = await GET(
-      new Request(
-        "http://localhost/api/company/import/context?listingId=sec%3A0000320193%3AAAPL&symbol=AAPL",
-        { headers: { "x-vercel-forwarded-for": "203.0.113.170" } },
-      ),
+      new Request(url, {
+        headers: { ...authHeaders, "x-vercel-forwarded-for": "203.0.113.170" },
+      }),
     );
     const payload = await response.json();
 
@@ -80,18 +103,26 @@ describe("company import context route", () => {
     expect(payload.artifacts).toEqual([artifacts[0]]);
   });
 
-  test("returns empty context when Convex is not configured", async () => {
+  test("rejects import context reads when internal auth backing store is not configured", async () => {
     delete process.env.CONVEX_URL;
     delete process.env.DAMODARAN_SYNC_TOKEN;
     process.env.NODE_ENV = "development";
 
+    const url = "http://localhost/api/company/import/context?symbol=AAPL";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      nonce: "import-context-empty-test",
+      timestampMs: Date.now(),
+    });
+
     const response = await GET(
-      new Request("http://localhost/api/company/import/context?symbol=AAPL", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.171" },
+      new Request(url, {
+        headers: { ...authHeaders, "x-vercel-forwarded-for": "203.0.113.171" },
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ importedFacts: null, artifacts: [] });
+    expect(response.status).toBe(401);
   });
 });

@@ -46,7 +46,12 @@ const normalizeNumericToken = (raw: string): string => {
   const commaCount = (numeric.match(/,/g) ?? []).length;
   const dotCount = (numeric.match(/\./g) ?? []).length;
   if (commaCount > 0 && dotCount === 0) {
-    numeric = commaCount === 1 ? numeric.replace(",", ".") : numeric.replace(/,/g, "");
+    numeric =
+      commaCount === 1 && /^-?\d{1,3},\d{3}$/.test(numeric)
+        ? numeric.replace(",", "")
+        : commaCount === 1
+          ? numeric.replace(",", ".")
+          : numeric.replace(/,/g, "");
   } else if (commaCount > 0 && dotCount > 0) {
     const lastComma = numeric.lastIndexOf(",");
     const lastDot = numeric.lastIndexOf(".");
