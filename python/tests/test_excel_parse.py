@@ -44,6 +44,14 @@ def test_header_detection_and_normalization(tmp_path: Path) -> None:
     assert parsed.rows[0][2] == 1234.0
 
 
+def test_parse_excel_rejects_empty_selected_sheet(tmp_path: Path) -> None:
+    file_path = tmp_path / "empty.xlsx"
+    _write_excel(file_path, {"Sheet1": pd.DataFrame()})
+
+    with pytest.raises(ValueError, match="Sheet1.*empty"):
+        parse_excel(file_path)
+
+
 def test_parse_excel_rejects_oversized_workbook(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

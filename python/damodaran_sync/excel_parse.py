@@ -96,6 +96,11 @@ def _validate_frame_shape(frame: pd.DataFrame) -> None:
         raise ValueError(f"Excel sheet exceeds maximum column count of {max_columns}")
 
 
+def _validate_frame_not_empty(frame: pd.DataFrame, sheet_name: str) -> None:
+    if frame.empty or len(frame.index) == 0 or len(frame.columns) == 0:
+        raise ValueError(f"Excel sheet {sheet_name!r} is empty")
+
+
 def _sheet_column_count(excel_file: pd.ExcelFile, sheet_name: str) -> int | None:
     book = excel_file.book
     try:
@@ -242,6 +247,7 @@ def parse_excel(path: str | Path) -> ParsedTable:
     try:
         sheet_name = _select_sheet(excel_file)
         frame = _read_excel_bounded(excel_file, sheet_name)
+        _validate_frame_not_empty(frame, sheet_name)
     except Exception as exc:
         raise ValueError(f"Failed to parse Excel file {file_path}: {exc}") from exc
 
