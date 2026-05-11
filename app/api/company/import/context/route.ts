@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getConvexClient } from "@/app/api/_lib/convex";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import {
   enforceRateLimit,
   getRateLimitPerMinute,
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
   });
   if (!rateLimit.allowed) {
     return rateLimitErrorResponse(rateLimit);
+  }
+  if (!(await isInternalPersistenceRequest(request))) {
+    return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
 
   const { listingId, symbol } = readParams(request);
