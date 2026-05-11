@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -153,6 +154,20 @@ def _build_rg_cmd(root: Path, patterns: list[str], max_matches: int) -> list[str
     return cmd
 
 
+def _secret_redaction_patterns() -> list[str]:
+    for rule in RULES:
+        if rule.key == "secrets":
+            return rule.patterns
+    return []
+
+
+def _redact_secret_text(line_text: str) -> str:
+    redacted = line_text
+    for pattern in _secret_redaction_patterns():
+        redacted = re.sub(pattern, "[REDACTED]", redacted)
+    return redacted
+
+
 def _parse_rg_json_lines(stdout: str) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     for raw_line in stdout.splitlines():
@@ -177,7 +192,7 @@ def _parse_rg_json_lines(stdout: str) -> list[dict[str, Any]]:
             {
                 "path": path_text,
                 "line": line_number,
-                "line_text": lines_text.rstrip("\n"),
+                "line_text": _redact_secret_text(lines_text.rstrip("\n")),
             }
         )
     return matches
