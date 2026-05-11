@@ -109,13 +109,13 @@ class _UIRequestHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/state":
-            self._handle_state()
+            self._handle_state(parsed)
             return
         if parsed.path == "/events":
             self._handle_events(parsed)
             return
         if parsed.path == "/ui/state":
-            self._handle_state()
+            self._handle_state(parsed)
             return
         if parsed.path == "/ui/events":
             self._handle_events(parsed)
@@ -143,7 +143,10 @@ class _UIRequestHandler(SimpleHTTPRequestHandler):
         self.server.enqueue_action(parsed.path, payload)
         self._send_json({"ok": True})
 
-    def _handle_state(self) -> None:
+    def _handle_state(self, parsed: Any) -> None:
+        if not self._validate_token(parsed):
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
         state = self.server.state.get()
         self._send_json(state)
 

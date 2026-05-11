@@ -138,7 +138,9 @@ const hashBodyForSignature = async (
       if (value) {
         received += value.byteLength;
         if (received > maxBytes) {
-          await reader.cancel();
+          void reader.cancel().catch(() => {
+            // Ignore clone cancellation failures; oversized bodies are rejected below.
+          });
           return null;
         }
         hash.update(Buffer.from(value));

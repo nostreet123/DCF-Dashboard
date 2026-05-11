@@ -24,21 +24,67 @@ const parseLimit = (value: string | null): number | null => {
 const browserHistoryReadsEnabled = (): boolean =>
   process.env.VALUATION_HISTORY_BROWSER_READS === "1";
 
+const FAIR_VALUE_KEYS = [
+  "fairValuePerShare",
+  "fair_value_per_share",
+  "fairValue",
+] as const;
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+};
+
+const sanitizeScenarioSummary = (value: unknown): Record<string, number> | undefined => {
+  const scenario = asRecord(value);
+  if (!scenario) {
+    return undefined;
+  }
+
+  return FAIR_VALUE_KEYS.reduce<Record<string, number>>((summary, key) => {
+    const candidate = scenario[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      summary[key] = candidate;
+    }
+    return summary;
+  }, {});
+};
+
+const sanitizeResultSummary = (value: unknown): Record<string, Record<string, number>> | undefined => {
+  const resultSummary = asRecord(value);
+  if (!resultSummary) {
+    return undefined;
+  }
+
+  return ["base", "bull", "bear"].reduce<Record<string, Record<string, number>>>(
+    (summary, scenarioName) => {
+      const scenario = sanitizeScenarioSummary(resultSummary[scenarioName]);
+      if (scenario && Object.keys(scenario).length > 0) {
+        summary[scenarioName] = scenario;
+      }
+      return summary;
+    },
+    {},
+  );
+};
+
 const sanitizeBrowserHistoryRuns = (runs: unknown): unknown[] => {
   if (!Array.isArray(runs)) {
     return [];
   }
   return runs.flatMap((run) => {
-    if (!run || typeof run !== "object" || Array.isArray(run)) {
+    const record = asRecord(run);
+    if (!record) {
       return [];
     }
-    const record = run as Record<string, unknown>;
     return [{
       _id: record._id,
       createdAt: record.createdAt,
       status: record.status,
       symbol: record.symbol,
-      resultSummary: record.resultSummary,
+      resultSummary: sanitizeResultSummary(record.resultSummary),
     }];
   });
 };

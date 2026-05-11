@@ -306,23 +306,26 @@ describe("route rate limiting", () => {
     expect(payload.code).toBe("UNTRUSTED_IDENTITY");
   });
 
-  test("accepts x-forwarded-for in compat source mode", async () => {
+  test("rejects x-forwarded-for even in compat source mode", async () => {
     process.env.RATE_LIMIT_IDENTITY_SOURCE = "compat";
     process.env.RATE_LIMIT_IDENTITY_MODE = "compat";
-    const headers = { "x-forwarded-for": "203.0.113.70" };
     const first = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL", {
-        headers,
+        headers: { "x-forwarded-for": "203.0.113.70" },
       }),
     );
     const second = await companySearchGet(
       new Request("http://localhost/api/company/search?q=AAPL", {
-        headers,
+        headers: { "x-forwarded-for": "203.0.113.71" },
       }),
     );
+    const firstJson = await first.json();
+    const secondJson = await second.json();
 
-    expect(first.status).toBe(200);
+    expect(first.status).toBe(429);
+    expect(firstJson.code).toBe("UNTRUSTED_IDENTITY");
     expect(second.status).toBe(429);
+    expect(secondJson.code).toBe("UNTRUSTED_IDENTITY");
   });
 
   test("allows localhost only when the explicit local dev bypass is enabled", async () => {

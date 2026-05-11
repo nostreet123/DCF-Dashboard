@@ -42,7 +42,11 @@ const readSymbolFromQuery = (request: Request): string | null => {
 
 const readListingIdFromQuery = (request: Request): string | null => {
   const { searchParams } = new URL(request.url);
-  return searchParams.get("listingId")?.trim() ?? searchParams.get("id")?.trim() ?? null;
+  return (
+    searchParams.get("listingId")?.trim() ??
+    searchParams.get("id")?.trim() ??
+    null
+  );
 };
 
 const readSymbolFromBody = async (request: Request): Promise<string | null> => {
@@ -78,8 +82,13 @@ const noStoreJson = (payload: unknown, init?: ResponseInit) =>
     },
   });
 
-const shouldReadImportedFacts = (listingId: string | null): boolean =>
-  Boolean(listingId);
+const shouldReadImportedFacts = (
+  listingId: string | null,
+  canReadImportedFacts: boolean,
+): boolean => Boolean(canReadImportedFacts && listingId);
+
+const normalizeSymbolForComparison = (symbol: string): string =>
+  symbol.trim().toUpperCase();
 
 const secListingMicPrefixes = new Set(["XNAS", "XNYS", "ARCX", "XASE"]);
 
@@ -100,6 +109,7 @@ const isNonSecListing = (listingId: string | null): boolean => {
 const readImportedFacts = async (
   symbol: string,
   listingId: string | null,
+  canReadImportedFacts: boolean,
 ): Promise<EdgarFacts | null> => {
   const convexClient = getConvexClient();
   const syncToken = getSyncTokenOptional();
@@ -108,25 +118,39 @@ const readImportedFacts = async (
   }
 
   let imported: Record<string, unknown> | null = null;
-  if (shouldReadImportedFacts(listingId)) {
+  if (shouldReadImportedFacts(listingId, canReadImportedFacts)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    imported = await (convexClient as any).query("imports:getImportedFacts" as any, {
+    const getImportedFacts = "imports:getImportedFacts" as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    imported = await (convexClient as any).query(getImportedFacts, {
       syncToken,
       listingId,
     });
   }
-  if (!imported && !listingId) {
+  if (!imported && !listingId && canReadImportedFacts) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const matches = await (convexClient as any).query("imports:listBySymbol" as any, {
+    const listBySymbol = "imports:listBySymbol" as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    const matches = await (convexClient as any).query(listBySymbol, {
       syncToken,
       symbol,
       limit: 1,
     });
-    imported = Array.isArray(matches) ? matches[0] ?? null : null;
+    imported = Array.isArray(matches) ? (matches[0] ?? null) : null;
   }
   if (!imported) {
     return null;
   }
+  const importedSymbol =
+    typeof imported.symbol === "string" ? imported.symbol : null;
+  if (
+    !importedSymbol ||
+    normalizeSymbolForComparison(importedSymbol) !==
+      normalizeSymbolForComparison(symbol)
+  ) {
+    return null;
+  }
+
   const facts = imported.facts;
   if (!facts || typeof facts !== "object" || Array.isArray(facts)) {
     return null;
@@ -149,7 +173,7 @@ const readImportedFacts = async (
         ? importedDoc.currency
         : filingCurrency;
   return {
-    symbol,
+    symbol: importedSymbol,
     name:
       typeof record.name === "string"
         ? record.name
@@ -160,58 +184,67 @@ const readImportedFacts = async (
     currency,
     filingCurrency,
     source: "import",
-    updated_at: typeof importedDoc.updatedAt === "number" ? importedDoc.updatedAt : Date.now(),
-    statements: statements.flatMap((statement) => {
-      if (!statement || typeof statement !== "object" || Array.isArray(statement)) {
-        return [];
-      }
-      const item = statement as Record<string, unknown>;
-      const periodEnd = item.periodEnd ?? item.period_end;
-      if (typeof periodEnd !== "string") {
-        return [];
-      }
-      return [{
-        period_end: periodEnd,
-        period_type:
-          typeof item.periodType === "string"
-            ? item.periodType
-            : typeof item.period_type === "string"
-              ? item.period_type
-              : "FY",
-        filing_date:
-          typeof item.filingDate === "string"
-            ? item.filingDate
-            : typeof item.filing_date === "string"
-              ? item.filing_date
-              : null,
-        currency:
-          typeof item.currency === "string"
-            ? item.currency
-            : currency,
-        revenue: typeof item.revenue === "number" ? item.revenue : null,
-        operating_income:
-          typeof item.operatingIncome === "number"
-            ? item.operatingIncome
-            : typeof item.operating_income === "number"
-              ? item.operating_income
-              : null,
-        operating_margin:
-          typeof item.operatingMargin === "number"
-            ? item.operatingMargin
-            : typeof item.operating_margin === "number"
-              ? item.operating_margin
-              : null,
-        cash: typeof item.cash === "number" ? item.cash : null,
-        debt: typeof item.debt === "number" ? item.debt : null,
-        shares_outstanding:
-          typeof item.sharesOutstanding === "number"
-            ? item.sharesOutstanding
-            : typeof item.shares_outstanding === "number"
-              ? item.shares_outstanding
-              : null,
-        source: "import",
-      }];
-    }).sort((a, b) => b.period_end.localeCompare(a.period_end)),
+    updated_at:
+      typeof importedDoc.updatedAt === "number"
+        ? importedDoc.updatedAt
+        : Date.now(),
+    statements: statements
+      .flatMap((statement) => {
+        if (
+          !statement ||
+          typeof statement !== "object" ||
+          Array.isArray(statement)
+        ) {
+          return [];
+        }
+        const item = statement as Record<string, unknown>;
+        const periodEnd = item.periodEnd ?? item.period_end;
+        if (typeof periodEnd !== "string") {
+          return [];
+        }
+        return [
+          {
+            period_end: periodEnd,
+            period_type:
+              typeof item.periodType === "string"
+                ? item.periodType
+                : typeof item.period_type === "string"
+                  ? item.period_type
+                  : "FY",
+            filing_date:
+              typeof item.filingDate === "string"
+                ? item.filingDate
+                : typeof item.filing_date === "string"
+                  ? item.filing_date
+                  : null,
+            currency:
+              typeof item.currency === "string" ? item.currency : currency,
+            revenue: typeof item.revenue === "number" ? item.revenue : null,
+            operating_income:
+              typeof item.operatingIncome === "number"
+                ? item.operatingIncome
+                : typeof item.operating_income === "number"
+                  ? item.operating_income
+                  : null,
+            operating_margin:
+              typeof item.operatingMargin === "number"
+                ? item.operatingMargin
+                : typeof item.operating_margin === "number"
+                  ? item.operating_margin
+                  : null,
+            cash: typeof item.cash === "number" ? item.cash : null,
+            debt: typeof item.debt === "number" ? item.debt : null,
+            shares_outstanding:
+              typeof item.sharesOutstanding === "number"
+                ? item.sharesOutstanding
+                : typeof item.shares_outstanding === "number"
+                  ? item.shares_outstanding
+                  : null,
+            source: "import",
+          },
+        ];
+      })
+      .sort((a, b) => b.period_end.localeCompare(a.period_end)),
   };
 };
 
@@ -278,14 +311,22 @@ export async function GET(request: Request) {
 
   try {
     const listingId = readListingIdFromQuery(request);
+    const canReadImportedFacts = await isInternalPersistenceRequest(request);
     let importedFacts: EdgarFacts | null = null;
     try {
-      importedFacts = await readImportedFacts(symbol, listingId);
+      importedFacts = await readImportedFacts(
+        symbol,
+        listingId,
+        canReadImportedFacts,
+      );
     } catch (error) {
       if (isNonSecListing(listingId)) {
         throw error;
       }
-      console.warn("Imported facts lookup failed, falling back to EDGAR", error);
+      console.warn(
+        "Imported facts lookup failed, falling back to EDGAR",
+        error,
+      );
     }
     if (importedFacts) {
       return noStoreJson(importedFacts);
@@ -302,18 +343,17 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse(
-      "EDGAR_ERROR",
-      "EDGAR facts failed",
-      status,
-    );
+    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
   }
 }
 
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:company:facts:post",
-    limit: getRateLimitPerMinute("API_RATE_LIMIT_COMPANY_FACTS_POST_PER_MINUTE", 30),
+    limit: getRateLimitPerMinute(
+      "API_RATE_LIMIT_COMPANY_FACTS_POST_PER_MINUTE",
+      30,
+    ),
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
@@ -324,7 +364,8 @@ export async function POST(request: Request) {
     return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
 
-  const symbol = readSymbolFromQuery(request) ?? (await readSymbolFromBody(request));
+  const symbol =
+    readSymbolFromQuery(request) ?? (await readSymbolFromBody(request));
   if (!symbol) {
     return errorResponse("BAD_REQUEST", "Missing symbol parameter", 400);
   }
@@ -335,11 +376,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse(
-      "EDGAR_ERROR",
-      "EDGAR facts failed",
-      status,
-    );
+    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
   }
 
   try {

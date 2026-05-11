@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import base64
+import io
+import zipfile
+
+import pytest
+from openpyxl import Workbook
 
 from dcf_engine.service.company_contracts import ImportParseRequest, ParseArtifactRequest
-from dcf_engine.service.statement_import import parse_import_payload
+from dcf_engine.service import statement_import
+from dcf_engine.service.statement_import import parse_import_payload, read_pdf_text, read_tabular_rows
 
 
 def test_csv_import_parse_builds_reviewable_statement_fields() -> None:
@@ -141,3 +147,81 @@ def test_pdf_import_fields_are_review_required(monkeypatch) -> None:
     assert result.review.is_valuation_ready is False
     assert result.review.missing_required_fields == []
     assert all(field.confirmed is False for field in result.review.fields)
+
+
+def test_xlsx_import_parse_builds_reviewable_statement_fields() -> None:
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Income"
+    worksheet.append(["Metric", "2024"])
+    worksheet.append(["Period end", "2024-12-31"])
+    worksheet.append(["Reporting currency", "USD"])
+    worksheet.append(["Revenue", "125000000"])
+    worksheet.append(["Cash and cash equivalents", "18000000"])
+    worksheet.append(["Total debt", "9000000"])
+    worksheet.append(["Shares outstanding", "25000000"])
+    content = io.BytesIO()
+    workbook.save(content)
+
+    payload = ImportParseRequest(
+        artifacts=[
+            ParseArtifactRequest(
+                id="artifact-xlsx",
+                originalFilename="income.xlsx",
+                contentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                contentBase64=base64.b64encode(content.getvalue()).decode(),
+            )
+        ]
+    )
+
+    result = parse_import_payload(payload)
+
+    assert result.artifacts[0].parser_name == "Excel"
+    assert result.review.is_valuation_ready is True
+    fields = {field.field: field.value for field in result.review.fields}
+    assert fields["revenue"] == "125000000"
+
+
+def test_xlsx_import_rejects_excess_uncompressed_archive(monkeypatch: pytest.MonkeyPatch) -> None:
+    content = io.BytesIO()
+    with zipfile.ZipFile(content, "w", compression=zipfile.ZIP_DEFLATED) as workbook_zip:
+        workbook_zip.writestr("xl/worksheets/sheet1.xml", "x" * 128)
+    monkeypatch.setattr("dcf_engine.service.statement_import.MAX_SPREADSHEET_UNCOMPRESSED_BYTES", 32)
+
+    with pytest.raises(ValueError, match="expands beyond"):
+        read_tabular_rows(content.getvalue(), "bomb.xlsx")
+
+
+def test_csv_import_rejects_excess_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("dcf_engine.service.statement_import.MAX_TABULAR_ROWS", 2)
+
+    with pytest.raises(ValueError, match="too many rows"):
+        read_tabular_rows(b"a\nb\nc\n", "large.csv")
+
+
+def test_pdf_import_rejects_excess_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakePdfReader:
+        def __init__(self, _stream: io.BytesIO) -> None:
+            self.pages = [object(), object()]
+
+    monkeypatch.setattr(statement_import, "_load_pdf_reader", lambda: FakePdfReader)
+    monkeypatch.setattr("dcf_engine.service.statement_import.MAX_PDF_PAGES", 1)
+
+    with pytest.raises(ValueError, match="too many pages"):
+        read_pdf_text(b"%PDF")
+
+
+def test_pdf_import_rejects_excess_extracted_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakePage:
+        def extract_text(self) -> str:
+            return "x" * 64
+
+    class FakePdfReader:
+        def __init__(self, _stream: io.BytesIO) -> None:
+            self.pages = [FakePage(), FakePage()]
+
+    monkeypatch.setattr(statement_import, "_load_pdf_reader", lambda: FakePdfReader)
+    monkeypatch.setattr("dcf_engine.service.statement_import.MAX_PDF_TEXT_CHARS", 100)
+
+    with pytest.raises(ValueError, match="too much text"):
+        read_pdf_text(b"%PDF")

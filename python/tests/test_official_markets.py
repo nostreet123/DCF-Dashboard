@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import pytest
+
 from dcf_engine.service import official_markets
 from dcf_engine.service.sec_edgar_models import (
     EdgarCompanyFacts,
     EdgarSearchResult,
     EdgarStatement,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_sec_coverage_cache() -> None:
+    official_markets._cached_sec_company_facts.cache_clear()
 
 
 def test_sec_search_marks_missing_shares_as_import_required(
@@ -78,7 +85,11 @@ def test_sec_search_marks_complete_company_as_valuation_ready(
             currency="USD",
             updated_at=1,
             statements=[
-                EdgarStatement(period_end="2025-12-31", revenue=100.0, shares_outstanding=10.0)
+                EdgarStatement(
+                    period_end="2025-12-31",
+                    revenue=100.0,
+                    shares_outstanding=10.0,
+                )
             ],
         ),
     )
@@ -120,6 +131,59 @@ def test_sec_search_checks_companyfacts_for_dropdown_results(monkeypatch) -> Non
 
     assert results[0].symbol == "BRKH"
     assert results[0].coverage_state == "import_required"
+
+
+def test_sec_search_caps_companyfacts_coverage_checks(monkeypatch) -> None:
+    monkeypatch.setattr(official_markets, "SEC_SEARCH_COVERAGE_LOOKUP_LIMIT", 3)
+    monkeypatch.setattr(
+        official_markets,
+        "search_companies",
+        lambda query, limit: [
+            EdgarSearchResult(
+                symbol=f"A{index}",
+                name=f"Company {index}",
+                cik=f"{index:010d}",
+                canonical_id=f"{index:010d}",
+                listing_id=f"XNAS:A{index}",
+                mic="XNAS",
+            )
+            for index in range(limit)
+        ],
+    )
+    fetched_symbols: list[str] = []
+
+    def fetch_facts(symbol: str) -> EdgarCompanyFacts:
+        fetched_symbols.append(symbol)
+        return EdgarCompanyFacts(
+            symbol=symbol,
+            name=symbol,
+            cik="0000000000",
+            currency="USD",
+            updated_at=1,
+            statements=[
+                EdgarStatement(
+                    period_end="2025-12-31",
+                    revenue=100.0,
+                    shares_outstanding=10.0,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(official_markets, "fetch_company_facts", fetch_facts)
+
+    results = official_markets.SECAdapter().search("a", limit=5)
+
+    assert fetched_symbols == ["A0", "A1", "A2"]
+    assert [result.coverage_state for result in results[:3]] == [
+        "valuation_ready",
+        "valuation_ready",
+        "valuation_ready",
+    ]
+    assert [result.coverage_state for result in results[3:]] == [
+        "import_required",
+        "import_required",
+    ]
+    assert results[3].coverage_reason == official_markets.SEC_SEARCH_DEFERRED_COVERAGE_REASON
 
 
 def _raise_unexpected_facts_fetch(symbol: str) -> EdgarCompanyFacts:
@@ -202,7 +266,11 @@ def test_official_detail_preserves_requested_sec_exchange(monkeypatch) -> None:
             currency="USD",
             updated_at=1,
             statements=[
-                EdgarStatement(period_end="2025-12-31", revenue=100.0, shares_outstanding=10.0)
+                EdgarStatement(
+                    period_end="2025-12-31",
+                    revenue=100.0,
+                    shares_outstanding=10.0,
+                )
             ],
         ),
     )
