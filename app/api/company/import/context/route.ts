@@ -17,6 +17,27 @@ const readParams = (request: Request) => {
   };
 };
 
+const redactPublicImportContext = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(redactPublicImportContext);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "_id" || key === "_creationTime" || key === "storageId" || key === "parseResult") {
+      continue;
+    }
+    redacted[key] =
+      key === "url" && typeof child === "string" && child.startsWith("convex-storage:")
+        ? "approved-import-artifact"
+        : redactPublicImportContext(child);
+  }
+  return redacted;
+};
+
 export async function GET(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:company:import:context",
@@ -94,7 +115,10 @@ export async function GET(request: Request) {
         : [];
     }
 
-    return NextResponse.json({ importedFacts, artifacts });
+    return NextResponse.json({
+      importedFacts: redactPublicImportContext(importedFacts),
+      artifacts: redactPublicImportContext(artifacts),
+    });
   } catch (error) {
     console.error("Import context fetch failed", error);
     return errorResponse("IMPORT_CONTEXT_ERROR", "Import context fetch failed", 502);

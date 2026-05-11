@@ -73,14 +73,26 @@ describe("company import context route", () => {
 
   test("returns approved imported facts and matching artifact metadata from Convex", async () => {
     const importedFacts = {
+      _id: "internal-facts-id",
+      _creationTime: 1700000000000,
       listingId: "sec:0000320193:AAPL",
       symbol: "AAPL",
       artifactIds: ["artifact-1"],
       facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
-      provenance: { sourceSystem: "convex-import" },
+      provenance: {
+        sourceSystem: "convex-import",
+        sourceLinks: [{ title: "Uploaded workbook", url: "convex-storage:secret-storage-id" }],
+      },
     };
     const artifacts = [
-      { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+      {
+        _id: "internal-artifact-id",
+        artifactId: "artifact-1",
+        status: "approved",
+        originalFilename: "aapl.xlsx",
+        storageId: "secret-storage-id",
+        parseResult: { rawRows: [["private"]] },
+      },
       { artifactId: "artifact-2", status: "approved", originalFilename: "ignored.xlsx" },
     ];
     const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
@@ -122,21 +134,39 @@ describe("company import context route", () => {
         args: { listingId: "sec:0000320193:AAPL", status: "approved", limit: 20 },
       },
     ]);
-    expect(payload.importedFacts).toEqual(importedFacts);
-    expect(payload.artifacts).toEqual([artifacts[0]]);
+    expect(payload.importedFacts).toEqual({
+      listingId: "sec:0000320193:AAPL",
+      symbol: "AAPL",
+      artifactIds: ["artifact-1"],
+      facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
+      provenance: {
+        sourceSystem: "convex-import",
+        sourceLinks: [{ title: "Uploaded workbook", url: "approved-import-artifact" }],
+      },
+    });
+    expect(payload.artifacts).toEqual([
+      { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+    ]);
   });
 
   test("browser import context wrapper signs internal context reads", async () => {
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
     process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
     const importedFacts = {
+      _id: "internal-facts-id",
       listingId: "sec:0000320193:AAPL",
       symbol: "AAPL",
       artifactIds: ["artifact-1"],
       facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
     };
     const artifacts = [
-      { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+      {
+        artifactId: "artifact-1",
+        status: "approved",
+        originalFilename: "aapl.xlsx",
+        storageId: "secret-storage-id",
+        parseResult: { rawRows: [["private"]] },
+      },
       { artifactId: "artifact-2", status: "approved", originalFilename: "ignored.xlsx" },
     ];
     ConvexHttpClient.prototype.query = async (name) => {
@@ -163,8 +193,15 @@ describe("company import context route", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.importedFacts).toEqual(importedFacts);
-    expect(payload.artifacts).toEqual([artifacts[0]]);
+    expect(payload.importedFacts).toEqual({
+      listingId: "sec:0000320193:AAPL",
+      symbol: "AAPL",
+      artifactIds: ["artifact-1"],
+      facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
+    });
+    expect(payload.artifacts).toEqual([
+      { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+    ]);
   });
 
   test("browser import context wrapper requires a context token before signing", async () => {

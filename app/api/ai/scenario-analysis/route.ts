@@ -516,6 +516,27 @@ const pickFields = (
   return picked;
 };
 
+const redactPublicImportContext = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(redactPublicImportContext);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "_id" || key === "_creationTime" || key === "storageId" || key === "parseResult") {
+      continue;
+    }
+    redacted[key] =
+      key === "url" && typeof child === "string" && child.startsWith("convex-storage:")
+        ? "approved-import-artifact"
+        : redactPublicImportContext(child);
+  }
+  return redacted;
+};
+
 const publicRunSummaryFields = [
   "_id",
   "createdAt",
@@ -762,8 +783,8 @@ const loadConvexAiContext = async (
         "updatedAt",
       ]),
       companyStatementHistory: compactArray(readRecord(statementHistoryResult)?.statements, 10),
-      importedFacts,
-      importArtifacts: compactArray(importArtifacts, 10),
+      importedFacts: redactPublicImportContext(importedFacts),
+      importArtifacts: compactArray(redactPublicImportContext(importArtifacts), 10),
       recentValuationRuns: recentValuationRuns.flatMap((run) => {
         const compact = compactRunSummary(run, {
           includePrivateMetadata: includeSavedRunTrace,

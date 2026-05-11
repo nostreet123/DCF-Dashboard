@@ -304,7 +304,10 @@ describe("AI scenario analysis route", () => {
       symbol: "AAPL",
       artifactIds: ["artifact-1"],
       facts: { statements: [{ periodEnd: "2025-09-30", revenue: 395000 }] },
-      provenance: { sourceSystem: "convex-import" },
+      provenance: {
+        sourceSystem: "convex-import",
+        sourceLinks: [{ title: "Uploaded workbook", url: "convex-storage:secret-storage-id" }],
+      },
     };
     const calledQueries: string[] = [];
     ConvexHttpClient.prototype.query = async (name, args) => {
@@ -331,7 +334,13 @@ describe("AI scenario analysis route", () => {
           limit: 20,
         });
         return [
-          { artifactId: "artifact-1", status: "approved", originalFilename: "aapl.xlsx" },
+          {
+            artifactId: "artifact-1",
+            status: "approved",
+            originalFilename: "aapl.xlsx",
+            storageId: "secret-storage-id",
+            parseResult: { rawRows: [["private"]] },
+          },
           { artifactId: "artifact-2", status: "approved", originalFilename: "ignored.xlsx" },
         ];
       }
@@ -386,6 +395,10 @@ describe("AI scenario analysis route", () => {
     expect(prompt).toContain("\"operatingMargin\":0.31");
     expect(prompt).toContain("\"sourceSystem\":\"convex-import\"");
     expect(prompt).toContain("\"originalFilename\":\"aapl.xlsx\"");
+    expect(prompt).toContain("\"url\":\"approved-import-artifact\"");
+    expect(prompt).not.toContain("secret-storage-id");
+    expect(prompt).not.toContain("parseResult");
+    expect(prompt).not.toContain("rawRows");
     expect(prompt).not.toContain("ignored.xlsx");
     expect(prompt).toContain("\"recentValuationRuns\"");
     expect(prompt).toContain("\"latestValuationRunDetail\":null");
