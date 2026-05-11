@@ -140,6 +140,25 @@ describe("browser valuation history routes", () => {
             trace: { forecast: { years: [2025], revenue: [130], ebit: [32], nopat: [26], fcff: [21] } },
           },
           bear: { valuation: { fairValuePerShare: 109.8 } },
+          sensitivity: {
+            growthOffsets: [-2, 0, 2],
+            waccOffsets: [-0.01, 0, 0.01],
+            values: [[140, 145, 150]],
+          },
+          monteCarlo: {
+            histogram: { binCenters: [120, 130], density: [0.4, 1] },
+            summary: {
+              min: 100,
+              max: 200,
+              mean: 150,
+              median: 151,
+              p10: 118.1,
+              p25: 125,
+              p75: 160,
+              p90: 171.4,
+            },
+            runs: 5000,
+          },
         },
       },
     });
@@ -169,6 +188,8 @@ describe("browser valuation history routes", () => {
     expect(json.replay.statementHistory).toEqual([]);
     expect(json.replay.projections).toEqual([]);
     expect(json.replay.kpis).toEqual([]);
+    expect(json.replay.sensitivity).toBeUndefined();
+    expect(json.replay.sensitivityMatrix).toBeUndefined();
     expect(json.replay.monteCarloSummary).toBeUndefined();
     expect(json.replay.assumptions).toBeUndefined();
   });

@@ -19,8 +19,6 @@ const redactBrowserReplay = (replay: ValuationReplaySnapshot) => {
     scenarios,
     range,
     histogram,
-    sensitivityMatrix,
-    sensitivity,
   } = replay;
   return {
     runId,
@@ -30,8 +28,6 @@ const redactBrowserReplay = (replay: ValuationReplaySnapshot) => {
     scenarios,
     range,
     histogram,
-    sensitivityMatrix,
-    sensitivity,
     projections: [],
     kpis: [],
     statementHistory: [],

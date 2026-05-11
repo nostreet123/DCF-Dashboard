@@ -6,6 +6,7 @@ from dcf_engine.workbench.run import run_workbench
 from dcf_engine.workbench.schema import (
     ScenarioAssumptions,
     SensitivitySpec,
+    StatementInput,
     WorkbenchRequest,
 )
 
@@ -31,6 +32,7 @@ def _scenario(
 def _request(
     scenario: str = "base",
     sensitivity: SensitivitySpec | None = None,
+    statements: list[StatementInput] | None = None,
 ) -> WorkbenchRequest:
     return WorkbenchRequest(
         scenario=scenario,
@@ -62,6 +64,7 @@ def _request(
             wacc_stable=0.09,
         ),
         sensitivity=sensitivity,
+        statements=statements,
     )
 
 
@@ -95,3 +98,35 @@ def test_sensitivity_zero_offset_uses_active_scenario() -> None:
     assert response.sensitivity.values[0][0] != pytest.approx(
         response.base.valuation.fair_value_per_share
     )
+
+
+def test_sensitivity_spec_rejects_large_grids_before_engine_runs() -> None:
+    with pytest.raises(ValueError):
+        SensitivitySpec(
+            growth_offsets=[0.0] * 22,
+            wacc_offsets=[0.0],
+        )
+
+    with pytest.raises(ValueError):
+        SensitivitySpec(
+            growth_offsets=[0.0],
+            wacc_offsets=[0.0] * 22,
+        )
+
+
+def test_sensitivity_spec_rejects_extreme_offsets() -> None:
+    with pytest.raises(ValueError):
+        SensitivitySpec(growth_offsets=[0.51], wacc_offsets=[0.0])
+
+    with pytest.raises(ValueError):
+        SensitivitySpec(growth_offsets=[0.0], wacc_offsets=[-0.51])
+
+
+def test_workbench_request_rejects_too_many_statements() -> None:
+    statements = [
+        StatementInput(periodEnd=f"2024-{month:02d}-28", revenue=100.0)
+        for month in range(1, 122)
+    ]
+
+    with pytest.raises(ValueError):
+        _request(statements=statements)
