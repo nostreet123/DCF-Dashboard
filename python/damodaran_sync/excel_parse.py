@@ -263,8 +263,8 @@ def parse_excel(path: str | Path) -> ParsedTable:
     column_names = _make_unique(column_names)
 
     rows: list[list[object]] = []
-    data_rows = frame.iloc[header_row + 1:].values.tolist()
-    for row_values in data_rows:
+    for row_index in range(header_row + 1, len(frame.index)):
+        row_values = frame.iloc[row_index].tolist()
         if len(row_values) < len(column_names):
             row_values = row_values + [None] * (len(column_names) - len(row_values))
         if len(row_values) > len(column_names):

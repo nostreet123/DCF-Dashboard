@@ -131,3 +131,10 @@ def test_bounded_reader_uses_xls_actual_column_count(monkeypatch: pytest.MonkeyP
 
     assert list(captured["usecols"]) == [0, 1, 2]
     assert frame.shape == (2, 3)
+
+
+def test_parse_excel_streams_data_rows_from_frame() -> None:
+    source = Path(excel_parse.parse_excel.__code__.co_filename).read_text()
+
+    assert "frame.iloc[header_row + 1:].values.tolist()" not in source
+    assert "for row_index in range(header_row + 1, len(frame.index))" in source
