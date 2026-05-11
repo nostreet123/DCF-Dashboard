@@ -3,6 +3,8 @@ import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { requireSyncToken } from "./syncAuth";
 
+const MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 const validatedLimit = (limit: number) => {
   if (!Number.isInteger(limit) || limit <= 0 || limit > 10000) {
     throw new ConvexError({
@@ -14,10 +16,10 @@ const validatedLimit = (limit: number) => {
 };
 
 const validatedWindowMs = (windowMs: number) => {
-  if (!Number.isInteger(windowMs) || windowMs <= 0 || windowMs > 60 * 60 * 1000) {
+  if (!Number.isInteger(windowMs) || windowMs <= 0 || windowMs > MAX_WINDOW_MS) {
     throw new ConvexError({
       code: "BAD_REQUEST",
-      message: "windowMs must be an integer between 1 and 3600000",
+      message: `windowMs must be an integer between 1 and ${MAX_WINDOW_MS}`,
     });
   }
   return windowMs;

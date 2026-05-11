@@ -15,6 +15,15 @@ import {
   sanitizePayload,
 } from "@/app/api/_lib/monteCarloPreset";
 
+const noStoreJson = (payload: unknown, init?: ResponseInit) =>
+  NextResponse.json(payload, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      ...init?.headers,
+    },
+  });
+
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:dcf:run",
@@ -25,7 +34,9 @@ export async function POST(request: Request) {
     return rateLimitErrorResponse(rateLimit);
   }
 
-  const internalPersistenceAuthorized = await isInternalPersistenceRequest(request);
+  if (!(await isInternalPersistenceRequest(request))) {
+    return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
+  }
 
   let payload: Record<string, unknown>;
   try {
@@ -72,20 +83,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!internalPersistenceAuthorized) {
-    console.warn("Skipping valuation persistence: request is not authorized");
-    return NextResponse.json(result);
-  }
-
   const convexClient = getConvexClient();
   const syncToken = getSyncTokenOptional();
   if (!convexClient || !syncToken) {
-    if (!convexClient) {
-      console.warn("Skipping valuation persistence: CONVEX_URL is not configured");
-    } else {
-      console.warn("Skipping valuation persistence: DAMODARAN_SYNC_TOKEN is not configured");
-    }
-    return NextResponse.json(result);
+    return errorResponse(
+      "SERVICE_UNAVAILABLE",
+      "Valuation persistence backend is not configured",
+      503,
+    );
   }
 
   try {
@@ -131,8 +136,13 @@ export async function POST(request: Request) {
       symbol,
     });
   } catch (error) {
-    console.warn("Valuation persistence failed", error);
+    console.error("Valuation persistence failed", error);
+    return errorResponse(
+      "PERSISTENCE_ERROR",
+      "Valuation persistence failed",
+      502,
+    );
   }
 
-  return NextResponse.json(result);
+  return noStoreJson(result);
 }

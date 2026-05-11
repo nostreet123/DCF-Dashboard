@@ -81,7 +81,7 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
         `Unexpected DCF engine response (${response.status}): ${truncateText(text)}`,
       );
     }
-    return {} as T;
+    throw new Error(`Unexpected empty DCF engine response (${response.status})`);
   }
   return data as T;
 };

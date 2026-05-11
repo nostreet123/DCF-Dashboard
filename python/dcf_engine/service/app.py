@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from functools import lru_cache
 import ipaddress
 import math
 import logging
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 import requests
 
 from dcf_engine.service.convex_security import ConvexSecurityStateClient
@@ -35,6 +37,27 @@ DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
 SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 _MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+_INTERNAL_AUTH_PATHS = {
+    "/dcf/compute",
+}
+
+
+@app.middleware("http")
+async def _internal_auth_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    if request.url.path in _INTERNAL_AUTH_PATHS:
+        try:
+            await require_internal_request(request)
+            request.state.internal_request_verified = True
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+    return await call_next(request)
 
 
 def _compute_rate_limit_config() -> tuple[int, float]:
