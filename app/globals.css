@@ -28,6 +28,7 @@
   --accent-gold: #d1a45d;
   --accent-teal: #88a89f;
   --accent-coral: #b56e68;
+  --on-accent: #0a0a0b;
 
   /* Heatmap gradient */
   --heatmap-low: #8a545b;
@@ -46,6 +47,7 @@
   --spacing-lg: 16px;
   --spacing-xl: 24px;
   --spacing-xxl: 32px;
+  --spacing-2xl: 32px;
 
   /* Border radius */
   --radius-sm: 4px;
@@ -65,7 +67,7 @@
 
   /* Typography */
   --font-sans: 'Geist', 'Segoe UI', sans-serif;
-  --font-serif: 'Geist', 'Segoe UI', sans-serif;
+  --font-display: 'Geist', 'Segoe UI', sans-serif;
   --font-mono: 'Courier New', monospace;
 }
 
@@ -94,6 +96,7 @@
   --accent-gold: #8f734f;
   --accent-teal: #6f9188;
   --accent-coral: #a86660;
+  --on-accent: #0a0a0b;
 
   /* Heatmap gradient */
   --heatmap-low: #bb737b;
@@ -181,15 +184,6 @@ p {
 /* Monospace for numbers */
 .mono {
   font-family: var(--font-mono);
-}
-
-/* Hero value styling */
-.hero-value {
-  font-family: var(--font-mono);
-  font-size: 3.5rem;
-  font-weight: 500;
-  color: var(--accent-gold);
-  letter-spacing: -0.02em;
 }
 
 /* --------------------------------------------------------------------------
@@ -346,7 +340,4 @@ input:focus, select:focus, textarea:focus {
     --topbar-height: 48px;
   }
 
-  .hero-value {
-    font-size: 2.5rem;
-  }
 }

@@ -48,6 +48,9 @@ export function resolvePlaywrightWebServer({
   const resolvedEnv = Object.fromEntries(
     Object.entries({
       ...env,
+      NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS:
+        env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS ?? '1',
+      VALUATION_HISTORY_BROWSER_READS: env.VALUATION_HISTORY_BROWSER_READS ?? '1',
       NEXT_TELEMETRY_DISABLED: '1',
     }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
   );

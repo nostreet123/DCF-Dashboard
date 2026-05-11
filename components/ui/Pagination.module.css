@@ -54,7 +54,7 @@
 
 .page.active {
   background: var(--accent-gold);
-  color: #0a0a0b;
+  color: var(--on-accent);
   font-weight: 600;
 }
 

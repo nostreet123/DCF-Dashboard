@@ -27,7 +27,7 @@ export default function ChartsTestPage() {
   return (
     <div style={{ padding: '32px', maxWidth: '800px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', color: 'var(--text-primary)' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', color: 'var(--text-primary)' }}>
           Chart Components Test
         </h1>
         <ThemeToggle />
@@ -35,7 +35,7 @@ export default function ChartsTestPage() {
 
       {/* Sparkline */}
       <section style={{ marginBottom: '48px' }}>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
           Sparkline
         </h2>
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -60,7 +60,7 @@ export default function ChartsTestPage() {
 
       {/* Distribution Curve */}
       <section style={{ marginBottom: '48px' }}>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
           Distribution Curve
         </h2>
         <div style={{ padding: '24px', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -88,7 +88,7 @@ export default function ChartsTestPage() {
 
       {/* Sensitivity Heatmap */}
       <section style={{ marginBottom: '48px' }}>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text-primary)', marginBottom: '16px' }}>
           Sensitivity Heatmap
         </h2>
         <div style={{ padding: '24px', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>

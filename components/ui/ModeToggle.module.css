@@ -33,7 +33,7 @@
 
 .segment.active {
   background: var(--accent-gold);
-  color: #0a0a0b;
+  color: var(--on-accent);
 }
 
 .segment:active:not(:disabled) {
@@ -66,9 +66,9 @@
 }
 
 .segment.active .status {
-  border-color: color-mix(in srgb, #0a0a0b 14%, transparent);
-  background: color-mix(in srgb, #0a0a0b 10%, transparent);
-  color: rgba(10, 10, 11, 0.85);
+  border-color: color-mix(in srgb, var(--on-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--on-accent) 10%, transparent);
+  color: color-mix(in srgb, var(--on-accent) 85%, transparent);
 }
 
 @media (min-width: 768px) {
