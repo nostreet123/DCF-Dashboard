@@ -215,6 +215,7 @@ E2E support is available through Playwright:
 - install browsers once: `npm run test:e2e:install`
 - run production-style flow: `npm run test:e2e`
 - run mobile emulation: `npm run test:e2e:mobile`
+- run local interactive UI mode: `npm run test:e2e:ui` (serves Playwright UI on loopback only at `http://127.0.0.1:9323`)
 
 ## Public Docs Pack
 
