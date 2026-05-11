@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "crypto";
 
 import { POST } from "../app/api/company/import/approve/route";
+import { POST as browserApprovePost } from "../app/api/company/import/approve/browser/route";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
@@ -10,10 +12,14 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+const originalBrowserWrites = process.env.IMPORT_APPROVAL_BROWSER_WRITES;
+const originalBrowserApprovalTokenHash = process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256;
 const originalFetch = globalThis.fetch;
 
 let restoreSecurityMock: (() => void) | null = null;
 let mutationCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+const sha256Hex = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
 beforeEach(() => {
   process.env.CONVEX_URL = "https://example.convex.cloud";
@@ -60,6 +66,16 @@ afterEach(() => {
     delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
   } else {
     process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
+  }
+  if (originalBrowserWrites === undefined) {
+    delete process.env.IMPORT_APPROVAL_BROWSER_WRITES;
+  } else {
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = originalBrowserWrites;
+  }
+  if (originalBrowserApprovalTokenHash === undefined) {
+    delete process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256;
+  } else {
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = originalBrowserApprovalTokenHash;
   }
   globalThis.fetch = originalFetch;
 });
@@ -447,5 +463,95 @@ describe("company import approval route", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+
+  test("browser approval wrapper stays disabled unless explicitly enabled", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    delete process.env.IMPORT_APPROVAL_BROWSER_WRITES;
+
+    const response = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test("browser approval wrapper requires an approval token before signing", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "wrong-token",
+        },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("browser approval wrapper signs the internal approval request", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    globalThis.fetch = async (url) => {
+      expect(String(url)).toBe("http://engine.example/dcf/compute");
+      return new Response(
+        JSON.stringify({
+          base: { valuation: 10 },
+          bull: { valuation: 12 },
+          bear: { valuation: 8 },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const body = JSON.stringify({
+      company: {
+        id: "XTSE:SHOP",
+        symbol: "SHOP",
+        name: "Shopify Inc.",
+        currency: "USD",
+        coverageState: "import_required",
+      },
+      review: {
+        chosenPeriodEnd: "2024-12-31",
+        missingRequiredFields: [],
+        notes: [],
+        isValuationReady: true,
+        fields: [
+          { field: "periodEnd", value: "2024-12-31", confirmed: true },
+          { field: "filingCurrency", value: "USD", confirmed: true },
+          { field: "revenue", value: "10m", confirmed: true },
+          { field: "cash", value: "2m", confirmed: true },
+          { field: "debt", value: "1m", confirmed: true },
+          { field: "sharesOutstanding", value: "5m", confirmed: true },
+        ],
+      },
+      artifacts: [],
+    });
+
+    const response = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.55",
+        },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mutationCalls.some((call) => call.name === "imports:approveImportedFacts")).toBe(true);
   });
 });

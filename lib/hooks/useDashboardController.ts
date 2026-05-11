@@ -8,6 +8,10 @@ import {
   getCompanySearchSymbol,
   type CompanySearchResult,
 } from '@/lib/companySearch';
+import type {
+  ImportedArtifactMetadata,
+  ImportReview,
+} from '@/lib/contracts/company';
 import { useCurrentAssumptions, useWorkbench } from '@/lib/contexts/WorkbenchContext';
 import {
   areBrowserHistoryReadsEnabled,
@@ -62,6 +66,30 @@ export function resolveDisplayedValuationData({
     histogram: liveResult?.histogram,
   };
 }
+
+type ImportParseResult = {
+  artifacts: ImportedArtifactMetadata[];
+  review: ImportReview;
+};
+
+type WorkspaceMode = 'valuation' | 'import' | 'detail';
+
+const IMPORT_APPROVAL_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-approval-token';
+
+const readBrowserImportApprovalToken = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return (
+      window.sessionStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
+      window.localStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
+      null
+    );
+  } catch {
+    return null;
+  }
+};
 
 const getDemoResult = (scenario: 'base' | 'bull' | 'bear'): DcfResult => ({
   fairValue: scenarioValues[scenario],
@@ -170,9 +198,16 @@ export function useDashboardController() {
 
   const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
+  const [selectedSearchCompany, setSelectedSearchCompany] = useState<CompanySearchResult | null>(null);
+  const [companyDetail, setCompanyDetail] = useState<CompanySearchResult | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('valuation');
+  const [importParseResult, setImportParseResult] = useState<ImportParseResult | null>(null);
+  const [importStatus, setImportStatus] = useState<'idle' | 'parsing' | 'approving' | 'approved' | 'error'>('idle');
+  const [importError, setImportError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const searchRequestIdRef = useRef(0);
+  const importParseRequestIdRef = useRef(0);
   const isDemoMode = getDashboardDataMode() === 'demo';
   const shouldLoadBrowserHistory = !isDemoMode && areBrowserHistoryReadsEnabled();
 
@@ -217,6 +252,10 @@ export function useDashboardController() {
     if (isDemoMode) {
       return;
     }
+    if (workspaceMode !== 'valuation') {
+      reset();
+      return;
+    }
     void compute({
       symbol: activeTicker,
       listingId: activeCompanyId,
@@ -225,7 +264,7 @@ export function useDashboardController() {
     }).catch(() => {
       // useDcfCompute stores the error for rendering.
     });
-  }, [activeCompanyId, activeTicker, compute, isDemoMode, retryToken, scenario, scenarioAssumptions]);
+  }, [activeCompanyId, activeTicker, compute, isDemoMode, reset, retryToken, scenario, scenarioAssumptions, workspaceMode]);
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {
@@ -239,6 +278,13 @@ export function useDashboardController() {
     (id: string, source: RailVariant) => {
       const company = resolveActiveCompany(mockDatasets, id);
       setSearchFeedback(null);
+      setSelectedSearchCompany(null);
+      setCompanyDetail(null);
+      setWorkspaceMode('valuation');
+      importParseRequestIdRef.current += 1;
+      setImportParseResult(null);
+      setImportStatus('idle');
+      setImportError(null);
       selectCompany(company?.id ?? id, company?.ticker ?? null);
       onCompanySelected(source);
     },
@@ -317,17 +363,26 @@ export function useDashboardController() {
         setSearchFeedback('Search result did not include a ticker symbol.');
         return;
       }
-      if (getCompanyCoverageState(company) !== 'valuation_ready') {
-        setSearchFeedback(
-          `${company.name ?? symbol} is searchable, but valuation needs imported statements first.`,
-        );
-        return;
-      }
       setSearchFeedback(null);
       setSearchResults([]);
+      setSelectedRunId(null);
+      importParseRequestIdRef.current += 1;
+      setImportParseResult(null);
+      setImportStatus('idle');
+      setImportError(null);
+      setSelectedSearchCompany(company);
+      setCompanyDetail(company);
+      const coverageState = getCompanyCoverageState(company);
+      setWorkspaceMode(
+        coverageState === 'import_required'
+          ? 'import'
+          : coverageState === 'detail_only'
+            ? 'detail'
+            : 'valuation',
+      );
       selectCompany(getCompanySearchId(company, symbol), symbol);
     },
-    [selectCompany],
+    [selectCompany, setSelectedRunId],
   );
 
   const handleSearchPreview = useCallback(
@@ -365,6 +420,83 @@ export function useDashboardController() {
     [fetchSearchResults, handleSelectSearchResult],
   );
 
+  const handleImportParse = useCallback(async (files: File[]) => {
+    if (!selectedSearchCompany) {
+      return;
+    }
+    const requestId = importParseRequestIdRef.current + 1;
+    importParseRequestIdRef.current = requestId;
+    const listingId = selectedSearchCompany.id;
+    setImportStatus('parsing');
+    setImportError(null);
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    try {
+      const response = await fetch(
+        `/api/company/import/parse?listingId=${encodeURIComponent(listingId)}`,
+        { method: 'POST', body: formData },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        artifacts?: ImportedArtifactMetadata[];
+        review?: ImportReview;
+      };
+      if (!response.ok || !payload.review || !payload.artifacts) {
+        throw new Error(payload.message ?? 'Import parse failed.');
+      }
+      if (requestId !== importParseRequestIdRef.current) {
+        return;
+      }
+      setImportParseResult({ artifacts: payload.artifacts, review: payload.review });
+      setImportStatus('idle');
+    } catch (error) {
+      if (requestId !== importParseRequestIdRef.current) {
+        return;
+      }
+      setImportStatus('error');
+      setImportError(error instanceof Error ? error.message : 'Import parse failed.');
+    }
+  }, [selectedSearchCompany]);
+
+  const handleApproveImport = useCallback(async (review: ImportReview) => {
+    if (!selectedSearchCompany || !importParseResult) {
+      return;
+    }
+    const company = selectedSearchCompany;
+    setImportStatus('approving');
+    setImportError(null);
+    try {
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      const approvalToken = readBrowserImportApprovalToken();
+      if (approvalToken) {
+        headers.set('x-import-approval-token', approvalToken);
+      }
+      const response = await fetch('/api/company/import/approve/browser', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          company,
+          review,
+          artifacts: importParseResult.artifacts,
+          assumptions: scenarioAssumptions,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message ?? 'Import approval failed.');
+      }
+      setImportStatus('approved');
+      setWorkspaceMode('valuation');
+      selectCompany(company.id, getCompanySearchSymbol(company));
+      setRetryToken((value) => value + 1);
+    } catch (error) {
+      setImportStatus('error');
+      setImportError(error instanceof Error ? error.message : 'Import approval failed.');
+    }
+  }, [importParseResult, scenarioAssumptions, selectCompany, selectedSearchCompany]);
+
   const clearError = useCallback(() => {
     reset();
     setRetryToken((value) => value + 1);
@@ -384,10 +516,13 @@ export function useDashboardController() {
     assumptions,
     closeDrawers,
     clearError,
+    companyDetail,
     currentValue,
     detailsForDisplay,
     error,
     handleAssumptionChange,
+    handleApproveImport,
+    handleImportParse,
     handleSearch,
     handleSearchPreview,
     handleSelectCompany,
@@ -399,6 +534,9 @@ export function useDashboardController() {
     isReplayLoading,
     isRunHistoryLoading,
     isSearching,
+    importError,
+    importParseResult,
+    importStatus,
     mockDatasets,
     mockPriceHistory,
     openAssumptionsDrawer,
@@ -409,9 +547,11 @@ export function useDashboardController() {
     scenario,
     searchFeedback,
     searchResults,
+    selectedSearchCompany,
     selectedRunId,
     setScenario,
     sensitivityMatrix: replay && !isDemoMode ? undefined : resultForDisplay?.sensitivityMatrix,
     valuationRange,
+    workspaceMode,
   };
 }
