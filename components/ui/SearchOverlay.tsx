@@ -8,7 +8,7 @@ interface SearchOverlayProps {
   open: boolean;
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (value: string) => void;
   onClose: () => void;
   inputRef?: MutableRefObject<HTMLInputElement | null>;
 }
@@ -57,7 +57,7 @@ export function SearchOverlay({
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault();
-          onSubmit();
+          onSubmit(value);
           onClose();
         }}
       >

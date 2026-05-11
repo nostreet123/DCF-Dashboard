@@ -1,6 +1,7 @@
 'use client';
 
 import { Accordion, AccordionItem } from '@/components/ui/Accordion';
+import type { CompanySearchResult, CoverageState } from '@/lib/contracts/company';
 import type { ValuationHistoryItem } from '@/lib/hooks/useValuationHistory';
 import styles from './LeftRail.module.css';
 
@@ -15,6 +16,8 @@ interface LeftRailProps {
   datasets?: Record<string, DatasetItem[]>;
   /** Recent valuation runs */
   runHistory?: ValuationHistoryItem[];
+  /** Browser-local recent company selections */
+  recentCompanies?: CompanySearchResult[];
   /** Whether run history is loading */
   isRunHistoryLoading?: boolean;
   /** Run history load error */
@@ -27,9 +30,20 @@ interface LeftRailProps {
   onSelectCompany?: (id: string) => void;
   /** Run history selection callback */
   onSelectRun?: (id: string) => void;
+  /** Active coverage filter for official search */
+  coverageFilter?: CoverageState | 'all';
+  /** Coverage filter callback */
+  onCoverageFilterChange?: (value: CoverageState | 'all') => void;
   /** Layout variant */
   variant?: 'docked' | 'drawer';
 }
+
+const coverageOptions: Array<{ value: CoverageState | 'all'; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'valuation_ready', label: 'Ready' },
+  { value: 'import_required', label: 'Import' },
+  { value: 'detail_only', label: 'Detail' },
+];
 
 /**
  * Left sidebar with dataset library, region selector, and run history.
@@ -38,20 +52,21 @@ interface LeftRailProps {
 export function LeftRail({
   datasets,
   runHistory,
+  recentCompanies,
   isRunHistoryLoading = false,
   runHistoryError,
   selectedRunId,
   selectedCompanyId,
   onSelectCompany,
   onSelectRun,
+  coverageFilter = 'all',
+  onCoverageFilterChange,
   variant = 'docked',
 }: LeftRailProps) {
   const railClass =
     variant === 'drawer'
       ? `${styles.rail} ${styles.drawer}`
       : `${styles.rail} ${styles.docked}`;
-  const unavailableRegions = ['US', 'EU', 'APAC'] as const;
-
   return (
     <aside className={railClass}>
       <div className={styles.section}>
@@ -90,16 +105,49 @@ export function LeftRail({
 
       <div className={styles.divider} />
 
+      {recentCompanies && recentCompanies.length > 0 ? (
+        <>
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Recent Companies</h3>
+            <ul className={styles.companyList}>
+              {recentCompanies.map((company) => (
+                <li key={company.id}>
+                  <button
+                    type="button"
+                    className={`${styles.companyItem} ${
+                      selectedCompanyId === company.id ? styles.selected : ''
+                    }`}
+                    onClick={() => onSelectCompany?.(company.id)}
+                  >
+                    <span className={styles.companyTicker}>{company.symbol}</span>
+                    <span className={styles.companyName}>{company.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className={styles.divider} />
+        </>
+      ) : null}
+
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Region</h3>
+        <h3 className={styles.sectionTitle}>Coverage</h3>
         <div className={styles.regionSelector}>
-          {unavailableRegions.map((region) => (
-            <button key={region} type="button" className={styles.regionBtn} disabled>
-              {region}
+          {coverageOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`${styles.regionBtn} ${
+                coverageFilter === option.value ? styles.regionBtnSelected : ''
+              }`}
+              onClick={() => onCoverageFilterChange?.(option.value)}
+              aria-pressed={coverageFilter === option.value}
+            >
+              {option.label}
             </button>
           ))}
         </div>
-        <p className={styles.regionHelp}>Regional filtering unavailable in this prototype.</p>
+        <p className={styles.regionHelp}>Search results branch into valuation, import review, or source detail.</p>
       </div>
 
       <div className={styles.divider} />
