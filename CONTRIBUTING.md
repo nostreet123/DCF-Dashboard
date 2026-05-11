@@ -7,7 +7,7 @@ Thanks for taking a look at DCF Dashboard.
 - Node `22.x` and npm `11.x` are the tested JavaScript toolchain
 - Python `3.12+` is the tested backend/runtime toolchain
 - `npm` is the canonical JavaScript package manager
-- Bun is used only as the test runner behind the npm scripts
+- Bun is used only as the test runner behind the npm scripts. If it is missing, the repo harness installs the pinned version into ignored `.bun-home/`.
 
 ## Local Setup
 
@@ -25,17 +25,15 @@ python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
 - UI demo: `npm run dev`
 - Direct compute demo: `npm run demo:compute`
 - Repo alive smoke check: `npm run smoke:alive`
+- Agent/PR verification: `npm run harness:verify`
 
 ## Verification
 
 Run the checks that match your change scope before opening a pull request.
 
 ```bash
-npm test
-npm run lint
-npm run build
-cd python && pytest
-npx convex typecheck
+npm run harness:verify
+npm run harness:e2e:smoke
 ```
 
 ## Pull Requests

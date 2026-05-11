@@ -15,7 +15,9 @@ from dcf_engine.reference import ConvexReferenceProvider
 
 
 def _serialize(payload: dict[str, Any], out_path: Path | None) -> None:
-    export_json(payload, out_path)
+    output = export_json(payload, out_path)
+    if out_path is None:
+        print(output)
 
 
 def build_parser() -> argparse.ArgumentParser:

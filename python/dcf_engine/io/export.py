@@ -7,15 +7,14 @@ from typing import Any
 from dcf_engine.schema import ForecastTable
 
 
-def export_json(payload: dict[str, Any], out_path: Path | None) -> None:
+def export_json(payload: dict[str, Any], out_path: Path | None) -> str:
     import json
 
     output = json.dumps(payload, indent=2, sort_keys=True)
     if out_path:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(output + "\n", encoding="utf-8")
-    else:
-        print(output)
+    return output
 
 
 def export_forecast_csv(forecast: ForecastTable, out_path: Path) -> None:
