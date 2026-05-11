@@ -7,10 +7,10 @@ export class BodyLimitError extends Error {
   }
 }
 
-export const parseJsonWithLimit = async <T>(
+export const readTextWithLimit = async (
   request: Request,
   limit: number = DEFAULT_JSON_BODY_LIMIT_BYTES,
-): Promise<T> => {
+): Promise<string> => {
   const lengthHeader = request.headers.get("content-length");
   if (lengthHeader) {
     const length = Number(lengthHeader);
@@ -18,6 +18,7 @@ export const parseJsonWithLimit = async <T>(
       throw new BodyLimitError(`Request body exceeds ${limit} bytes`);
     }
   }
+
   const reader = request.body?.getReader();
   if (!reader) {
     const text = await request.text();
@@ -25,7 +26,7 @@ export const parseJsonWithLimit = async <T>(
     if (byteLength > limit) {
       throw new BodyLimitError(`Request body exceeds ${limit} bytes`);
     }
-    return JSON.parse(text) as T;
+    return text;
   }
 
   const chunks: Uint8Array[] = [];
@@ -43,8 +44,15 @@ export const parseJsonWithLimit = async <T>(
       chunks.push(value);
     }
   }
-  const text = new TextDecoder("utf-8").decode(
+  return new TextDecoder("utf-8").decode(
     Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))),
   );
+};
+
+export const parseJsonWithLimit = async <T>(
+  request: Request,
+  limit: number = DEFAULT_JSON_BODY_LIMIT_BYTES,
+): Promise<T> => {
+  const text = await readTextWithLimit(request, limit);
   return JSON.parse(text) as T;
 };
