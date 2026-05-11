@@ -5,10 +5,38 @@ import {
   getRateLimitPerMinute,
   rateLimitErrorResponse,
 } from "@/app/api/_lib/rateLimit";
-import { normalizeValuationReplay } from "@/lib/valuationHistory";
+import { normalizeValuationReplay, type ValuationReplaySnapshot } from "@/lib/valuationHistory";
 
 const browserHistoryReadsEnabled = (): boolean =>
   process.env.VALUATION_HISTORY_BROWSER_READS === "1";
+
+const redactBrowserReplay = (replay: ValuationReplaySnapshot) => {
+  const {
+    runId,
+    ticker,
+    createdAt,
+    scenario,
+    scenarios,
+    range,
+    histogram,
+    sensitivityMatrix,
+    sensitivity,
+  } = replay;
+  return {
+    runId,
+    ticker,
+    createdAt,
+    scenario,
+    scenarios,
+    range,
+    histogram,
+    sensitivityMatrix,
+    sensitivity,
+    projections: [],
+    kpis: [],
+    statementHistory: [],
+  };
+};
 
 export async function GET(
   request: Request,
@@ -60,7 +88,7 @@ export async function GET(
       return errorResponse("CONFLICT", "Valuation run has no replayable trace", 409);
     }
 
-    return Response.json({ replay });
+    return Response.json({ replay: redactBrowserReplay(replay) });
   } catch (error) {
     console.error("Browser valuation replay fetch failed", error);
     return errorResponse(

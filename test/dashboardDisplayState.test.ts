@@ -5,7 +5,10 @@ import {
   areBrowserHistoryReadsEnabled,
   getDashboardDataMode,
 } from "../lib/dashboardDataMode";
-import { resolveDisplayedValuationData } from "../lib/hooks/useDashboardController";
+import {
+  resolveDisplayedValuationData,
+  shouldComputeLiveValuation,
+} from "../lib/hooks/useDashboardController";
 
 describe("dashboard historical replay display state", () => {
   const originalDashboardMode = process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
@@ -41,6 +44,23 @@ describe("dashboard historical replay display state", () => {
     expect(areBrowserHistoryReadsEnabled()).toBe(true);
   });
 
+  test("does not recompute live valuation while replaying a saved run", () => {
+    expect(
+      shouldComputeLiveValuation({
+        isDemoMode: false,
+        selectedRunId: "run-123",
+        workspaceMode: "valuation",
+      }),
+    ).toBe(false);
+    expect(
+      shouldComputeLiveValuation({
+        isDemoMode: false,
+        selectedRunId: null,
+        workspaceMode: "valuation",
+      }),
+    ).toBe(true);
+  });
+
   test("uses replay snapshot for the active scenario", () => {
     expect(
       resolveDisplayedValuationData({
@@ -65,9 +85,29 @@ describe("dashboard historical replay display state", () => {
       }),
     ).toEqual({
       currentValue: 182,
+      displayScenario: "bull",
       valuationRange: [118, 171],
       histogram: { binCenters: [120, 130], density: [0.5, 1] },
     });
+  });
+
+  test("uses the saved replay scenario when it differs from the active tab", () => {
+    expect(
+      resolveDisplayedValuationData({
+        scenario: "base",
+        liveResult: null,
+        replaySnapshot: {
+          runId: "run-bull",
+          createdAt: 1700000000000,
+          scenario: "bull",
+          scenarios: {
+            base: { fairValue: 145 },
+            bull: { fairValue: 182 },
+            bear: { fairValue: 110 },
+          },
+        },
+      }),
+    ).toMatchObject({ currentValue: 182, displayScenario: "bull" });
   });
 
   test("does not fall back to mock range or histogram while replaying", () => {
@@ -87,6 +127,7 @@ describe("dashboard historical replay display state", () => {
       }),
     ).toEqual({
       currentValue: 130,
+      displayScenario: "base",
       valuationRange: undefined,
       histogram: undefined,
     });
@@ -106,6 +147,7 @@ describe("dashboard historical replay display state", () => {
       }),
     ).toEqual({
       currentValue: 151,
+      displayScenario: "base",
       valuationRange: [140, 164],
       histogram: { binCenters: [150], density: [1] },
     });
@@ -120,6 +162,7 @@ describe("dashboard historical replay display state", () => {
       }),
     ).toEqual({
       currentValue: null,
+      displayScenario: "base",
       valuationRange: undefined,
       histogram: undefined,
     });

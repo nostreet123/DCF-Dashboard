@@ -134,14 +134,26 @@ describe("valuation history detail route", () => {
         createdAt: 1700000000000,
         symbol: "AAPL",
         status: "success",
+        inputs: { scenario: "bull" },
         traceStorage: "inline",
         trace: {
-          base: { valuation: { fairValuePerShare: 145.12 } },
-          bull: { valuation: { fairValuePerShare: 182.3 } },
+          base: {
+            valuation: { fairValuePerShare: 145.12 },
+            trace: { forecast: { years: [2025], revenue: [100], ebit: [20], nopat: [16], fcff: [12] } },
+          },
+          bull: {
+            valuation: { fairValuePerShare: 182.3 },
+            trace: { forecast: { years: [2025], revenue: [130], ebit: [32], nopat: [26], fcff: [21] } },
+          },
           bear: { valuation: { fairValuePerShare: 109.8 } },
           monteCarlo: {
             histogram: { binCenters: [120, 130], density: [0.4, 1] },
             summary: { p10: 118.1, p90: 171.4 },
+          },
+          sensitivity: {
+            growthOffsets: [-2, -1, 0, 1, 2],
+            waccOffsets: [-0.02, -0.01, 0, 0.01, 0.02],
+            values: [[140, 145, 150]],
           },
         },
       },
@@ -167,7 +179,7 @@ describe("valuation history detail route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       replay: {
         runId: "run-123",
         ticker: "AAPL",
@@ -179,6 +191,19 @@ describe("valuation history detail route", () => {
         },
         range: [118.1, 171.4],
         histogram: { binCenters: [120, 130], density: [0.4, 1] },
+        sensitivity: {
+          growthOffsets: [-2, -1, 0, 1, 2],
+          waccOffsets: [-2, -1, 0, 1, 2],
+        },
+        projections: [
+          {
+            year: 2025,
+            revenue: 130,
+            ebit: 32,
+            nopat: 26,
+            freeCashFlow: 21,
+          },
+        ],
       },
     });
   });
