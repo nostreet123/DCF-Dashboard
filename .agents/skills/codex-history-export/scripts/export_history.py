@@ -57,25 +57,94 @@ def read_entries(path: Path) -> list[Entry]:
     return entries
 
 
+SENSITIVE_KEYWORDS = (
+    "access_token",
+    "api_key",
+    "apikey",
+    "api-key",
+    "authorization",
+    "auth",
+    "bearer",
+    "client_secret",
+    "credential",
+    "github_token",
+    "key",
+    "oauth",
+    "password",
+    "pat",
+    "private_key",
+    "refresh_token",
+    "secret",
+    "session_token",
+    "sync_token",
+    "synctoken",
+    "token",
+)
+
+
 def redact_text(text: str) -> str:
     # Redact common secrets that appear in history logs. Keep this conservative and opt-out via --no-redact.
+    sensitive_key_pattern = r"(?:" + "|".join(re.escape(k) for k in SENSITIVE_KEYWORDS) + r")"
     patterns: list[tuple[re.Pattern[str], str]] = [
-        # Common env var assignments.
+        # PEM/private key blocks can span escaped or literal newlines.
         (
             re.compile(
-                r"(\b[A-Z0-9_]*(?:TOKEN|API_KEY|KEY)\b\s*[:=]\s*)"
-                r"(?:\"[^\"]*\"|'[^']*'|[^\s\"'}]+)"
+                r"-----BEGIN [A-Z0-9 ]*(?:PRIVATE KEY|SECRET KEY)[^-]*-----.*?"
+                r"-----END [A-Z0-9 ]*(?:PRIVATE KEY|SECRET KEY)[^-]*-----",
+                re.DOTALL,
+            ),
+            "<REDACTED_PEM>",
+        ),
+        # Header-like bearer/basic authorization values.
+        (
+            re.compile(r"(\bAuthorization\s*[:=]\s*(?:Bearer|Basic)\s+)[^\s,;]+", re.IGNORECASE),
+            r"\1<REDACTED>",
+        ),
+        # Common env/JSON/YAML/CLI assignments, including camelCase and quoted values.
+        (
+            re.compile(
+                r"(\b[\w.-]*" + sensitive_key_pattern + r"[\w.-]*\b\s*[:=]\s*)"
+                r"(?:\"[^\"]*\"|'[^']*'|[^\s,;}]+)",
+                re.IGNORECASE,
             ),
             r"\1<REDACTED>",
         ),
-        # JSON-ish syncToken.
-        (re.compile(r'("syncToken"\s*:\s*")([^"]+)(")'), r'\1<REDACTED>\3'),
-        # Convex deploy key format: dev:<name>|<opaque>
-        (re.compile(r"(\bdev:[^\s|]+[|])([^\s]+)"), r"\1<REDACTED>"),
+        # JSON quoted keys, preserving punctuation and quotes.
+        (
+            re.compile(
+                r"(\"[^\"]*" + sensitive_key_pattern + r"[^\"]*\"\s*:\s*\")([^\"]+)(\")",
+                re.IGNORECASE,
+            ),
+            r"\1<REDACTED>\3",
+        ),
         # OAuth callback/query params.
         (
-            re.compile(r"([?&](?:state|code|access_token|refresh_token|token)=)([^&\s]+)"),
+            re.compile(
+                r"([?&](?:state|code|access_token|refresh_token|token|api_key|apikey)=)([^&\s]+)",
+                re.IGNORECASE,
+            ),
             r"\1<REDACTED>",
+        ),
+        # Convex deploy key format: dev:<name>|<opaque>
+        (re.compile(r"(\bdev:[^\s|]+[|])([^\s]+)"), r"\1<REDACTED>"),
+        # Common provider token prefixes.
+        (
+            re.compile(
+                r"\b(?:"
+                r"sk-(?:proj-)?[A-Za-z0-9_-]{16,}|"
+                r"gh[pousr]_[A-Za-z0-9_]{20,}|"
+                r"github_pat_[A-Za-z0-9_]{20,}|"
+                r"xox[baprs]-[A-Za-z0-9-]{10,}|"
+                r"AKIA[0-9A-Z]{16}|"
+                r"ASIA[0-9A-Z]{16}"
+                r")\b"
+            ),
+            "<REDACTED_TOKEN>",
+        ),
+        # JWTs.
+        (
+            re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
+            "<REDACTED_JWT>",
         ),
     ]
     redacted = text

@@ -6,7 +6,7 @@ version: 0.1.0
 
 # Codex History Export
 
-Export Codex CLI prompt history from local disk into readable text, with safe-by-default redaction of secrets.
+Export Codex CLI prompt history from local disk into readable text, with default best-effort redaction of common secret formats.
 
 ## What This Skill Is For
 
@@ -20,7 +20,7 @@ Use this skill to:
 
 1. Confirm the history file exists at `~/.codex/history.jsonl` (default).
 2. Export to a file under `/tmp/` by default to avoid committing artifacts.
-3. Keep redaction enabled unless explicitly asked for raw output.
+3. Keep redaction enabled unless explicitly asked for raw output, and review exports before sharing because no automated redactor can guarantee removal of every secret format.
 
 ## Commands
 
