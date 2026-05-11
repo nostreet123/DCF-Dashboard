@@ -109,6 +109,75 @@ describe("company import approval route", () => {
     expect(response.status).toBe(400);
   });
 
+  test("preserves decimal comma values in reviewed import units", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          base: { valuation: 10 },
+          bull: { valuation: 12 },
+          bear: { valuation: 8 },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    const body = JSON.stringify({
+      company: {
+        id: "XTSE:SHOP",
+        symbol: "SHOP",
+        name: "Shopify Inc.",
+        currency: "USD",
+        coverageState: "import_required",
+      },
+      review: {
+        chosenPeriodEnd: "2024-12-31",
+        missingRequiredFields: [],
+        notes: [],
+        isValuationReady: true,
+        fields: [
+          { field: "periodEnd", value: "2024-12-31", confirmed: true },
+          { field: "filingCurrency", value: "USD", confirmed: true },
+          { field: "revenue", value: "1,2 million", confirmed: true },
+          { field: "cash", value: "0,5m", confirmed: true },
+          { field: "debt", value: "250k", confirmed: true },
+          { field: "sharesOutstanding", value: "2,4m", confirmed: true },
+        ],
+      },
+      artifacts: [],
+    });
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "POST",
+      url: "http://localhost/api/company/import/approve",
+      body,
+      nonce: "import-approve-decimal-comma-test",
+      timestampMs: Date.now(),
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/company/import/approve", {
+        method: "POST",
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+          "x-vercel-forwarded-for": "203.0.113.57",
+        },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const approvalCall = mutationCalls.find((call) => call.name === "imports:approveImportedFacts");
+    const facts = approvalCall?.args.facts as {
+      statements?: Array<{ revenue?: number; cash?: number; debt?: number; sharesOutstanding?: number }>;
+    };
+    expect(facts.statements?.[0]).toMatchObject({
+      revenue: 1_200_000,
+      cash: 500_000,
+      debt: 250_000,
+      sharesOutstanding: 2_400_000,
+    });
+  });
+
   test("preserves bare m million suffix in reviewed import values", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     globalThis.fetch = async (url) => {
