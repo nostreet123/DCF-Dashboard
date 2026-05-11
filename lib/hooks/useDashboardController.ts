@@ -12,7 +12,11 @@ import type {
   ImportedArtifactMetadata,
   ImportReview,
 } from '@/lib/contracts/company';
-import { useCurrentAssumptions, useWorkbench } from '@/lib/contexts/WorkbenchContext';
+import {
+  useCurrentAssumptions,
+  useWorkbench,
+  type Scenario,
+} from '@/lib/contexts/WorkbenchContext';
 import {
   areBrowserHistoryReadsEnabled,
   getDashboardDataMode,
@@ -48,7 +52,7 @@ export function resolveDisplayedValuationData({
   liveResult,
   replaySnapshot,
 }: {
-  scenario: 'base' | 'bull' | 'bear';
+  scenario: Scenario;
   liveResult: DcfResult | null;
   replaySnapshot: ValuationReplaySnapshot | null;
 }) {
@@ -56,6 +60,7 @@ export function resolveDisplayedValuationData({
     const replayScenario = replaySnapshot.scenario ?? scenario;
     return {
       currentValue: replaySnapshot.scenarios[replayScenario].fairValue,
+      displayScenario: replayScenario,
       valuationRange: replaySnapshot.range,
       histogram: replaySnapshot.histogram,
     };
@@ -63,6 +68,7 @@ export function resolveDisplayedValuationData({
 
   return {
     currentValue: liveResult?.fairValue ?? null,
+    displayScenario: scenario,
     valuationRange: liveResult?.range,
     histogram: liveResult?.histogram,
   };
@@ -92,7 +98,17 @@ const readBrowserImportApprovalToken = (): string | null => {
   }
 };
 
-const getDemoResult = (scenario: 'base' | 'bull' | 'bear'): DcfResult => ({
+export const shouldComputeLiveValuation = ({
+  isDemoMode,
+  selectedRunId,
+  workspaceMode,
+}: {
+  isDemoMode: boolean;
+  selectedRunId: string | null | undefined;
+  workspaceMode: WorkspaceMode;
+}) => !isDemoMode && workspaceMode === 'valuation' && !selectedRunId;
+
+const getDemoResult = (scenario: Scenario): DcfResult => ({
   fairValue: scenarioValues[scenario],
   range: fallbackRange,
   histogram: mockHistogram,
@@ -260,11 +276,16 @@ export function useDashboardController() {
   }, [isDemoMode, replayError, replayRunId, selectedRunId, setSelectedRunId]);
 
   useEffect(() => {
-    if (isDemoMode) {
-      return;
+    if (replay?.scenario && replay.scenario !== scenario) {
+      setScenario(replay.scenario);
     }
-    if (workspaceMode !== 'valuation') {
-      reset();
+  }, [replay?.scenario, scenario, setScenario]);
+
+  useEffect(() => {
+    if (!shouldComputeLiveValuation({ isDemoMode, selectedRunId, workspaceMode })) {
+      if (!isDemoMode) {
+        reset();
+      }
       return;
     }
     void compute({
@@ -275,7 +296,7 @@ export function useDashboardController() {
     }).catch(() => {
       // useDcfCompute stores the error for rendering.
     });
-  }, [activeCompanyId, activeTicker, compute, isDemoMode, reset, retryToken, scenario, scenarioAssumptions, workspaceMode]);
+  }, [activeCompanyId, activeTicker, compute, isDemoMode, reset, retryToken, scenario, scenarioAssumptions, selectedRunId, workspaceMode]);
 
   const handleAssumptionChange = useCallback(
     (key: Extract<keyof typeof assumptions, string>, value: number) => {
@@ -513,12 +534,15 @@ export function useDashboardController() {
     setRetryToken((value) => value + 1);
   }, [reset]);
 
-  const { currentValue, histogram, valuationRange } = resolveDisplayedValuationData({
+  const { currentValue, displayScenario, histogram, valuationRange } = resolveDisplayedValuationData({
     scenario,
     liveResult: resultForDisplay,
     replaySnapshot: replay,
   });
   const detailsForDisplay = replay && !isDemoMode ? replay : resultForDisplay;
+  const isReplayDisplay = replay !== null;
+  const valueCardAssumptions =
+    replay?.assumptions?.[displayScenario] ?? scenarioAssumptions[displayScenario];
 
   return {
     activeCompanyId,
@@ -530,6 +554,7 @@ export function useDashboardController() {
     companyDetail,
     currentValue,
     detailsForDisplay,
+    displayScenario,
     error,
     handleAssumptionChange,
     handleApproveImport,
@@ -542,6 +567,7 @@ export function useDashboardController() {
     histogram,
     isComputing,
     isDemoMode,
+    isReplayDisplay,
     isReplayLoading,
     isRunHistoryLoading,
     isSearching,
@@ -564,5 +590,6 @@ export function useDashboardController() {
     sensitivityMatrix: replay && !isDemoMode ? replay.sensitivityMatrix : resultForDisplay?.sensitivityMatrix,
     valuationRange,
     workspaceMode,
+    valueCardAssumptions,
   };
 }

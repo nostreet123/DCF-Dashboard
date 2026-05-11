@@ -32,6 +32,7 @@ function DashboardShell() {
     companyDetail,
     currentValue,
     detailsForDisplay,
+    displayScenario,
     error,
     handleAssumptionChange,
     handleApproveImport,
@@ -47,6 +48,7 @@ function DashboardShell() {
     importStatus,
     isComputing,
     isDemoMode,
+    isReplayDisplay,
     isReplayLoading,
     isRunHistoryLoading,
     isSearching,
@@ -65,9 +67,12 @@ function DashboardShell() {
     setScenario,
     valuationRange,
     workspaceMode,
+    valueCardAssumptions,
   } = useDashboardController();
+  const showLiveComputeState = !isReplayDisplay && isComputing;
+  const blockingError = isReplayDisplay ? null : error;
   const hasValuationData =
-    !error && !isComputing && !isReplayLoading && currentValue !== null;
+    !blockingError && !showLiveComputeState && !isReplayLoading && currentValue !== null;
 
   const leftRailSharedProps = {
     datasets: mockDatasets,
@@ -80,7 +85,7 @@ function DashboardShell() {
   const rightPanelSharedProps = {
     assumptions,
     onAssumptionChange: handleAssumptionChange,
-    isCalculating: isComputing,
+    isCalculating: showLiveComputeState,
   };
 
   return (
@@ -137,28 +142,28 @@ function DashboardShell() {
             />
           ) : null}
 
-          {error && workspaceMode === 'valuation' ? (
+          {blockingError && workspaceMode === 'valuation' ? (
             <ErrorState
               className={styles.inlineError}
               title="Unable to refresh valuation"
-              message={error.message || 'Something went wrong while updating this workspace.'}
+              message={blockingError.message || 'Something went wrong while updating this workspace.'}
               onRetry={clearError}
             />
-          ) : workspaceMode !== 'valuation' ? null : isComputing || isReplayLoading || currentValue === null ? (
+          ) : workspaceMode !== 'valuation' ? null : showLiveComputeState || isReplayLoading || currentValue === null ? (
             <ValueCardSkeleton />
           ) : (
             <ValueCard
               className={`${styles.reveal} ${styles.revealDelay2}`}
               value={currentValue}
-              scenario={scenario}
+              scenario={displayScenario}
               ticker={activeTicker}
               histogram={histogram}
               range={valuationRange}
-              assumptions={assumptions}
+              assumptions={valueCardAssumptions}
             />
           )}
 
-          {workspaceMode !== 'valuation' ? null : isComputing ? (
+          {workspaceMode !== 'valuation' ? null : showLiveComputeState ? (
             <SensitivitySectionSkeleton />
           ) : hasValuationData && sensitivityMatrix ? (
             <SensitivitySection
@@ -181,7 +186,7 @@ function DashboardShell() {
             />
           ) : null}
 
-          {workspaceMode !== 'valuation' ? null : isComputing ? (
+          {workspaceMode !== 'valuation' ? null : showLiveComputeState ? (
             <MetricsTableSkeleton />
           ) : hasValuationData && detailsForDisplay?.projections.length ? (
             <MetricsTable

@@ -11,9 +11,31 @@ const browserHistoryReadsEnabled = (): boolean =>
   process.env.VALUATION_HISTORY_BROWSER_READS === "1";
 
 const redactBrowserReplay = (replay: ValuationReplaySnapshot) => {
-  const redacted: Partial<ValuationReplaySnapshot> = { ...replay };
-  delete redacted.provenance;
-  return redacted;
+  const {
+    runId,
+    ticker,
+    createdAt,
+    scenario,
+    scenarios,
+    range,
+    histogram,
+    sensitivityMatrix,
+    sensitivity,
+  } = replay;
+  return {
+    runId,
+    ticker,
+    createdAt,
+    scenario,
+    scenarios,
+    range,
+    histogram,
+    sensitivityMatrix,
+    sensitivity,
+    projections: [],
+    kpis: [],
+    statementHistory: [],
+  };
 };
 
 export async function GET(
