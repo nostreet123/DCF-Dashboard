@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getConvexClient } from "@/app/api/_lib/convex";
+import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import {
@@ -57,7 +57,8 @@ export async function GET(request: Request) {
   }
 
   const convexClient = getConvexClient();
-  if (!convexClient) {
+  const syncToken = getSyncTokenOptional();
+  if (!convexClient || !syncToken) {
     return NextResponse.json({ importedFacts: null, artifacts: [] });
   }
 
@@ -66,12 +67,14 @@ export async function GET(request: Request) {
     if (listingId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       importedFacts = await (convexClient as any).query("imports:getImportedFacts" as any, {
+        syncToken,
         listingId,
       });
     }
     if (!importedFacts && symbol) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const matches = await (convexClient as any).query("imports:listBySymbol" as any, {
+        syncToken,
         symbol,
         limit: 1,
       });
@@ -96,6 +99,7 @@ export async function GET(request: Request) {
     if (resolvedListingId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const allArtifacts = await (convexClient as any).query("imports:listArtifactsForListing" as any, {
+        syncToken,
         listingId: resolvedListingId,
         status: "approved",
         limit: 20,

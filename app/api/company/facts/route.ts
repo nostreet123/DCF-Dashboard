@@ -112,7 +112,8 @@ const readImportedFacts = async (
   canReadImportedFacts: boolean,
 ): Promise<EdgarFacts | null> => {
   const convexClient = getConvexClient();
-  if (!convexClient) {
+  const syncToken = getSyncTokenOptional();
+  if (!convexClient || !syncToken) {
     return null;
   }
 
@@ -122,6 +123,7 @@ const readImportedFacts = async (
     const getImportedFacts = "imports:getImportedFacts" as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
     imported = await (convexClient as any).query(getImportedFacts, {
+      syncToken,
       listingId,
     });
   }
@@ -130,6 +132,7 @@ const readImportedFacts = async (
     const listBySymbol = "imports:listBySymbol" as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
     const matches = await (convexClient as any).query(listBySymbol, {
+      syncToken,
       symbol,
       limit: 1,
     });

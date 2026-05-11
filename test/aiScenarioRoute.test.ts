@@ -53,12 +53,16 @@ beforeEach(() => {
   process.env.HUGGING_FACE_TEMPERATURE = "1";
   process.env.HUGGING_FACE_TOP_P = "1";
   delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
-  ConvexHttpClient.prototype.query = async (name) => {
-    if (
-      String(name) === "imports:listBySymbol" ||
-      String(name) === "imports:listArtifactsForListing" ||
-      String(name) === "valuations:listByTicker"
-    ) {
+  ConvexHttpClient.prototype.query = async (name, args) => {
+    if (String(name) === "imports:listBySymbol") {
+      expect(args).toMatchObject({ syncToken: "sync-token" });
+      return [];
+    }
+    if (String(name) === "imports:listArtifactsForListing") {
+      expect(args).toMatchObject({ syncToken: "sync-token" });
+      return [];
+    }
+    if (String(name) === "valuations:listByTicker") {
       return [];
     }
     if (String(name) === "companyStatements:listBySymbol") {
@@ -313,7 +317,7 @@ describe("AI scenario analysis route", () => {
     ConvexHttpClient.prototype.query = async (name, args) => {
       calledQueries.push(String(name));
       if (String(name) === "imports:getImportedFacts") {
-        expect(args).toEqual({ listingId: "sec:0000320193:AAPL" });
+        expect(args).toEqual({ syncToken: "sync-token", listingId: "sec:0000320193:AAPL" });
         return importedFacts;
       }
       if (String(name) === "companies:get") {
@@ -329,6 +333,7 @@ describe("AI scenario analysis route", () => {
       }
       if (String(name) === "imports:listArtifactsForListing") {
         expect(args).toEqual({
+          syncToken: "sync-token",
           listingId: "sec:0000320193:AAPL",
           status: "approved",
           limit: 20,
@@ -517,7 +522,7 @@ describe("AI scenario analysis route", () => {
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
     process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
     const calledQueries: string[] = [];
-    ConvexHttpClient.prototype.query = async (name) => {
+    ConvexHttpClient.prototype.query = async (name, args) => {
       calledQueries.push(String(name));
       if (String(name) === "companies:get") {
         return { symbol: "AAPL", name: "Apple Inc.", cik: "0000320193", source: "edgar" };

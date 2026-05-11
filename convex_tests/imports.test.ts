@@ -1,8 +1,11 @@
 /// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { convexTest } from "convex-test";
 import { api } from "../convex/_generated/api";
 import schema from "../convex/schema";
+
+const TEST_SYNC_TOKEN = "test-sync-token";
+const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 
 const modules: Record<string, () => Promise<any>> = {};
 const glob = new Bun.Glob("**/*.ts");
@@ -43,6 +46,18 @@ const makeImportedFacts = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("imports queries", () => {
+  beforeEach(() => {
+    process.env.DAMODARAN_SYNC_TOKEN = TEST_SYNC_TOKEN;
+  });
+
+  afterEach(() => {
+    if (originalSyncToken === undefined) {
+      delete process.env.DAMODARAN_SYNC_TOKEN;
+    } else {
+      process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+    }
+  });
+
   test("getImportedFacts returns latest imported facts for listing", async () => {
     const t = convexTest(schema, modules);
 
@@ -61,7 +76,10 @@ describe("imports queries", () => {
       );
     });
 
-    const result = await t.query(api.imports.getImportedFacts, { listingId: "XLON:VOD" });
+    const result = await t.query(api.imports.getImportedFacts, {
+      syncToken: TEST_SYNC_TOKEN,
+      listingId: "XLON:VOD",
+    });
 
     expect(result?.listingId).toBe("XLON:VOD");
     expect(result?.updatedAt).toBe(2_000);
@@ -83,7 +101,10 @@ describe("imports queries", () => {
       );
     });
 
-    const result = await t.query(api.imports.getImportedFacts, { listingId: "XLON:VOD" });
+    const result = await t.query(api.imports.getImportedFacts, {
+      syncToken: TEST_SYNC_TOKEN,
+      listingId: "XLON:VOD",
+    });
 
     expect(result?.coverageState).toBe("valuation_ready");
     expect(result?.updatedAt).toBe(1_000);
@@ -96,8 +117,30 @@ describe("imports queries", () => {
       await ctx.db.insert("importedFacts", makeImportedFacts());
     });
 
-    await expect(t.query(api.imports.getImportedFacts, { listingId: "   " })).resolves.toBeNull();
-    await expect(t.query(api.imports.getImportedFacts, { listingId: "XTKS:7203" })).resolves.toBeNull();
+    await expect(
+      t.query(api.imports.getImportedFacts, { syncToken: TEST_SYNC_TOKEN, listingId: "   " }),
+    ).resolves.toBeNull();
+    await expect(
+      t.query(api.imports.getImportedFacts, { syncToken: TEST_SYNC_TOKEN, listingId: "XTKS:7203" }),
+    ).resolves.toBeNull();
+  });
+
+  test("getImportedFacts rejects missing or invalid sync token", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("importedFacts", makeImportedFacts());
+    });
+
+    await expect(
+      t.query(api.imports.getImportedFacts, { listingId: "XLON:VOD" }),
+    ).rejects.toThrow("Invalid sync token");
+    await expect(
+      t.query(api.imports.getImportedFacts, {
+        syncToken: "wrong-token",
+        listingId: "XLON:VOD",
+      }),
+    ).rejects.toThrow("Invalid sync token");
   });
 
   test("listBySymbol returns only valuation-ready imports", async () => {
@@ -114,7 +157,11 @@ describe("imports queries", () => {
       );
     });
 
-    const results = await t.query(api.imports.listBySymbol, { symbol: "VOD", limit: 5 });
+    const results = await t.query(api.imports.listBySymbol, {
+      syncToken: TEST_SYNC_TOKEN,
+      symbol: "VOD",
+      limit: 5,
+    });
 
     expect(results).toHaveLength(1);
     expect(results[0]?.coverageState).toBe("valuation_ready");

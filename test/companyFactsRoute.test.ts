@@ -239,7 +239,7 @@ describe("company facts route auth boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(queryCalls).toEqual([
-      { name: "imports:getImportedFacts", args: { listingId: "XLON:VOD" } },
+      { name: "imports:getImportedFacts", args: { syncToken: "sync-token", listingId: "XLON:VOD" } },
     ]);
     expect(payload.source).toBe("import");
     expect(payload.currency).toBe("GBP");
@@ -333,7 +333,10 @@ describe("company facts route auth boundaries", () => {
     expect(response.status).toBe(409);
     expect(payload.code).toBe("IMPORT_REQUIRED");
     expect(queryCalls).toEqual([
-      { name: "imports:getImportedFacts", args: { listingId: "XLON:PRIVATE" } },
+      {
+        name: "imports:getImportedFacts",
+        args: { syncToken: "sync-token", listingId: "XLON:PRIVATE" },
+      },
     ]);
   });
 
@@ -390,7 +393,7 @@ describe("company facts route auth boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(queryCalls).toEqual([
-      { name: "imports:listBySymbol", args: { symbol: "VOD", limit: 1 } },
+      { name: "imports:listBySymbol", args: { syncToken: "sync-token", symbol: "VOD", limit: 1 } },
     ]);
     expect(payload.source).toBe("import");
     expect(payload.statements[0].period_end).toBe("2025-03-31");

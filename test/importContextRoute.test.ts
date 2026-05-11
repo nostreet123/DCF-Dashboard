@@ -130,11 +130,16 @@ describe("company import context route", () => {
     expect(calls).toEqual([
       {
         name: "imports:getImportedFacts",
-        args: { listingId: "sec:0000320193:AAPL" },
+        args: { syncToken: "sync-token", listingId: "sec:0000320193:AAPL" },
       },
       {
         name: "imports:listArtifactsForListing",
-        args: { listingId: "sec:0000320193:AAPL", status: "approved", limit: 20 },
+        args: {
+          syncToken: "sync-token",
+          listingId: "sec:0000320193:AAPL",
+          status: "approved",
+          limit: 20,
+        },
       },
     ]);
     expect(payload.importedFacts).toEqual({
