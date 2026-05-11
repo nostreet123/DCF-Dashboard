@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -36,6 +37,14 @@ from damodaran_sync.sync_resolution import (
 logger = logging.getLogger(__name__)
 _MAX_SNAPSHOT_IDENTITY_BATCH = 100
 _MAX_ASSET_BATCH = 500
+
+
+def _extra_allowed_hosts_for_asset(asset: discover.DiscoveredAsset) -> set[str]:
+    hosts: set[str] = set(asset.allowed_host_hints)
+    source_page_host = urlparse(asset.source_page_url).hostname
+    if source_page_host:
+        hosts.add(source_page_host)
+    return hosts
 
 
 @dataclass
@@ -262,6 +271,7 @@ def _should_skip_via_head_precheck(
                 asset.source_url,
                 etag=conditional_etag,
                 last_modified=conditional_last_modified,
+                extra_allowed_hosts=_extra_allowed_hosts_for_asset(asset),
             )
     except Exception:
         probe = None
@@ -284,6 +294,7 @@ def _download_asset_with_404_handling(
                 asset.source_url,
                 etag=conditional_etag,
                 last_modified=conditional_last_modified,
+                extra_allowed_hosts=_extra_allowed_hosts_for_asset(asset),
             )
     except requests.HTTPError as exc:
         response = exc.response

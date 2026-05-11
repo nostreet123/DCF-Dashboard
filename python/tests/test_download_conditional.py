@@ -11,11 +11,20 @@ from damodaran_sync import download
 
 
 class DummyResponse:
-    def __init__(self, status_code: int, body: bytes = b"", headers: dict[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        body: bytes = b"",
+        headers: dict[str, str] | None = None,
+        url: str | None = None,
+        peer_ip: str | None = None,
+    ) -> None:
         self.status_code = status_code
         self._body = body
         self.headers = headers or {}
+        self.url = url
         self.closed = False
+        self.raw = DummyRaw(peer_ip) if peer_ip is not None else None
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
@@ -27,6 +36,19 @@ class DummyResponse:
 
     def close(self) -> None:
         self.closed = True
+
+
+class DummySocket:
+    def __init__(self, peer_ip: str) -> None:
+        self._peer_ip = peer_ip
+
+    def getpeername(self) -> tuple[str, int]:
+        return (self._peer_ip, 443)
+
+
+class DummyRaw:
+    def __init__(self, peer_ip: str) -> None:
+        self.connection = type("DummyConnection", (), {"sock": DummySocket(peer_ip)})()
 
 
 class DummyClient:
@@ -61,9 +83,38 @@ def _etag(headers: dict[str, str] | None) -> dict[str, str]:
     return headers or {}
 
 
+def _safe_example_resolution(*args, **kwargs):
+    return [
+        (
+            download.socket.AF_INET,
+            download.socket.SOCK_STREAM,
+            6,
+            "",
+            ("93.184.216.34", 443),
+        )
+    ]
+
+
+def _private_example_resolution(*args, **kwargs):
+    return [
+        (
+            download.socket.AF_INET,
+            download.socket.SOCK_STREAM,
+            6,
+            "",
+            ("169.254.169.254", 443),
+        )
+    ]
+
+
+@pytest.fixture(autouse=True)
+def _allow_example_download_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "example.com")
+
+
 def test_conditional_get_304_uses_cache(tmp_path) -> None:
     url = "https://example.com/test.xls"
-    cached_path = tmp_path / "test.xls"
+    cached_path = tmp_path / download._cache_file_name_from_url(url)
     cached_path.write_bytes(b"cached")
 
     response = DummyResponse(
@@ -91,6 +142,57 @@ def test_conditional_get_304_uses_cache(tmp_path) -> None:
     headers = _etag(client.calls[0]["kwargs"].get("headers"))
     assert headers["If-None-Match"] == "etag-1"
     assert headers["If-Modified-Since"] == "Mon, 12 Jan 2026 13:41:41 GMT"
+
+
+def test_existing_basename_cache_file_is_not_reused_for_different_url(tmp_path) -> None:
+    url = "https://example.com/test.xls"
+    poisoned_basename = tmp_path / "test.xls"
+    poisoned_basename.write_bytes(b"poisoned")
+    response = DummyResponse(200, body=b"fresh")
+    client = DummyClient([response])
+
+    result = download.download_file(url, http_client=client, cache_dir=tmp_path)
+
+    assert result.from_cache is False
+    assert result.path != poisoned_basename
+    assert result.path.read_bytes() == b"fresh"
+    assert response.closed is True
+
+
+def test_download_rejects_redirect_to_unallowed_host(tmp_path) -> None:
+    response = DummyResponse(
+        200,
+        body=b"fresh",
+        url="https://metadata.google.internal/latest.xls",
+    )
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="not allowed"):
+        download.download_file(
+            "https://example.com/test.xls",
+            http_client=client,
+            cache_dir=tmp_path,
+        )
+
+    assert response.closed is True
+
+
+def test_download_disables_redirects_before_validation(tmp_path) -> None:
+    response = DummyResponse(
+        302,
+        headers={"Location": "https://metadata.google.internal/latest.xls"},
+    )
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="redirects are not allowed"):
+        download.download_file(
+            "https://example.com/test.xls",
+            http_client=client,
+            cache_dir=tmp_path,
+        )
+
+    assert client.calls[0]["kwargs"]["allow_redirects"] is False
+    assert response.closed is True
 
 
 def test_conditional_get_304_missing_cache_retries(tmp_path) -> None:
@@ -146,6 +248,267 @@ def test_conditional_get_200_captures_headers(tmp_path) -> None:
     assert result.path.exists()
 
 
+def test_download_rejects_unallowlisted_hosts(tmp_path) -> None:
+    with pytest.raises(ValueError, match="not allowed"):
+        download.download_file(
+            "https://169.254.169.254/latest.xls",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://2130706433/latest.xls",
+        "https://017700000001/latest.xls",
+        "https://127.1/latest.xls",
+    ],
+)
+def test_download_rejects_non_canonical_private_ipv4_hosts(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    url: str,
+) -> None:
+    monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "2130706433,017700000001,127.1")
+
+    with pytest.raises(ValueError, match="not allowed"):
+        download.download_file(
+            url,
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_download_allows_explicit_extra_mirror_host(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+    response = DummyResponse(200, body=b"fresh")
+    client = DummyClient([response])
+
+    result = download.download_file(
+        "https://mirror.example.com/latest.xls",
+        http_client=client,
+        cache_dir=tmp_path,
+        extra_allowed_hosts={"mirror.example.com"},
+    )
+
+    assert result.path.read_bytes() == b"fresh"
+
+
+def test_download_rejects_allowed_host_resolving_to_private_address(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        download.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (
+                download.socket.AF_INET,
+                download.socket.SOCK_STREAM,
+                6,
+                "",
+                ("127.0.0.1", 443),
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="resolves to a disallowed address"):
+        download.download_file(
+            "https://example.com/private.xls",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_download_rejects_allowed_host_resolving_to_shared_address(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        download.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (
+                download.socket.AF_INET,
+                download.socket.SOCK_STREAM,
+                6,
+                "",
+                ("100.64.0.1", 443),
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="resolves to a disallowed address"):
+        download.download_file(
+            "https://example.com/shared.xls",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_download_rejects_allowed_host_that_cannot_be_resolved(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "unresolved.example")
+
+    def fake_getaddrinfo(*args, **kwargs):
+        raise download.socket.gaierror()
+
+    monkeypatch.setattr(download.socket, "getaddrinfo", fake_getaddrinfo)
+
+    with pytest.raises(ValueError, match="could not be resolved"):
+        download.download_file(
+            "https://unresolved.example/latest.xls",
+            http_client=DummyClient([]),
+            cache_dir=tmp_path,
+        )
+
+
+def test_download_rejects_private_connection_peer_after_safe_prevalidation(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+    response = DummyResponse(200, body=b"fresh", peer_ip="127.0.0.1")
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        download.download_file(
+            "https://example.com/rebind.xls",
+            http_client=client,
+            cache_dir=tmp_path,
+        )
+
+    assert response.closed is True
+
+
+def test_download_rejects_shared_connection_peer_after_safe_prevalidation(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+    response = DummyResponse(200, body=b"fresh", peer_ip="100.64.0.1")
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        download.download_file(
+            "https://example.com/rebind.xls",
+            http_client=client,
+            cache_dir=tmp_path,
+        )
+
+    assert response.closed is True
+
+
+def test_http_client_pins_request_to_validated_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+    captured: dict[str, object] = {}
+
+    def fake_request(self, method: str, url: str, timeout: int, **kwargs: object) -> DummyResponse:
+        captured["method"] = method
+        captured["url"] = url
+        captured["timeout"] = timeout
+        captured["pinned_ip"] = self.adapters["https://"]._pinned_ip
+        return DummyResponse(200)
+
+    monkeypatch.setattr(download.requests.Session, "request", fake_request)
+
+    response = download.HttpClient().get("https://example.com/pinned.xls", stream=True)
+
+    assert response.status_code == 200
+    assert captured["method"] == "GET"
+    assert captured["url"] == "https://example.com/pinned.xls"
+    assert captured["pinned_ip"] == "93.184.216.34"
+
+
+def test_download_rejects_rebound_address_before_sending_request(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolutions = iter([_safe_example_resolution(), _private_example_resolution()])
+    requests_sent = 0
+
+    def fake_getaddrinfo(*args, **kwargs):
+        return next(resolutions)
+
+    def fake_request(self, method: str, url: str, timeout: int, **kwargs: object) -> DummyResponse:
+        nonlocal requests_sent
+        requests_sent += 1
+        return DummyResponse(200, body=b"fresh")
+
+    monkeypatch.setattr(download.socket, "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(download.requests.Session, "request", fake_request)
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        download.download_file("https://example.com/rebind.xls", cache_dir=tmp_path)
+
+    assert requests_sent == 0
+
+
+def test_probe_remote_rejects_allowed_host_resolving_to_link_local_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        download.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (
+                download.socket.AF_INET,
+                download.socket.SOCK_STREAM,
+                6,
+                "",
+                ("169.254.169.254", 443),
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="resolves to a disallowed address"):
+        download.probe_remote(
+            "https://example.com/private.xls",
+            http_client=DummyClient([]),
+            etag="etag-1",
+        )
+
+
+def test_probe_remote_rejects_private_connection_peer_after_safe_prevalidation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+    response = DummyResponse(200, headers={"ETag": "etag-2"}, peer_ip="169.254.169.254")
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        download.probe_remote(
+            "https://example.com/rebind.xls",
+            http_client=client,
+            etag="etag-1",
+        )
+
+    assert client.calls[0]["kwargs"]["stream"] is True
+    assert response.closed is True
+
+
+def test_download_rejects_oversized_body(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DAMODARAN_DOWNLOAD_MAX_BYTES", "4")
+    response = DummyResponse(200, body=b"fresh")
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="maximum size"):
+        download.download_file(
+            "https://example.com/fresh.xls",
+            http_client=client,
+            cache_dir=tmp_path,
+        )
+
+
 def test_probe_remote_304_not_modified() -> None:
     url = "https://example.com/test.xls"
     response = DummyResponse(
@@ -170,6 +533,42 @@ def test_probe_remote_304_not_modified() -> None:
     headers = _etag(client.calls[0]["kwargs"].get("headers"))
     assert headers["If-None-Match"] == "etag-1"
     assert headers["If-Modified-Since"] == "Mon, 12 Jan 2026 13:41:41 GMT"
+
+
+def test_probe_remote_rejects_redirect_to_unallowed_host() -> None:
+    response = DummyResponse(
+        200,
+        headers={"ETag": "etag-2"},
+        url="https://metadata.google.internal/latest.xls",
+    )
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="not allowed"):
+        download.probe_remote(
+            "https://example.com/test.xls",
+            http_client=client,
+            etag="etag-1",
+        )
+
+    assert response.closed is True
+
+
+def test_probe_remote_disables_redirects_before_validation() -> None:
+    response = DummyResponse(
+        302,
+        headers={"Location": "https://metadata.google.internal/latest.xls"},
+    )
+    client = DummyClient([response])
+
+    with pytest.raises(ValueError, match="redirects are not allowed"):
+        download.probe_remote(
+            "https://example.com/test.xls",
+            http_client=client,
+            etag="etag-1",
+        )
+
+    assert client.calls[0]["kwargs"]["allow_redirects"] is False
+    assert response.closed is True
 
 
 def test_probe_remote_404_not_found() -> None:
