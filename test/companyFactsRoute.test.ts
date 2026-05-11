@@ -130,20 +130,18 @@ describe("company facts route auth boundaries", () => {
       );
 
     const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=AAPL&listingId=XNAS:AAPL", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.43" },
-      }),
+      new Request(
+        "http://localhost/api/company/facts?symbol=AAPL&listingId=XNAS:AAPL",
+        {
+          headers: { "x-vercel-forwarded-for": "203.0.113.43" },
+        },
+      ),
     );
     const payload = await response.json();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toContain("no-store");
-    expect(queryCalls).toEqual([
-      {
-        name: "imports:getImportedFacts",
-        args: { listingId: "XNAS:AAPL" },
-      },
-    ]);
+    expect(queryCalls).toEqual([]);
     expect(payload.source).toBe("edgar");
     expect(payload.statements[0].period_end).toBe("2025-09-27");
   });
@@ -173,27 +171,36 @@ describe("company facts route auth boundaries", () => {
       );
 
     const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=IBM&listingId=XNYS:IBM", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.44" },
-      }),
+      new Request(
+        "http://localhost/api/company/facts?symbol=IBM&listingId=XNYS:IBM",
+        {
+          headers: { "x-vercel-forwarded-for": "203.0.113.44" },
+        },
+      ),
     );
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(queryCalls).toEqual([
-      {
-        name: "imports:getImportedFacts",
-        args: { listingId: "XNYS:IBM" },
-      },
-    ]);
+    expect(queryCalls).toEqual([]);
     expect(payload.source).toBe("edgar");
   });
 
-  test("GET returns imported facts for non-SEC listings with snake_case fields", async () => {
+  test("GET returns imported facts for authorized non-SEC listings with snake_case fields", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const url =
+      "http://localhost/api/company/facts?symbol=VOD&listingId=XLON:VOD";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      nonce: "company-facts-import-read-test",
+      timestampMs: Date.now(),
+    });
     const queryCalls: unknown[] = [];
     ConvexHttpClient.prototype.query = async (name, args) => {
       queryCalls.push({ name, args });
       return {
+        symbol: "VOD",
         name: "Vodafone Group Public Limited Company",
         currency: "GBP",
         updatedAt: 2_000,
@@ -221,8 +228,11 @@ describe("company facts route auth boundaries", () => {
     };
 
     const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=VOD&listingId=XLON:VOD", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.45" },
+      new Request(url, {
+        headers: {
+          ...authHeaders,
+          "x-vercel-forwarded-for": "203.0.113.45",
+        },
       }),
     );
     const payload = await response.json();
@@ -242,24 +252,101 @@ describe("company facts route auth boundaries", () => {
     });
   });
 
-  test("GET fails closed for non-SEC listings without approved imports", async () => {
-    ConvexHttpClient.prototype.query = async () => null;
+  test("GET fails closed for unauthenticated non-SEC imported facts reads", async () => {
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      return {
+        symbol: "SHOP",
+        facts: {
+          statements: [{ period_end: "2025-12-31", revenue: 1 }],
+        },
+      };
+    };
     globalThis.fetch = async () => {
-      throw new Error("EDGAR should not be called for a non-SEC selected listing");
+      throw new Error(
+        "EDGAR should not be called for a non-SEC selected listing",
+      );
     };
 
     const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=SHOP&listingId=XTSE:SHOP", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.46" },
+      new Request(
+        "http://localhost/api/company/facts?symbol=SHOP&listingId=XTSE:SHOP",
+        {
+          headers: { "x-vercel-forwarded-for": "203.0.113.46" },
+        },
+      ),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.code).toBe("IMPORT_REQUIRED");
+    expect(queryCalls).toEqual([]);
+  });
+
+  test("GET rejects authorized imported facts when the stored symbol mismatches the request", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const url =
+      "http://localhost/api/company/facts?symbol=AAPL&listingId=XLON:PRIVATE";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      nonce: "company-facts-symbol-mismatch-test",
+      timestampMs: Date.now(),
+    });
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      return {
+        symbol: "PRIVATECO",
+        facts: {
+          statements: [
+            {
+              period_end: "2025-12-31",
+              revenue: 123_456_789,
+              operating_income: 11_111_111,
+              cash: 22_222_222,
+              debt: 3_333_333,
+              shares_outstanding: 44_444,
+            },
+          ],
+        },
+      };
+    };
+    globalThis.fetch = async () => {
+      throw new Error(
+        "EDGAR should not be called for a non-SEC selected listing",
+      );
+    };
+
+    const response = await GET(
+      new Request(url, {
+        headers: {
+          ...authHeaders,
+          "x-vercel-forwarded-for": "203.0.113.47",
+        },
       }),
     );
     const payload = await response.json();
 
     expect(response.status).toBe(409);
     expect(payload.code).toBe("IMPORT_REQUIRED");
+    expect(queryCalls).toEqual([
+      { name: "imports:getImportedFacts", args: { listingId: "XLON:PRIVATE" } },
+    ]);
   });
 
-  test("GET returns latest approved import by symbol when listing id is absent", async () => {
+  test("GET returns latest approved import by symbol for authorized reads when listing id is absent", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const url = "http://localhost/api/company/facts?symbol=VOD";
+    const authHeaders = createInternalPersistenceHeaders({
+      secret: "secret",
+      method: "GET",
+      url,
+      nonce: "company-facts-symbol-import-read-test",
+      timestampMs: Date.now(),
+    });
     const queryCalls: unknown[] = [];
     ConvexHttpClient.prototype.query = async (name, args) => {
       queryCalls.push({ name, args });
@@ -268,6 +355,7 @@ describe("company facts route auth boundaries", () => {
       }
       return [
         {
+          symbol: "VOD",
           name: "Vodafone Group Public Limited Company",
           currency: "GBP",
           updatedAt: 2_000,
@@ -285,12 +373,17 @@ describe("company facts route auth boundaries", () => {
       ];
     };
     globalThis.fetch = async () => {
-      throw new Error("EDGAR should not be called when approved imported facts exist");
+      throw new Error(
+        "EDGAR should not be called when approved imported facts exist",
+      );
     };
 
     const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=VOD", {
-        headers: { "x-vercel-forwarded-for": "203.0.113.46" },
+      new Request(url, {
+        headers: {
+          ...authHeaders,
+          "x-vercel-forwarded-for": "203.0.113.48",
+        },
       }),
     );
     const payload = await response.json();
