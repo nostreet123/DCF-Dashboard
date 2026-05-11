@@ -78,21 +78,24 @@ const noStoreJson = (payload: unknown, init?: ResponseInit) =>
     },
   });
 
+const shouldReadImportedFacts = (listingId: string | null): boolean =>
+  Boolean(listingId);
+
 const secListingMicPrefixes = new Set(["XNAS", "XNYS", "ARCX", "XASE"]);
 
-const shouldReadImportedFacts = (listingId: string | null): boolean => {
-  if (!listingId) {
-    return false;
+const listingMicPrefix = (listingId: string | null): string | null => {
+  const normalized = listingId?.trim().toUpperCase();
+  if (!normalized) {
+    return null;
   }
-  const [micPrefix] = listingId.trim().toUpperCase().split(":", 1);
-  if (!micPrefix || micPrefix === listingId.trim().toUpperCase()) {
-    return false;
-  }
-  return !secListingMicPrefixes.has(micPrefix);
+  const [micPrefix] = normalized.split(":", 1);
+  return micPrefix && micPrefix !== normalized ? micPrefix : null;
 };
 
-const isNonSecListing = (listingId: string | null): boolean =>
-  shouldReadImportedFacts(listingId);
+const isNonSecListing = (listingId: string | null): boolean => {
+  const micPrefix = listingMicPrefix(listingId);
+  return Boolean(micPrefix && !secListingMicPrefixes.has(micPrefix));
+};
 
 const readImportedFacts = async (
   symbol: string,
@@ -109,6 +112,14 @@ const readImportedFacts = async (
     imported = await (convexClient as any).query("imports:getImportedFacts" as any, {
       listingId,
     });
+  }
+  if (!imported && !listingId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
+    const matches = await (convexClient as any).query("imports:listBySymbol" as any, {
+      symbol,
+      limit: 1,
+    });
+    imported = Array.isArray(matches) ? matches[0] ?? null : null;
   }
   if (!imported) {
     return null;
@@ -264,7 +275,15 @@ export async function GET(request: Request) {
 
   try {
     const listingId = readListingIdFromQuery(request);
-    const importedFacts = await readImportedFacts(symbol, listingId);
+    let importedFacts: EdgarFacts | null = null;
+    try {
+      importedFacts = await readImportedFacts(symbol, listingId);
+    } catch (error) {
+      if (isNonSecListing(listingId)) {
+        throw error;
+      }
+      console.warn("Imported facts lookup failed, falling back to EDGAR", error);
+    }
     if (importedFacts) {
       return noStoreJson(importedFacts);
     }

@@ -150,7 +150,10 @@ const hashBodyForSignature = async (
   }
 };
 
-export const isInternalPersistenceRequest = async (request: Request): Promise<boolean> => {
+export const isInternalPersistenceRequest = async (
+  request: Request,
+  options: { maxBodyBytes?: number } = {},
+): Promise<boolean> => {
   const secret = process.env.INTERNAL_PERSISTENCE_KEY;
   if (!secret) {
     return false;
@@ -176,7 +179,10 @@ export const isInternalPersistenceRequest = async (request: Request): Promise<bo
     return false;
   }
 
-  const bodyHash = await hashBodyForSignature(request, INTERNAL_PERSISTENCE_MAX_BODY_BYTES);
+  const bodyHash = await hashBodyForSignature(
+    request,
+    options.maxBodyBytes ?? INTERNAL_PERSISTENCE_MAX_BODY_BYTES,
+  );
   if (!bodyHash) {
     await releasePendingNonce(nonce);
     return false;

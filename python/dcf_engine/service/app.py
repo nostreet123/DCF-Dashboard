@@ -15,6 +15,8 @@ from dcf_engine.service.convex_security import ConvexSecurityStateClient
 from dcf_engine.service.internal_auth import require_internal_request
 from dcf_engine.service.company_contracts import (
     CompanyDetail,
+    ImportParseRequest,
+    ImportParseResponse,
     OfficialSearchResponse,
 )
 from dcf_engine.service.official_markets import (
@@ -22,6 +24,7 @@ from dcf_engine.service.official_markets import (
     search_official_companies,
 )
 from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
+from dcf_engine.service.statement_import import parse_import_payload
 from dcf_engine.workbench.run import run_workbench
 from dcf_engine.workbench.schema import WorkbenchRequest, WorkbenchResponse
 
@@ -50,6 +53,7 @@ _INTERNAL_AUTH_PATHS = {
     "/sec/facts",
     "/company/search",
     "/company/detail",
+    "/company/import/parse",
     "/dcf/compute",
 }
 
@@ -260,6 +264,24 @@ def sec_facts(
     except (RuntimeError, requests.RequestException) as exc:
         logger.exception("SEC facts fetch failed")
         raise HTTPException(status_code=500, detail=SEC_FACTS_FAILURE_DETAIL) from exc
+
+
+@app.post(
+    "/company/import/parse",
+    response_model=ImportParseResponse,
+    response_model_by_alias=True,
+)
+def company_import_parse(
+    payload: ImportParseRequest,
+    _: None = Depends(require_internal_request),
+) -> ImportParseResponse:
+    try:
+        return parse_import_payload(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        logger.warning("Import parse failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post(

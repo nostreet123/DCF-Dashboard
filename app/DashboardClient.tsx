@@ -12,6 +12,10 @@ import { SensitivitySection } from '@/components/workspace/SensitivitySection';
 import { SensitivitySectionSkeleton } from '@/components/workspace/SensitivitySectionSkeleton';
 import { MetricsTable } from '@/components/workspace/MetricsTable';
 import { MetricsTableSkeleton } from '@/components/workspace/MetricsTableSkeleton';
+import {
+  CompanyDetailPanel,
+  ImportWorkspace,
+} from '@/components/workspace/ParityPanels';
 import { ValuationDetails } from '@/components/workspace/ValuationDetails';
 import { WorkbenchProvider } from '@/lib/contexts/WorkbenchContext';
 import { useDashboardController } from '@/lib/hooks/useDashboardController';
@@ -25,16 +29,22 @@ function DashboardShell() {
     assumptions,
     closeDrawers,
     clearError,
+    companyDetail,
     currentValue,
     detailsForDisplay,
     error,
     handleAssumptionChange,
+    handleApproveImport,
+    handleImportParse,
     handleSearch,
     handleSearchPreview,
     handleSelectCompany,
     handleSelectRun,
     handleSelectSearchResult,
     histogram,
+    importError,
+    importParseResult,
+    importStatus,
     isComputing,
     isDemoMode,
     isReplayLoading,
@@ -49,10 +59,12 @@ function DashboardShell() {
     scenario,
     searchFeedback,
     searchResults,
+    selectedSearchCompany,
     selectedRunId,
     sensitivityMatrix,
     setScenario,
     valuationRange,
+    workspaceMode,
   } = useDashboardController();
   const hasValuationData =
     !error && !isComputing && !isReplayLoading && currentValue !== null;
@@ -106,14 +118,33 @@ function DashboardShell() {
             </p>
           )}
 
-          {error ? (
+          {!isDemoMode && selectedSearchCompany && workspaceMode === 'import' ? (
+            <ImportWorkspace
+              className={`${styles.reveal} ${styles.revealDelay2}`}
+              company={selectedSearchCompany}
+              parseResult={importParseResult}
+              status={importStatus}
+              error={importError}
+              onParse={handleImportParse}
+              onApprove={handleApproveImport}
+            />
+          ) : null}
+
+          {!isDemoMode && companyDetail && workspaceMode === 'detail' ? (
+            <CompanyDetailPanel
+              className={`${styles.reveal} ${styles.revealDelay2}`}
+              company={companyDetail}
+            />
+          ) : null}
+
+          {error && workspaceMode === 'valuation' ? (
             <ErrorState
               className={styles.inlineError}
               title="Unable to refresh valuation"
               message={error.message || 'Something went wrong while updating this workspace.'}
               onRetry={clearError}
             />
-          ) : isComputing || isReplayLoading || currentValue === null ? (
+          ) : workspaceMode !== 'valuation' ? null : isComputing || isReplayLoading || currentValue === null ? (
             <ValueCardSkeleton />
           ) : (
             <ValueCard
@@ -127,7 +158,7 @@ function DashboardShell() {
             />
           )}
 
-          {isComputing ? (
+          {workspaceMode !== 'valuation' ? null : isComputing ? (
             <SensitivitySectionSkeleton />
           ) : hasValuationData && sensitivityMatrix ? (
             <SensitivitySection
@@ -140,7 +171,7 @@ function DashboardShell() {
             null
           )}
 
-          {hasValuationData && detailsForDisplay ? (
+          {workspaceMode === 'valuation' && hasValuationData && detailsForDisplay ? (
             <ValuationDetails
               className={`${styles.reveal} ${styles.revealDelay4}`}
               kpis={detailsForDisplay.kpis}
@@ -150,7 +181,7 @@ function DashboardShell() {
             />
           ) : null}
 
-          {isComputing ? (
+          {workspaceMode !== 'valuation' ? null : isComputing ? (
             <MetricsTableSkeleton />
           ) : hasValuationData && detailsForDisplay?.projections.length ? (
             <MetricsTable
