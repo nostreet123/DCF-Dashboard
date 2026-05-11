@@ -209,4 +209,33 @@ describe("internal persistence auth", () => {
 
     expect(await isInternalPersistenceRequest(request)).toBeFalse();
   });
+
+  test("rejects nonclosing oversized streamed payloads without waiting for body cancellation", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    const maxBodyBytes = 1024;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(maxBodyBytes + 1));
+      },
+    });
+    const request = new Request("http://localhost/api/dcf/run", {
+      method: "POST",
+      headers: {
+        [internalPersistenceHeaderName]: "invalid-signature",
+        [internalPersistenceTimestampHeaderName]: String(Date.now()),
+        [internalPersistenceNonceHeaderName]: "nonce-nonclosing-oversized",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const result = await Promise.race([
+      isInternalPersistenceRequest(request, { maxBodyBytes }),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 100)),
+    ]);
+
+    await request.body?.cancel("test cleanup").catch(() => undefined);
+
+    expect(result).toBeFalse();
+  });
 });

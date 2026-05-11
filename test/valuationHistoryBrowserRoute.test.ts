@@ -65,7 +65,18 @@ describe("browser valuation history routes", () => {
       symbol: "AAPL",
       status: "success",
       resultSummary: {
-        base: { fairValuePerShare: 145.12 },
+        base: {
+          fairValuePerShare: 145.12,
+          enterpriseValue: 999_000_000,
+        },
+        bull: { fair_value_per_share: 188.5 },
+        bear: { fairValue: 101.25 },
+        kpis: {
+          history: [{ revenue: 987_654_321, cash: 12_345_678 }],
+        },
+        monteCarlo: {
+          summary: { runs: 1000, p10: 120, p90: 200 },
+        },
       },
       inputs: { revenueGrowth: 0.1 },
       normalizedInputs: { revenueGrowth: 0.1 },
@@ -104,6 +115,8 @@ describe("browser valuation history routes", () => {
         status: "success",
         resultSummary: {
           base: { fairValuePerShare: 145.12 },
+          bull: { fair_value_per_share: 188.5 },
+          bear: { fairValue: 101.25 },
         },
       }],
     });

@@ -8,7 +8,6 @@ type RateLimitRule = {
   windowMs: number;
 };
 
-type IdentityMode = "strict" | "compat";
 type IdentitySource = "vercel" | "legacy" | "compat";
 
 type HitBucketResult = {
@@ -31,7 +30,6 @@ const localBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const REAL_IP_HEADER = "x-real-ip";
 const CF_CONNECTING_IP_HEADER = "cf-connecting-ip";
-const FORWARDED_FOR_HEADER = "x-forwarded-for";
 const VERCEL_FORWARDED_FOR_HEADER = "x-vercel-forwarded-for";
 
 const firstForwardedIp = (value: string | null): string | null => {
@@ -58,9 +56,6 @@ const normalizeIp = (value: string | null): string | null => {
   }
   return candidate;
 };
-
-const getIdentityMode = (): IdentityMode =>
-  process.env.RATE_LIMIT_IDENTITY_MODE === "compat" ? "compat" : "strict";
 
 const getIdentitySource = (): IdentitySource => {
   const value = process.env.RATE_LIMIT_IDENTITY_SOURCE;
@@ -115,10 +110,6 @@ const trustedClientIdentifier = (request: Request): string | null => {
   const realIp = ipFromHeader(request, REAL_IP_HEADER);
   if (realIp) {
     return realIp;
-  }
-
-  if (source === "compat" && getIdentityMode() === "compat") {
-    return ipFromForwardedHeader(request, FORWARDED_FOR_HEADER);
   }
 
   return null;

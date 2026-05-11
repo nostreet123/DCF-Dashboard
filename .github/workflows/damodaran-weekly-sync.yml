@@ -12,9 +12,6 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CONVEX_URL: ${{ secrets.CONVEX_URL }}
-      DAMODARAN_SYNC_TOKEN: ${{ secrets.DAMODARAN_SYNC_TOKEN }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Set up Python
@@ -24,8 +21,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r python/requirements.txt -c python/constraints.txt
-      - name: Validate required secrets
+          pip install --require-hashes -r python/requirements.lock.txt
+      - name: Run sync
+        working-directory: python
+        env:
+          CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          DAMODARAN_SYNC_TOKEN: ${{ secrets.DAMODARAN_SYNC_TOKEN }}
         run: |
           missing=()
           [ -z "${CONVEX_URL:-}" ] && missing+=("CONVEX_URL")
@@ -34,9 +35,6 @@ jobs:
             echo "::error::Missing required repository secrets: ${missing[*]}"
             exit 1
           fi
-      - name: Run sync
-        working-directory: python
-        run: |
           # python/ is the working dir, so damodaran_sync is a top-level package here.
           python -m damodaran_sync.cli sync-current --additive-only
       - name: Notify failure

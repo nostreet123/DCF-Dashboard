@@ -24,6 +24,8 @@ type EdgarSearchResponse = {
   }>;
 };
 
+const DCF_ENGINE_SEARCH_TIMEOUT_MS = 5_000;
+
 type OfficialSearchResponse = {
   results: Array<{
     id: string;
@@ -114,9 +116,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetchDcfEngine<OfficialSearchResponse>(
+    const response = await fetchDcfEngineSearch<OfficialSearchResponse>(
       `/company/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      { method: "GET" },
     );
     return NextResponse.json({
       results: response.results.map(withLogoUrl),
@@ -127,9 +128,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetchDcfEngine<EdgarSearchResponse>(
+    const response = await fetchDcfEngineSearch<EdgarSearchResponse>(
       `/sec/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      { method: "GET" },
     );
     return NextResponse.json({
       results: response.results.map((result) =>
@@ -177,4 +177,17 @@ function withLogoUrl<T extends SearchResult>(result: T): T {
     ...result,
     logoUrl: result.logoUrl ?? getCompanyLogoUrl(result.symbol),
   };
+}
+
+async function fetchDcfEngineSearch<T>(path: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DCF_ENGINE_SEARCH_TIMEOUT_MS);
+  try {
+    return await fetchDcfEngine<T>(path, {
+      method: "GET",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }

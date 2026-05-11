@@ -15,6 +15,7 @@ import type { ImportedArtifactKind } from "@/lib/contracts/company";
 const MAX_FILES = 8;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_PARSE_AUTH_BODY_BYTES = (MAX_FILES * MAX_FILE_BYTES) + (1024 * 1024);
+const MAX_MULTIPART_BODY_BYTES = MAX_PARSE_AUTH_BODY_BYTES;
 
 type ParseResponse = {
   artifacts?: Array<Record<string, unknown> & {
@@ -79,6 +80,14 @@ export async function POST(request: Request) {
   const listingId = new URL(request.url).searchParams.get("listingId")?.trim();
   if (!listingId) {
     return errorResponse("BAD_REQUEST", "Missing listingId parameter", 400);
+  }
+
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const parsedLength = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(parsedLength) && parsedLength > MAX_MULTIPART_BODY_BYTES) {
+      return errorResponse("PAYLOAD_TOO_LARGE", "Import request body is too large", 413);
+    }
   }
   const canPersistArtifacts = await isInternalPersistenceRequest(request.clone(), {
     maxBodyBytes: MAX_PARSE_AUTH_BODY_BYTES,

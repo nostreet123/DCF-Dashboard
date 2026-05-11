@@ -44,6 +44,14 @@ def test_header_detection_and_normalization(tmp_path: Path) -> None:
     assert parsed.rows[0][2] == 1234.0
 
 
+def test_parse_excel_rejects_empty_selected_sheet(tmp_path: Path) -> None:
+    file_path = tmp_path / "empty.xlsx"
+    _write_excel(file_path, {"Sheet1": pd.DataFrame()})
+
+    with pytest.raises(ValueError, match="Sheet1.*empty"):
+        parse_excel(file_path)
+
+
 def test_parse_excel_rejects_oversized_workbook(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -123,3 +131,10 @@ def test_bounded_reader_uses_xls_actual_column_count(monkeypatch: pytest.MonkeyP
 
     assert list(captured["usecols"]) == [0, 1, 2]
     assert frame.shape == (2, 3)
+
+
+def test_parse_excel_streams_data_rows_from_frame() -> None:
+    source = Path(excel_parse.parse_excel.__code__.co_filename).read_text()
+
+    assert "frame.iloc[header_row + 1:].values.tolist()" not in source
+    assert "for row_index in range(header_row + 1, len(frame.index))" in source

@@ -13,6 +13,11 @@ import { POST as approveImport } from "@/app/api/company/import/approve/route";
 const IMPORT_APPROVAL_TOKEN_HEADER = "x-import-approval-token";
 const MAX_IMPORT_APPROVAL_TOKEN_BYTES = 256;
 const INTERNAL_APPROVAL_CLIENT_IP = "127.0.0.1";
+const RATE_LIMIT_IDENTITY_HEADERS = [
+  "x-vercel-forwarded-for",
+  "cf-connecting-ip",
+  "x-real-ip",
+];
 
 const sha256Hex = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -82,7 +87,9 @@ export async function POST(request: Request) {
   });
   const headers = new Headers(authHeaders);
   headers.set("Content-Type", request.headers.get("Content-Type") ?? "application/json");
-  headers.set("x-vercel-forwarded-for", INTERNAL_APPROVAL_CLIENT_IP);
+  for (const headerName of RATE_LIMIT_IDENTITY_HEADERS) {
+    headers.set(headerName, INTERNAL_APPROVAL_CLIENT_IP);
+  }
 
   return approveImport(
     new Request(url, {

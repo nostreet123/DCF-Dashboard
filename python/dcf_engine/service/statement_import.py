@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import base64
 import csv
+import importlib
 import io
 import re
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-import pandas as pd
+import xlrd
+from openpyxl import load_workbook
 
 from dcf_engine.service.company_contracts import (
     ImportParseRequest,
@@ -32,6 +35,16 @@ REQUIRED_FIELDS: tuple[ParsedFieldName, ...] = (
     "debt",
     "sharesOutstanding",
 )
+
+MAX_TABULAR_ROWS = 2_000
+MAX_TABULAR_COLUMNS = 64
+MAX_CELL_TEXT_LENGTH = 10_000
+MAX_SPREADSHEET_SHEETS = 8
+MAX_SPREADSHEET_ZIP_MEMBERS = 256
+MAX_SPREADSHEET_UNCOMPRESSED_BYTES = 24 * 1024 * 1024
+MAX_PDF_PAGES = 40
+MAX_PDF_TEXT_CHARS = 200_000
+
 
 FIELD_LABELS: dict[ParsedFieldName, tuple[str, ...]] = {
     "periodEnd": ("period end", "year end", "fiscal year", "date"),
@@ -128,6 +141,90 @@ def period_for_value_cell(
     return fallback
 
 
+def _trim_cell(value: Any) -> str:
+    text = "" if value is None else str(value).strip()
+    return text[:MAX_CELL_TEXT_LENGTH]
+
+
+def _limited_csv_rows(content: bytes, delimiter: str) -> list[CellRow]:
+    reader = csv.reader(io.StringIO(content.decode("utf-8-sig", errors="replace")), delimiter=delimiter)
+    rows: list[CellRow] = []
+    for row_number, row in enumerate(reader, start=1):
+        if row_number > MAX_TABULAR_ROWS:
+            raise ValueError(f"Import file has too many rows; maximum {MAX_TABULAR_ROWS}")
+        if len(row) > MAX_TABULAR_COLUMNS:
+            raise ValueError(f"Import file has too many columns; maximum {MAX_TABULAR_COLUMNS}")
+        rows.append(CellRow([_trim_cell(cell) for cell in row]))
+    return rows
+
+
+def _validate_xlsx_zip(content: bytes) -> None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as workbook_zip:
+            infos = workbook_zip.infolist()
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Invalid XLSX import file") from exc
+    if len(infos) > MAX_SPREADSHEET_ZIP_MEMBERS:
+        raise ValueError(f"XLSX import has too many archive entries; maximum {MAX_SPREADSHEET_ZIP_MEMBERS}")
+    uncompressed_bytes = sum(info.file_size for info in infos)
+    if uncompressed_bytes > MAX_SPREADSHEET_UNCOMPRESSED_BYTES:
+        raise ValueError("XLSX import expands beyond the supported size limit")
+
+
+def _read_xlsx_rows(content: bytes) -> list[CellRow]:
+    _validate_xlsx_zip(content)
+    workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    try:
+        sheet_names = workbook.sheetnames
+        if len(sheet_names) > MAX_SPREADSHEET_SHEETS:
+            raise ValueError(f"Spreadsheet import has too many sheets; maximum {MAX_SPREADSHEET_SHEETS}")
+        rows: list[CellRow] = []
+        for sheet_name in sheet_names:
+            worksheet = workbook[sheet_name]
+            if worksheet.max_row is not None and worksheet.max_row > MAX_TABULAR_ROWS:
+                raise ValueError(f"Spreadsheet import has too many rows; maximum {MAX_TABULAR_ROWS}")
+            if worksheet.max_column is not None and worksheet.max_column > MAX_TABULAR_COLUMNS:
+                raise ValueError(f"Spreadsheet import has too many columns; maximum {MAX_TABULAR_COLUMNS}")
+            rows.append(CellRow([str(sheet_name)]))
+            for row_number, row in enumerate(
+                worksheet.iter_rows(max_col=MAX_TABULAR_COLUMNS, values_only=True),
+                start=1,
+            ):
+                if row_number > MAX_TABULAR_ROWS:
+                    raise ValueError(f"Spreadsheet import has too many rows; maximum {MAX_TABULAR_ROWS}")
+                rows.append(CellRow([_trim_cell(cell) for cell in row]))
+        return rows
+    finally:
+        workbook.close()
+
+
+def _read_xls_rows(content: bytes) -> list[CellRow]:
+    workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+    try:
+        if workbook.nsheets > MAX_SPREADSHEET_SHEETS:
+            raise ValueError(f"Spreadsheet import has too many sheets; maximum {MAX_SPREADSHEET_SHEETS}")
+        rows: list[CellRow] = []
+        for sheet_name in workbook.sheet_names():
+            worksheet = workbook.sheet_by_name(sheet_name)
+            if worksheet.nrows > MAX_TABULAR_ROWS:
+                raise ValueError(f"Spreadsheet import has too many rows; maximum {MAX_TABULAR_ROWS}")
+            if worksheet.ncols > MAX_TABULAR_COLUMNS:
+                raise ValueError(f"Spreadsheet import has too many columns; maximum {MAX_TABULAR_COLUMNS}")
+            rows.append(CellRow([str(sheet_name)]))
+            for row_index in range(worksheet.nrows):
+                rows.append(
+                    CellRow(
+                        [
+                            _trim_cell(worksheet.cell_value(row_index, column_index))
+                            for column_index in range(worksheet.ncols)
+                        ]
+                    )
+                )
+        return rows
+    finally:
+        workbook.release_resources()
+
+
 def read_tabular_rows(content: bytes, filename: str) -> list[CellRow]:
     suffix = filename.rsplit(".", 1)[-1].casefold() if "." in filename else ""
     if suffix in {"csv", "tsv"}:
@@ -139,26 +236,31 @@ def read_tabular_rows(content: bytes, filename: str) -> list[CellRow]:
                 delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t").delimiter
             except csv.Error:
                 delimiter = ","
-        reader = csv.reader(io.StringIO(content.decode("utf-8-sig", errors="replace")), delimiter=delimiter)
-        return [CellRow([cell.strip() for cell in row]) for row in reader]
-    if suffix in {"xlsx", "xls"}:
-        excel = pd.read_excel(io.BytesIO(content), sheet_name=None, header=None, dtype=str)
-        rows: list[CellRow] = []
-        for sheet_name, frame in excel.items():
-            rows.append(CellRow([str(sheet_name)]))
-            for row in frame.fillna("").astype(str).itertuples(index=False):
-                rows.append(CellRow([cell.strip() for cell in row]))
-        return rows
+        return _limited_csv_rows(content, delimiter)
+    if suffix == "xlsx":
+        return _read_xlsx_rows(content)
+    if suffix == "xls":
+        return _read_xls_rows(content)
     return []
 
 
+def _load_pdf_reader() -> type[Any]:
+    return importlib.import_module("pypdf").PdfReader
+
+
 def read_pdf_text(content: bytes) -> str:
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:
-        raise RuntimeError("PDF import requires pypdf to be installed") from exc
-    reader = PdfReader(io.BytesIO(content))
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
+    reader = _load_pdf_reader()(io.BytesIO(content))
+    if len(reader.pages) > MAX_PDF_PAGES:
+        raise ValueError(f"PDF import has too many pages; maximum {MAX_PDF_PAGES}")
+    text_parts: list[str] = []
+    text_chars = 0
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        text_chars += len(page_text)
+        if text_chars > MAX_PDF_TEXT_CHARS:
+            raise ValueError("PDF import extracted too much text")
+        text_parts.append(page_text)
+    return "\n".join(text_parts)
 
 
 def candidates_from_rows(
