@@ -45,6 +45,24 @@ const TraceStorage = v.union(
   v.literal("external"),
 );
 
+const CoverageState = v.union(
+  v.literal("valuation_ready"),
+  v.literal("import_required"),
+  v.literal("detail_only"),
+);
+
+const ImportedArtifactKind = v.union(
+  v.literal("incomeStatement"),
+  v.literal("balanceSheet"),
+  v.literal("cashFlow"),
+  v.literal("sharesMeta"),
+);
+
+const ImportedArtifactStatus = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+);
+
 const DuplicateScanStatus = v.union(
   v.literal("idle"),
   v.literal("running"),
@@ -211,6 +229,8 @@ export default defineSchema({
     filingDate: v.optional(v.string()),
     currency: v.optional(v.string()),
     revenue: v.optional(v.number()),
+    operatingIncome: v.optional(v.number()),
+    operatingMargin: v.optional(v.number()),
     cash: v.optional(v.number()),
     debt: v.optional(v.number()),
     sharesOutstanding: v.optional(v.number()),
@@ -454,6 +474,51 @@ export default defineSchema({
   })
     .index("by_bucketKey", ["bucketKey"])
     .index("by_resetAt", ["resetAt"]),
+
+  // -----------------------------
+  // User-reviewed imports
+  // -----------------------------
+  importArtifacts: defineTable({
+    listingId: v.string(),
+    artifactId: v.string(),
+    kind: ImportedArtifactKind,
+    status: ImportedArtifactStatus,
+    originalFilename: v.string(),
+    parserName: v.string(),
+    fileFormat: v.string(),
+    contentType: v.optional(v.string()),
+    byteSize: v.number(),
+    storageId: v.optional(v.id("_storage")),
+    parseResult: v.optional(v.record(v.string(), v.any())),
+    createdAt: v.number(),
+    approvedAt: v.optional(v.number()),
+  })
+    .index("by_artifactId", ["artifactId"])
+    .index("by_listingId_status", ["listingId", "status"])
+    .index("by_listingId_createdAt", ["listingId", "createdAt"]),
+
+  importedFacts: defineTable({
+    listingId: v.string(),
+    symbol: v.string(),
+    name: v.string(),
+    exchangeMic: v.optional(v.string()),
+    market: v.optional(v.string()),
+    country: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    coverageState: CoverageState,
+    filingCurrency: v.optional(v.string()),
+    facts: v.record(v.string(), v.any()),
+    review: v.record(v.string(), v.any()),
+    provenance: v.record(v.string(), v.any()),
+    sourceLinks: v.array(v.object({ title: v.string(), url: v.string() })),
+    artifactIds: v.array(v.string()),
+    approvedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_listingId", ["listingId"])
+    .index("by_listingId_updatedAt", ["listingId", "updatedAt"])
+    .index("by_symbol_updatedAt", ["symbol", "updatedAt"])
+    .index("by_country_updatedAt", ["country", "updatedAt"]),
 
   // -----------------------------
   // Valuation runs

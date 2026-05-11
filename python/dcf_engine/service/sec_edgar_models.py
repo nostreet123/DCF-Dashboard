@@ -26,6 +26,8 @@ class EdgarStatement(BaseModel):
     filing_date: str | None = Field(None, description="Filing date.")
     currency: str | None = Field(None, description="Currency code.")
     revenue: float | None = Field(None, description="Annual revenue.")
+    operating_income: float | None = Field(None, description="Operating income.")
+    operating_margin: float | None = Field(None, description="Operating margin.")
     cash: float | None = Field(None, description="Cash and equivalents.")
     debt: float | None = Field(None, description="Total debt.")
     shares_outstanding: float | None = Field(None, description="Shares outstanding.")

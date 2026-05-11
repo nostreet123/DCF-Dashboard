@@ -60,22 +60,32 @@ def run_workbench(request: WorkbenchRequest) -> WorkbenchResponse:
         request=request,
         assumptions=request.base,
     )
-    bull, _, _ = _run_scenario(
+    bull, bull_inputs, bull_trace = _run_scenario(
         engine,
         label="bull",
         request=request,
         assumptions=request.bull,
     )
-    bear, _, _ = _run_scenario(
+    bear, bear_inputs, bear_trace = _run_scenario(
         engine,
         label="bear",
         request=request,
         assumptions=request.bear,
     )
 
+    scenario_inputs = {
+        "base": base_inputs,
+        "bull": bull_inputs,
+        "bear": bear_inputs,
+    }[request.scenario]
+    scenario_trace = {
+        "base": base_trace,
+        "bull": bull_trace,
+        "bear": bear_trace,
+    }[request.scenario]
     sensitivity_spec = request.sensitivity or SensitivitySpec()
-    sensitivity = _build_sensitivity(engine, base_inputs, sensitivity_spec)
-    kpis = build_kpi_summary(base_inputs, base_trace, request.statements)
+    sensitivity = _build_sensitivity(engine, scenario_inputs, sensitivity_spec)
+    kpis = build_kpi_summary(scenario_inputs, scenario_trace, request.statements)
     monte_carlo = None
     if request.monte_carlo is not None:
         monte_carlo = run_monte_carlo(engine, request, request.monte_carlo)

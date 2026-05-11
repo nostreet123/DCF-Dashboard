@@ -122,3 +122,48 @@ def test_workbench_monte_carlo_one_factor_deterministic() -> None:
     independent_response = run_workbench(independent_request)
     assert independent_response.monte_carlo is not None
     assert independent_response.monte_carlo.summary.model_dump() != mc.summary.model_dump()
+
+
+def test_workbench_uses_active_scenario_for_sensitivity_and_kpis() -> None:
+    request = WorkbenchRequest(
+        scenario="bull",
+        base_year=2024,
+        periods=3,
+        revenue_t0=100.0,
+        cash=10.0,
+        debt=20.0,
+        shares_outstanding=10.0,
+        base=ScenarioAssumptions(
+            revenue_growth=0.05,
+            ebit_margin=0.10,
+            tax_rate=0.25,
+            sales_to_capital=2.0,
+            wacc=0.11,
+            g_stable=0.02,
+            wacc_stable=0.09,
+        ),
+        bull=ScenarioAssumptions(
+            revenue_growth=0.15,
+            ebit_margin=0.30,
+            tax_rate=0.20,
+            sales_to_capital=2.5,
+            wacc=0.08,
+            g_stable=0.03,
+            wacc_stable=0.075,
+        ),
+        bear=ScenarioAssumptions(
+            revenue_growth=0.02,
+            ebit_margin=0.08,
+            tax_rate=0.28,
+            sales_to_capital=1.5,
+            wacc=0.13,
+            g_stable=0.015,
+            wacc_stable=0.095,
+        ),
+    )
+
+    response = run_workbench(request)
+    ebit_margin = next(kpi for kpi in response.kpis.kpis if kpi.key == "ebit_margin")
+
+    assert ebit_margin.value == 0.30
+    assert response.sensitivity.values[0][0] > response.base.valuation.fair_value_per_share
