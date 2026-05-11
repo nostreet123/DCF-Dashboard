@@ -6,6 +6,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dcf_engine.schema import Trace, ValuationResult
 
+MAX_FORECAST_PERIODS = 50
+MAX_SENSITIVITY_OFFSETS = 21
+MAX_STATEMENTS = 120
+SensitivityOffset = Annotated[float, Field(ge=-0.5, le=0.5)]
+
 
 class WorkbenchBaseModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -30,14 +35,36 @@ class ScenarioAssumptions(WorkbenchBaseModel):
 
 
 class SensitivitySpec(WorkbenchBaseModel):
-    growth_offsets: list[float] = Field(
-        default_factory=lambda: [-0.04, -0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.04],
+    growth_offsets: list[SensitivityOffset] = Field(
+        default_factory=lambda: [
+            -0.04,
+            -0.03,
+            -0.02,
+            -0.01,
+            0.0,
+            0.01,
+            0.02,
+            0.03,
+            0.04,
+        ],
         alias="growthOffsets",
+        max_length=MAX_SENSITIVITY_OFFSETS,
         description="Offsets applied to revenue growth.",
     )
-    wacc_offsets: list[float] = Field(
-        default_factory=lambda: [-0.04, -0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.04],
+    wacc_offsets: list[SensitivityOffset] = Field(
+        default_factory=lambda: [
+            -0.04,
+            -0.03,
+            -0.02,
+            -0.01,
+            0.0,
+            0.01,
+            0.02,
+            0.03,
+            0.04,
+        ],
         alias="waccOffsets",
+        max_length=MAX_SENSITIVITY_OFFSETS,
         description="Offsets applied to WACC.",
     )
 
@@ -122,7 +149,12 @@ class WorkbenchRequest(WorkbenchBaseModel):
         description="Active dashboard scenario used for sensitivity and KPI context.",
     )
     base_year: int = Field(..., alias="baseYear", description="Base year for t=0.")
-    periods: int = Field(10, ge=1, le=50, description="Forecast periods.")
+    periods: int = Field(
+        10,
+        ge=1,
+        le=MAX_FORECAST_PERIODS,
+        description="Forecast periods.",
+    )
     currency: str | None = Field(None, description="Reporting currency.")
     revenue_t0: float = Field(..., alias="revenueT0", description="Base revenue.")
     cash: float = Field(0.0, description="Cash balance.")
@@ -155,6 +187,7 @@ class WorkbenchRequest(WorkbenchBaseModel):
     )
     statements: list[StatementInput] | None = Field(
         None,
+        max_length=MAX_STATEMENTS,
         description="Optional statements for KPI history.",
     )
     include_trace: bool = Field(
