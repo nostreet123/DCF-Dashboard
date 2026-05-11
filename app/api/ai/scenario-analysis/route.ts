@@ -703,16 +703,19 @@ const loadConvexAiContext = async (
       (convexClient as any).query("seed:getReference" as any, {}),
     ]);
 
+    const syncToken = getSyncTokenOptional();
     let importedFacts: unknown = null;
-    if (includeImportContext && lookup.listingId) {
+    if (includeImportContext && syncToken && lookup.listingId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       importedFacts = await (convexClient as any).query("imports:getImportedFacts" as any, {
+        syncToken,
         listingId: lookup.listingId,
       });
     }
-    if (includeImportContext && !importedFacts && lookup.symbol) {
+    if (includeImportContext && syncToken && !importedFacts && lookup.symbol) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const matches = await (convexClient as any).query("imports:listBySymbol" as any, {
+        syncToken,
         symbol: lookup.symbol,
         limit: 1,
       });
@@ -725,9 +728,10 @@ const loadConvexAiContext = async (
       ? new Set(importedRecord.artifactIds)
       : null;
     let importArtifacts: unknown[] = [];
-    if (includeImportContext && resolvedListingId) {
+    if (includeImportContext && syncToken && resolvedListingId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const artifacts = await (convexClient as any).query("imports:listArtifactsForListing" as any, {
+        syncToken,
         listingId: resolvedListingId,
         status: "approved",
         limit: 20,
@@ -745,7 +749,6 @@ const loadConvexAiContext = async (
 
     let recentValuationRuns: unknown[] = [];
     let latestValuationRunDetail: unknown = null;
-    const syncToken = getSyncTokenOptional();
     if (syncToken && lookup.symbol) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
       const runs = await (convexClient as any).query("valuations:listByTicker" as any, {

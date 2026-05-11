@@ -193,10 +193,12 @@ export const approveImportedFacts = mutation({
 
 export const getImportedFacts = query({
   args: {
+    syncToken: v.optional(v.string()),
     listingId: v.string(),
   },
   returns: v.union(v.null(), importedFactsValidator),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const listingId = args.listingId.trim();
     if (!listingId) {
       return null;
@@ -213,11 +215,13 @@ export const getImportedFacts = query({
 
 export const listBySymbol = query({
   args: {
+    syncToken: v.optional(v.string()),
     symbol: v.string(),
     limit: v.optional(v.number()),
   },
   returns: v.array(importedFactsValidator),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const symbol = normalizeOptionalSymbol(args.symbol);
     if (!symbol) {
       return [];
@@ -233,12 +237,14 @@ export const listBySymbol = query({
 
 export const listArtifactsForListing = query({
   args: {
+    syncToken: v.optional(v.string()),
     listingId: v.string(),
     status: v.optional(ImportedArtifactStatus),
     limit: v.optional(v.number()),
   },
   returns: v.array(artifactValidator),
   handler: async (ctx, args) => {
+    requireSyncToken(args.syncToken);
     const limit = normalizeLimit(args.limit);
     if (args.status) {
       return ctx.db
