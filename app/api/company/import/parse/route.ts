@@ -15,7 +15,15 @@ import type { ImportedArtifactKind } from "@/lib/contracts/company";
 const MAX_FILES = 8;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_PARSE_AUTH_BODY_BYTES = (MAX_FILES * MAX_FILE_BYTES) + (1024 * 1024);
-const MAX_MULTIPART_BODY_BYTES = MAX_PARSE_AUTH_BODY_BYTES;
+const MAX_ENGINE_PARSE_BODY_BYTES = MAX_PARSE_AUTH_BODY_BYTES;
+const MAX_MULTIPART_BODY_BYTES = Math.floor((MAX_ENGINE_PARSE_BODY_BYTES - (1024 * 1024)) * 3 / 4);
+
+class MultipartBodyLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MultipartBodyLimitError";
+  }
+}
 
 type ParseResponse = {
   artifacts?: Array<Record<string, unknown> & {
@@ -67,6 +75,49 @@ const uploadToConvexStorage = async (
   return payload.storageId;
 };
 
+const readMultipartBodyWithLimit = async (
+  request: Request,
+  maxBytes: number,
+): Promise<Buffer> => {
+  const lengthHeader = request.headers.get("content-length");
+  if (lengthHeader) {
+    const length = Number(lengthHeader);
+    if (Number.isFinite(length) && length > maxBytes) {
+      throw new MultipartBodyLimitError("Import request body is too large");
+    }
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    const body = Buffer.from(await request.arrayBuffer());
+    if (body.byteLength > maxBytes) {
+      throw new MultipartBodyLimitError("Import request body is too large");
+    }
+    return body;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (!value) {
+      continue;
+    }
+    received += value.byteLength;
+    if (received > maxBytes) {
+      await reader.cancel().catch(() => {
+        // Ignore cancellation failures; the route returns 413 below.
+      });
+      throw new MultipartBodyLimitError("Import request body is too large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+};
+
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:company:import:parse",
@@ -82,20 +133,29 @@ export async function POST(request: Request) {
     return errorResponse("BAD_REQUEST", "Missing listingId parameter", 400);
   }
 
-  const contentLength = request.headers.get("content-length");
-  if (contentLength !== null) {
-    const parsedLength = Number.parseInt(contentLength, 10);
-    if (Number.isFinite(parsedLength) && parsedLength > MAX_MULTIPART_BODY_BYTES) {
-      return errorResponse("PAYLOAD_TOO_LARGE", "Import request body is too large", 413);
+  let requestBody: Buffer;
+  try {
+    requestBody = await readMultipartBodyWithLimit(request, MAX_MULTIPART_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof MultipartBodyLimitError) {
+      return errorResponse("PAYLOAD_TOO_LARGE", error.message, 413);
     }
+    return errorResponse("BAD_REQUEST", "Invalid multipart form data", 400);
   }
-  const canPersistArtifacts = await isInternalPersistenceRequest(request.clone(), {
+
+  const boundedRequest = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: new Uint8Array(requestBody),
+  });
+
+  const canPersistArtifacts = await isInternalPersistenceRequest(boundedRequest.clone(), {
     maxBodyBytes: MAX_PARSE_AUTH_BODY_BYTES,
   });
 
   let formData: FormData;
   try {
-    formData = await request.formData();
+    formData = await boundedRequest.formData();
   } catch {
     return errorResponse("BAD_REQUEST", "Invalid multipart form data", 400);
   }
@@ -132,10 +192,15 @@ export async function POST(request: Request) {
   }
 
   let parsed: ParseResponse;
+  const engineBody = JSON.stringify({ artifacts: parseArtifacts });
+  if (Buffer.byteLength(engineBody, "utf8") > MAX_ENGINE_PARSE_BODY_BYTES) {
+    return errorResponse("PAYLOAD_TOO_LARGE", "Import request body is too large", 413);
+  }
+
   try {
     parsed = await fetchDcfEngine<ParseResponse>("/company/import/parse", {
       method: "POST",
-      body: JSON.stringify({ artifacts: parseArtifacts }),
+      body: engineBody,
     });
   } catch (error) {
     console.error("Import parse failed", error);

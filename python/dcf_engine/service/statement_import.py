@@ -13,6 +13,9 @@ from typing import Any
 
 import xlrd
 from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
+from pypdf.errors import PdfReadError
+from xlrd.biffh import XLRDError
 
 from dcf_engine.service.company_contracts import (
     ImportParseRequest,
@@ -44,6 +47,7 @@ MAX_SPREADSHEET_ZIP_MEMBERS = 256
 MAX_SPREADSHEET_UNCOMPRESSED_BYTES = 24 * 1024 * 1024
 MAX_PDF_PAGES = 40
 MAX_PDF_TEXT_CHARS = 200_000
+MAX_PDF_PAGE_TEXT_CHARS = 25_000
 
 
 FIELD_LABELS: dict[ParsedFieldName, tuple[str, ...]] = {
@@ -173,7 +177,10 @@ def _validate_xlsx_zip(content: bytes) -> None:
 
 def _read_xlsx_rows(content: bytes) -> list[CellRow]:
     _validate_xlsx_zip(content)
-    workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    try:
+        workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    except (InvalidFileException, KeyError, OSError, ValueError, zipfile.BadZipFile) as exc:
+        raise ValueError("Invalid XLSX import file") from exc
     try:
         sheet_names = workbook.sheetnames
         if len(sheet_names) > MAX_SPREADSHEET_SHEETS:
@@ -199,7 +206,10 @@ def _read_xlsx_rows(content: bytes) -> list[CellRow]:
 
 
 def _read_xls_rows(content: bytes) -> list[CellRow]:
-    workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+    try:
+        workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+    except XLRDError as exc:
+        raise ValueError("Invalid XLS import file") from exc
     try:
         if workbook.nsheets > MAX_SPREADSHEET_SHEETS:
             raise ValueError(f"Spreadsheet import has too many sheets; maximum {MAX_SPREADSHEET_SHEETS}")
@@ -249,17 +259,39 @@ def _load_pdf_reader() -> type[Any]:
 
 
 def read_pdf_text(content: bytes) -> str:
-    reader = _load_pdf_reader()(io.BytesIO(content))
+    try:
+        reader = _load_pdf_reader()(io.BytesIO(content))
+    except (PdfReadError, ValueError, OSError) as exc:
+        raise ValueError("Invalid PDF import file") from exc
     if len(reader.pages) > MAX_PDF_PAGES:
         raise ValueError(f"PDF import has too many pages; maximum {MAX_PDF_PAGES}")
     text_parts: list[str] = []
     text_chars = 0
     for page in reader.pages:
-        page_text = page.extract_text() or ""
-        text_chars += len(page_text)
-        if text_chars > MAX_PDF_TEXT_CHARS:
-            raise ValueError("PDF import extracted too much text")
-        text_parts.append(page_text)
+        page_parts: list[str] = []
+        page_chars = 0
+
+        def collect_text(text: str, *_args: object) -> None:
+            nonlocal page_chars, text_chars
+            if not text:
+                return
+            page_chars += len(text)
+            text_chars += len(text)
+            if page_chars > MAX_PDF_PAGE_TEXT_CHARS:
+                raise ValueError("PDF import extracted too much text from a page")
+            if text_chars > MAX_PDF_TEXT_CHARS:
+                raise ValueError("PDF import extracted too much text")
+            page_parts.append(text)
+
+        try:
+            extracted = page.extract_text(visitor_text=collect_text)
+        except TypeError:
+            extracted = page.extract_text()
+        except PdfReadError as exc:
+            raise ValueError("Invalid PDF import file") from exc
+        if isinstance(extracted, str) and not page_parts:
+            collect_text(extracted)
+        text_parts.append("".join(page_parts))
     return "\n".join(text_parts)
 
 

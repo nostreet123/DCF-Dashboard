@@ -192,6 +192,20 @@ def test_xlsx_import_rejects_excess_uncompressed_archive(monkeypatch: pytest.Mon
         read_tabular_rows(content.getvalue(), "bomb.xlsx")
 
 
+def test_xlsx_import_rejects_malformed_workbook_zip() -> None:
+    content = io.BytesIO()
+    with zipfile.ZipFile(content, "w", compression=zipfile.ZIP_DEFLATED) as workbook_zip:
+        workbook_zip.writestr("not-workbook.txt", "not an XLSX workbook")
+
+    with pytest.raises(ValueError, match="Invalid XLSX"):
+        read_tabular_rows(content.getvalue(), "bad.xlsx")
+
+
+def test_xls_import_rejects_malformed_workbook() -> None:
+    with pytest.raises(ValueError, match="Invalid XLS"):
+        read_tabular_rows(b"not a biff workbook", "bad.xls")
+
+
 def test_csv_import_rejects_excess_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("dcf_engine.service.statement_import.MAX_TABULAR_ROWS", 2)
 
@@ -222,6 +236,23 @@ def test_pdf_import_rejects_excess_extracted_text(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(statement_import, "_load_pdf_reader", lambda: FakePdfReader)
     monkeypatch.setattr("dcf_engine.service.statement_import.MAX_PDF_TEXT_CHARS", 100)
+
+    with pytest.raises(ValueError, match="too much text"):
+        read_pdf_text(b"%PDF")
+
+
+def test_pdf_import_rejects_excess_text_during_page_extraction(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakePage:
+        def extract_text(self, *, visitor_text) -> None:
+            visitor_text("x" * 64, None, None, None, None)
+            visitor_text("x" * 64, None, None, None, None)
+
+    class FakePdfReader:
+        def __init__(self, _stream: io.BytesIO) -> None:
+            self.pages = [FakePage()]
+
+    monkeypatch.setattr(statement_import, "_load_pdf_reader", lambda: FakePdfReader)
+    monkeypatch.setattr("dcf_engine.service.statement_import.MAX_PDF_PAGE_TEXT_CHARS", 100)
 
     with pytest.raises(ValueError, match="too much text"):
         read_pdf_text(b"%PDF")
