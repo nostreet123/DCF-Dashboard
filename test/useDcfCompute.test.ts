@@ -290,6 +290,62 @@ describe("useDcfCompute concurrency", () => {
     });
   });
 
+  test("does not use browser facts route without a concrete non-SEC listing id", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: { getItem: (key: string) => key === "dcf-dashboard:import-context-token" ? "context-token" : null },
+        localStorage: { getItem: () => null },
+      },
+      configurable: true,
+    });
+    const fetchCalls: Array<{ url: string; token: string | null }> = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      fetchCalls.push({ url: String(url), token: headers.get("x-import-context-token") });
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { compute } = setup();
+    await compute({ ...INPUTS, listingId: undefined });
+
+    expect(fetchCalls[0]).toEqual({
+      url: "/api/company/facts?symbol=AAPL",
+      token: null,
+    });
+  });
+
+  test("does not send approval tokens to browser facts route", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: {
+          getItem: (key: string) => key === "dcf-dashboard:import-approval-token" ? "approval-token" : null,
+        },
+        localStorage: { getItem: () => null },
+      },
+      configurable: true,
+    });
+    const fetchCalls: Array<{ url: string; token: string | null }> = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      fetchCalls.push({ url: String(url), token: headers.get("x-import-context-token") });
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { compute } = setup();
+    await compute({ ...INPUTS, symbol: "SHOP", listingId: "XTSE:SHOP" });
+
+    expect(fetchCalls[0]).toEqual({
+      url: "/api/company/facts?symbol=SHOP&listingId=XTSE%3ASHOP",
+      token: null,
+    });
+  });
+
   test("normalizes rich workbench output for dashboard detail panels", () => {
     const result = normalizeDcfComputeResponse(COMPUTE_PAYLOAD, "base", FACTS_PAYLOAD);
 

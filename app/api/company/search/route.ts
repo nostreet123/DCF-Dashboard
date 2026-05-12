@@ -125,6 +125,13 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.warn("Official company search failed, falling back to SEC search", error);
+    if (!(error instanceof DcfEngineHttpError)) {
+      return errorResponse(
+        "SEARCH_UNAVAILABLE",
+        "Official company search failed",
+        502,
+      );
+    }
   }
 
   try {

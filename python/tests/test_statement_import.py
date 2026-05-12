@@ -206,6 +206,16 @@ def test_xls_import_rejects_malformed_workbook() -> None:
         read_tabular_rows(b"not a biff workbook", "bad.xls")
 
 
+def test_xls_import_rejects_malformed_ole_workbook(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_compdoc_error(*_args: object, **_kwargs: object) -> None:
+        raise statement_import.CompDocError("corrupt OLE container")
+
+    monkeypatch.setattr(statement_import.xlrd, "open_workbook", raise_compdoc_error)
+
+    with pytest.raises(ValueError, match="Invalid XLS"):
+        read_tabular_rows(b"not a valid ole workbook", "bad.xls")
+
+
 def test_csv_import_rejects_excess_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("dcf_engine.service.statement_import.MAX_TABULAR_ROWS", 2)
 

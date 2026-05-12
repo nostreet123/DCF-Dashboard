@@ -16,6 +16,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from pypdf.errors import PdfReadError
 from xlrd.biffh import XLRDError
+from xlrd.compdoc import CompDocError
 
 from dcf_engine.service.company_contracts import (
     ImportParseRequest,
@@ -208,7 +209,7 @@ def _read_xlsx_rows(content: bytes) -> list[CellRow]:
 def _read_xls_rows(content: bytes) -> list[CellRow]:
     try:
         workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
-    except XLRDError as exc:
+    except (CompDocError, XLRDError) as exc:
         raise ValueError("Invalid XLS import file") from exc
     try:
         if workbook.nsheets > MAX_SPREADSHEET_SHEETS:

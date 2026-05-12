@@ -51,6 +51,27 @@ afterEach(() => {
 });
 
 describe("company search route", () => {
+  test("does not downgrade official search timeouts to legacy SEC results", async () => {
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/company/search")) {
+        init?.signal?.dispatchEvent(new Event("abort"));
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.121" },
+      }),
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json.code).toBe("SEARCH_UNAVAILABLE");
+  });
+
   test("preserves SEC exchange metadata in fallback results", async () => {
     globalThis.fetch = async (input: RequestInfo | URL) => {
       const url = String(input);
