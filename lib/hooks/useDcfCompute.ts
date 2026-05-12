@@ -89,6 +89,47 @@ interface UseDcfComputeOptions {
   debounceMs?: number;
 }
 
+const IMPORT_APPROVAL_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-approval-token';
+const IMPORT_CONTEXT_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-context-token';
+const SEC_LISTING_MIC_PREFIXES = new Set(['XNAS', 'XNYS', 'ARCX', 'XASE']);
+
+const readBrowserImportFactsToken = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return (
+      window.sessionStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
+      window.localStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
+      window.sessionStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
+      window.localStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
+      null
+    );
+  } catch {
+    return null;
+  }
+};
+
+const listingMicPrefix = (listingId: string | null | undefined): string | null => {
+  const normalized = listingId?.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+  const [micPrefix] = normalized.split(':', 1);
+  return micPrefix && micPrefix !== normalized ? micPrefix : null;
+};
+
+const shouldUseBrowserFactsRead = (
+  listingId: string | null | undefined,
+  token: string | null,
+): boolean => {
+  if (!token) {
+    return false;
+  }
+  const micPrefix = listingMicPrefix(listingId);
+  return !micPrefix || !SEC_LISTING_MIC_PREFIXES.has(micPrefix);
+};
+
 // ---------------------------------------------------------------------------
 // Core logic — framework-agnostic, testable without React
 // ---------------------------------------------------------------------------
@@ -417,9 +458,20 @@ const computeDcf = async (
   if (inputs.listingId) {
     searchParams.set('listingId', inputs.listingId);
   }
+  const importFactsToken = readBrowserImportFactsToken();
+  const useBrowserFactsRead = shouldUseBrowserFactsRead(inputs.listingId, importFactsToken);
+  const factsUrl = useBrowserFactsRead
+    ? `/api/company/facts/browser?${searchParams.toString()}`
+    : `/api/company/facts?${searchParams.toString()}`;
   const facts = await fetchJson<EdgarFacts>(
-    `/api/company/facts?${searchParams.toString()}`,
-    { method: 'GET', signal },
+    factsUrl,
+    {
+      method: 'GET',
+      signal,
+      headers: useBrowserFactsRead && importFactsToken
+        ? { 'x-import-context-token': importFactsToken }
+        : undefined,
+    },
     'Company facts request',
   );
   const payload = buildWorkbenchPayload(inputs, facts);

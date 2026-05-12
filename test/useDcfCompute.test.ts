@@ -6,7 +6,7 @@
  * avoiding any React module mocking so the tests are safe to run as part of
  * the full `bun test` suite.
  */
-import { expect, test, describe, mock, beforeEach } from "bun:test";
+import { expect, test, describe, mock, beforeEach, afterEach } from "bun:test";
 import {
   buildComputeFns,
   createComputeRefs,
@@ -157,9 +157,18 @@ function setup(debounceMs = 10) {
 
 describe("useDcfCompute concurrency", () => {
   const originalFetch = globalThis.fetch;
+  const originalWindow = globalThis.window;
 
   beforeEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", {
+      value: originalWindow,
+      configurable: true,
+    });
   });
 
   test("superseded debounce rejects with AbortError", async () => {
@@ -251,6 +260,34 @@ describe("useDcfCompute concurrency", () => {
     expect(result.fairValue).toBe(42);
     expect(result.range).toEqual([30, 55]);
     expect(getIsLoading()).toBe(false);
+  });
+
+  test("uses signed browser facts route for imported non-SEC listings when a context token exists", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: { getItem: (key: string) => key === "dcf-dashboard:import-context-token" ? "context-token" : null },
+        localStorage: { getItem: () => null },
+      },
+      configurable: true,
+    });
+    const fetchCalls: Array<{ url: string; token: string | null }> = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      fetchCalls.push({ url: String(url), token: headers.get("x-import-context-token") });
+      if (String(url).startsWith("/api/company/facts/browser")) {
+        return jsonResponse({ ...FACTS_PAYLOAD, symbol: "SHOP", source: "import" });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { compute } = setup();
+    const result = await compute({ ...INPUTS, symbol: "SHOP", listingId: "XTSE:SHOP" });
+
+    expect(result.provenance.source).toBe("import");
+    expect(fetchCalls[0]).toEqual({
+      url: "/api/company/facts/browser?symbol=SHOP&listingId=XTSE%3ASHOP",
+      token: "context-token",
+    });
   });
 
   test("normalizes rich workbench output for dashboard detail panels", () => {

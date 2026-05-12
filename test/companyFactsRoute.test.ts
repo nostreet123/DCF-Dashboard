@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 
 import { GET, POST } from "../app/api/company/facts/route";
+import { GET as GET_BROWSER } from "../app/api/company/facts/browser/route";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
@@ -11,10 +13,15 @@ const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
+const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
+const originalContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
 const originalFetch = globalThis.fetch;
 const originalQuery = ConvexHttpClient.prototype.query;
 
 let restoreSecurityMock: (() => void) | null = null;
+
+const sha256Hex = (value: string): string =>
+  createHash("sha256").update(value, "utf8").digest("hex");
 
 beforeEach(() => {
   process.env.CONVEX_URL = "https://example.convex.cloud";
@@ -59,6 +66,16 @@ afterEach(() => {
     delete process.env.DCF_ENGINE_ALLOW_UNSIGNED;
   } else {
     process.env.DCF_ENGINE_ALLOW_UNSIGNED = originalAllowUnsigned;
+  }
+  if (originalBrowserReads === undefined) {
+    delete process.env.VALUATION_HISTORY_BROWSER_READS;
+  } else {
+    process.env.VALUATION_HISTORY_BROWSER_READS = originalBrowserReads;
+  }
+  if (originalContextTokenHash === undefined) {
+    delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
+  } else {
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalContextTokenHash;
   }
 });
 
@@ -397,5 +414,64 @@ describe("company facts route auth boundaries", () => {
     ]);
     expect(payload.source).toBe("import");
     expect(payload.statements[0].period_end).toBe("2025-03-31");
+  });
+
+  test("browser GET signs imported facts reads for approved non-SEC listings", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+    const queryCalls: unknown[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      queryCalls.push({ name, args });
+      return {
+        symbol: "VOD",
+        name: "Vodafone Group Public Limited Company",
+        currency: "GBP",
+        updatedAt: 2_000,
+        facts: {
+          statements: [
+            {
+              period_end: "2025-03-31",
+              period_type: "FY",
+              revenue: 37_448_000_000,
+              shares_outstanding: 24_100_000_000,
+            },
+          ],
+        },
+      };
+    };
+    globalThis.fetch = async () => {
+      throw new Error("EDGAR should not be called for browser imported facts");
+    };
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/facts/browser?symbol=VOD&listingId=XLON:VOD", {
+        headers: {
+          "x-import-context-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.49",
+        },
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(queryCalls).toEqual([
+      { name: "imports:getImportedFacts", args: { syncToken: "sync-token", listingId: "XLON:VOD" } },
+    ]);
+    expect(payload.source).toBe("import");
+  });
+
+  test("browser GET rejects missing import context tokens", async () => {
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/facts/browser?symbol=VOD&listingId=XLON:VOD", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.50" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
   });
 });

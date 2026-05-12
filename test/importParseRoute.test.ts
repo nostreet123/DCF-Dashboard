@@ -111,6 +111,42 @@ describe("company import parse route", () => {
     expect(engineCalled).toBe(false);
   });
 
+  test("rejects oversized multipart streams without trusting content-length", async () => {
+    const securityMock = installSecurityMutationsMock();
+    restoreSecurityMock = securityMock.restore;
+    let engineCalled = false;
+    globalThis.fetch = async () => {
+      engineCalled = true;
+      return new Response(JSON.stringify({ artifacts: [] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const chunk = new Uint8Array(1024 * 1024);
+    let emitted = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (emitted >= 50) {
+          controller.close();
+          return;
+        }
+        emitted += 1;
+        controller.enqueue(chunk);
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/company/import/parse?listingId=XTSE:SHOP", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.55" },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(engineCalled).toBe(false);
+    expect(securityMock.calls).not.toContain("imports:generateUploadUrl");
+  });
+
   test("does not upload artifacts before parser acceptance", async () => {
     const securityMock = installSecurityMutationsMock();
     restoreSecurityMock = securityMock.restore;
