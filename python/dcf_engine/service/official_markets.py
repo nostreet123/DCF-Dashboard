@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Protocol
@@ -16,9 +17,9 @@ from dcf_engine.service.sec_edgar_models import EdgarCompanyFacts
 
 SEC_MICS = {"XNAS", "XNYS", "ARCX", "XASE"}
 SEC_SEARCH_COVERAGE_LOOKUP_LIMIT = 3
+SEC_FACTS_CACHE_TTL_SECONDS = 15 * 60
 SEC_SEARCH_DEFERRED_COVERAGE_REASON = (
-    "Official SEC listing found. Open company detail or import reviewed "
-    "statements to verify valuation readiness."
+    "Official SEC listing found. Open company detail to verify valuation readiness."
 )
 
 
@@ -36,8 +37,16 @@ def _sec_fact_gaps(facts: EdgarCompanyFacts) -> list[str]:
 
 
 @lru_cache(maxsize=512)
-def _cached_sec_company_facts(symbol: str) -> EdgarCompanyFacts:
+def _cached_sec_company_facts_for_bucket(symbol: str, ttl_bucket: int) -> EdgarCompanyFacts:
     return fetch_company_facts(symbol)
+
+
+def _cached_sec_company_facts(symbol: str) -> EdgarCompanyFacts:
+    ttl_bucket = int(time.time() // SEC_FACTS_CACHE_TTL_SECONDS)
+    return _cached_sec_company_facts_for_bucket(symbol, ttl_bucket)
+
+
+_cached_sec_company_facts.cache_clear = _cached_sec_company_facts_for_bucket.cache_clear  # type: ignore[attr-defined]
 
 
 def _sec_coverage_for_symbol(symbol: str) -> tuple[str, str]:
@@ -140,7 +149,7 @@ class SECAdapter:
             if index < SEC_SEARCH_COVERAGE_LOOKUP_LIMIT:
                 coverage_state, coverage_reason = _sec_coverage_for_symbol(result.symbol)
             else:
-                coverage_state = "import_required"
+                coverage_state = "detail_only"
                 coverage_reason = SEC_SEARCH_DEFERRED_COVERAGE_REASON
             listing_id = result.listing_id or (
                 f"{result.mic}:{result.symbol}" if result.mic else result.symbol

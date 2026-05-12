@@ -180,10 +180,41 @@ def test_sec_search_caps_companyfacts_coverage_checks(monkeypatch) -> None:
         "valuation_ready",
     ]
     assert [result.coverage_state for result in results[3:]] == [
-        "import_required",
-        "import_required",
+        "detail_only",
+        "detail_only",
     ]
     assert results[3].coverage_reason == official_markets.SEC_SEARCH_DEFERRED_COVERAGE_REASON
+
+
+def test_sec_companyfacts_cache_expires_by_ttl_bucket(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fetch_facts(symbol: str) -> EdgarCompanyFacts:
+        calls.append(symbol)
+        return EdgarCompanyFacts(
+            symbol=symbol,
+            name=symbol,
+            cik="0000000000",
+            currency="USD",
+            updated_at=len(calls),
+            statements=[
+                EdgarStatement(
+                    period_end="2025-12-31",
+                    revenue=100.0,
+                    shares_outstanding=10.0,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(official_markets, "SEC_FACTS_CACHE_TTL_SECONDS", 10)
+    monkeypatch.setattr(official_markets.time, "time", lambda: 100.0)
+    monkeypatch.setattr(official_markets, "fetch_company_facts", fetch_facts)
+
+    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 1
+    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 1
+    monkeypatch.setattr(official_markets.time, "time", lambda: 111.0)
+    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 2
+    assert calls == ["AAPL", "AAPL"]
 
 
 def _raise_unexpected_facts_fetch(symbol: str) -> EdgarCompanyFacts:

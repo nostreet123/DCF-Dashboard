@@ -100,11 +100,29 @@ def redact_text(text: str) -> str:
             re.compile(r"(\bAuthorization\s*[:=]\s*(?:Bearer|Basic)\s+)[^\s,;]+", re.IGNORECASE),
             r"\1<REDACTED>",
         ),
+        # Space-separated CLI secret options, such as `--api-key value`.
+        (
+            re.compile(
+                r"((?:^|[\s,;])--?[\w.-]*"
+                + sensitive_key_pattern
+                + r"[\w.-]*\s+)(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+)",
+                re.IGNORECASE,
+            ),
+            r"\1<REDACTED>",
+        ),
+        # Unquoted password phrases often contain spaces; redact the whole value up to a delimiter.
+        (
+            re.compile(
+                r"(\b[\w.-]*password[\w.-]*\b\s*[:=]\s*)(?![\"'])([^,;}]+)",
+                re.IGNORECASE,
+            ),
+            r"\1<REDACTED>",
+        ),
         # Common env/JSON/YAML/CLI assignments, including camelCase and quoted values.
         (
             re.compile(
                 r"(\b[\w.-]*" + sensitive_key_pattern + r"[\w.-]*\b\s*[:=]\s*)"
-                r"(?:\"[^\"]*\"|'[^']*'|[^\s,;}]+)",
+                r"(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+)",
                 re.IGNORECASE,
             ),
             r"\1<REDACTED>",
@@ -112,7 +130,9 @@ def redact_text(text: str) -> str:
         # JSON quoted keys, preserving punctuation and quotes.
         (
             re.compile(
-                r"(\"[^\"]*" + sensitive_key_pattern + r"[^\"]*\"\s*:\s*\")([^\"]+)(\")",
+                r"(\"(?:\\.|[^\"\\])*"
+                + sensitive_key_pattern
+                + r"(?:\\.|[^\"\\])*\"\s*:\s*\")((?:\\.|[^\"\\])*)(\")",
                 re.IGNORECASE,
             ),
             r"\1<REDACTED>\3",

@@ -89,7 +89,6 @@ interface UseDcfComputeOptions {
   debounceMs?: number;
 }
 
-const IMPORT_APPROVAL_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-approval-token';
 const IMPORT_CONTEXT_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-context-token';
 const SEC_LISTING_MIC_PREFIXES = new Set(['XNAS', 'XNYS', 'ARCX', 'XASE']);
 
@@ -101,8 +100,6 @@ const readBrowserImportFactsToken = (): string | null => {
     return (
       window.sessionStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
       window.localStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
-      window.sessionStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
-      window.localStorage.getItem(IMPORT_APPROVAL_TOKEN_STORAGE_KEY)?.trim() ||
       null
     );
   } catch {
@@ -127,7 +124,7 @@ const shouldUseBrowserFactsRead = (
     return false;
   }
   const micPrefix = listingMicPrefix(listingId);
-  return !micPrefix || !SEC_LISTING_MIC_PREFIXES.has(micPrefix);
+  return micPrefix !== null && !SEC_LISTING_MIC_PREFIXES.has(micPrefix);
 };
 
 // ---------------------------------------------------------------------------
