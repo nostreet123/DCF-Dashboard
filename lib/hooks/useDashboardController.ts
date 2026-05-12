@@ -933,6 +933,15 @@ export function useDashboardController() {
         .then((detail: CompanySearchResult | null) => {
           if (detailRequestId === detailRequestIdRef.current && detail?.id === company.id) {
             setCompanyDetail(detail);
+            setSelectedSearchCompany(detail);
+            rememberCompany(detail);
+            setWorkspaceMode(
+              detail.coverageState === 'valuation_ready'
+                ? 'valuation'
+                : detail.coverageState === 'import_required'
+                  ? 'import'
+                  : 'detail',
+            );
           }
         })
         .catch(() => undefined);

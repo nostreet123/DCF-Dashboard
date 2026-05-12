@@ -25,6 +25,7 @@ type EdgarSearchResponse = {
 };
 
 const DCF_ENGINE_SEARCH_TIMEOUT_MS = 5_000;
+const DCF_ENGINE_TIMEOUT_STATUS_CODES = new Set([408, 504, 522, 524]);
 
 type OfficialSearchResponse = {
   results: Array<{
@@ -124,14 +125,18 @@ export async function GET(request: Request) {
       source: "official",
     });
   } catch (error) {
-    console.warn("Official company search failed, falling back to SEC search", error);
-    if (!(error instanceof DcfEngineHttpError)) {
+    if (
+      !(error instanceof DcfEngineHttpError) ||
+      DCF_ENGINE_TIMEOUT_STATUS_CODES.has(error.status)
+    ) {
+      console.warn("Official company search failed without fallback", error);
       return errorResponse(
         "SEARCH_UNAVAILABLE",
         "Official company search failed",
         502,
       );
     }
+    console.warn("Official company search failed, falling back to SEC search", error);
   }
 
   try {
