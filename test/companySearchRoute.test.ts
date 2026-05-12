@@ -126,4 +126,27 @@ describe("company search route", () => {
       url: "https://www.sec.gov/edgar/browse/?CIK=1000184",
     });
   });
+
+  test("does not downgrade upstream timeout statuses to legacy SEC results", async () => {
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/company/search")) {
+        return new Response(JSON.stringify({ detail: "gateway timeout" }), {
+          status: 504,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/search?q=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.122" },
+      }),
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json.code).toBe("SEARCH_UNAVAILABLE");
+  });
 });

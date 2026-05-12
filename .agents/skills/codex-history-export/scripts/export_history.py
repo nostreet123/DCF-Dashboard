@@ -137,6 +137,16 @@ def redact_text(text: str) -> str:
             ),
             r"\1<REDACTED>\3",
         ),
+        # Escaped JSON snippets as stored inside JSONL strings.
+        (
+            re.compile(
+                r"(\\\"(?:\\\\.|[^\\])*"
+                + sensitive_key_pattern
+                + r"(?:\\\\.|[^\\])*\\\"\s*:\s*\\\")((?:\\\\.|[^\\])*)(\\\")",
+                re.IGNORECASE,
+            ),
+            r"\1<REDACTED>\3",
+        ),
         # OAuth callback/query params.
         (
             re.compile(

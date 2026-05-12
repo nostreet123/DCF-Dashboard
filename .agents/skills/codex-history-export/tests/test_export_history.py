@@ -54,6 +54,13 @@ def test_redact_text_covers_common_secret_syntaxes() -> None:
     assert "<REDACTED" in redacted
 
 
+def test_redact_text_covers_standalone_escaped_json_secret() -> None:
+    redacted = export_history.redact_text(r'{\"client_secret\": \"escaped-secret-value\"}')
+
+    assert "escaped-secret-value" not in redacted
+    assert "<REDACTED" in redacted
+
+
 def test_default_export_redacts_common_secret_syntaxes(tmp_path: Path) -> None:
     history_path = tmp_path / "history.jsonl"
     output_path = tmp_path / "out.txt"
