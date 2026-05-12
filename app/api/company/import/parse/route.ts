@@ -13,10 +13,10 @@ import {
 import type { ImportedArtifactKind } from "@/lib/contracts/company";
 
 const MAX_FILES = 8;
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MAX_PARSE_AUTH_BODY_BYTES = (MAX_FILES * MAX_FILE_BYTES) + (1024 * 1024);
-const MAX_ENGINE_PARSE_BODY_BYTES = MAX_PARSE_AUTH_BODY_BYTES;
+const MAX_ENGINE_PARSE_BODY_BYTES = (65 * 1024 * 1024);
 const MAX_MULTIPART_BODY_BYTES = Math.floor((MAX_ENGINE_PARSE_BODY_BYTES - (1024 * 1024)) * 3 / 4);
+const MAX_FILE_BYTES = Math.floor(MAX_MULTIPART_BODY_BYTES / MAX_FILES);
+const MAX_PARSE_AUTH_BODY_BYTES = MAX_ENGINE_PARSE_BODY_BYTES;
 
 class MultipartBodyLimitError extends Error {
   constructor(message: string) {
