@@ -12,6 +12,29 @@ import {
 } from '@/lib/valuationHistory';
 import { mockDemoReplaySnapshot, mockRunHistory } from '@/lib/workbench/mockData';
 
+export function getDemoHistoryItems(): ValuationHistoryItem[] {
+  return mockRunHistory;
+}
+
+export function getDemoReplayForRun(runId: string): ValuationReplaySnapshot | null {
+  const entry = mockRunHistory.find((r) => r.id === runId);
+  if (!entry) {
+    return null;
+  }
+  return {
+    ...mockDemoReplaySnapshot,
+    runId,
+    ticker: entry.ticker,
+    provenance: mockDemoReplaySnapshot.provenance
+      ? { ...mockDemoReplaySnapshot.provenance, symbol: entry.ticker }
+      : undefined,
+  } as ValuationReplaySnapshot;
+}
+
+export function isDemoHistoryRun(runId: string): boolean {
+  return mockRunHistory.some((r) => r.id === runId);
+}
+
 export {
   buildValuationHistoryPath,
   buildValuationRunDetailPath,
@@ -181,7 +204,7 @@ function useValuationReplayRequest(
   options: ValuationHistoryOptions = {},
 ): ValuationReplayResult {
   const isDemo = getDashboardDataMode() === 'demo';
-  const isDemoRun = isDemo && runId !== undefined && mockRunHistory.some((r) => r.id === runId);
+  const isDemoRun = isDemo && runId !== undefined && isDemoHistoryRun(runId);
 
   const [activeRunId, setActiveRunId] = useState<string | null>(runId ?? null);
   const [replay, setReplay] = useState<ValuationReplaySnapshot | null>(null);
@@ -196,8 +219,10 @@ function useValuationReplayRequest(
 
   useEffect(() => {
     if (!path) {
-      setActiveRunId(null);
-      setReplay(null);
+      if (!isDemoRun) {
+        setActiveRunId(null);
+        setReplay(null);
+      }
       setIsLoading(false);
       setError(null);
       return;
@@ -260,12 +285,14 @@ function useValuationReplayRequest(
     };
   }, [path, refreshToken, runId]);
 
-  const effectiveReplay = isDemoRun
-    ? ({ ...mockDemoReplaySnapshot, runId: runId ?? mockDemoReplaySnapshot.runId } as ValuationReplaySnapshot)
+  const effectiveReplay = isDemoRun && runId !== undefined
+    ? getDemoReplayForRun(runId)
     : replay;
 
+  const effectiveActiveRunId = isDemoRun ? (runId ?? null) : activeRunId;
+
   return {
-    activeRunId,
+    activeRunId: effectiveActiveRunId,
     replay: effectiveReplay,
     isLoading,
     error,

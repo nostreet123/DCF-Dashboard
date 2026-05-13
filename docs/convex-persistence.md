@@ -7,9 +7,12 @@ Convex is **optional**. The UI demo and the direct compute demo both work withou
 | Table | Purpose |
 |---|---|
 | `valuationRuns` | One record per completed DCF run — inputs, result summary, and an optional full trace |
-| `companyFacts` | Company data imported from CSV/XLSX/PDF or synced from Damodaran — survives browser refreshes |
+| `valuationRunTraces` | Full engine traces stored separately when trace storage is external |
+| `importedFacts` | Company facts imported from CSV/XLSX/PDF or synced from Damodaran — survives browser refreshes |
+| `companies` / `companyStatements` | Catalog entries and period-level financial statements |
 | `tableData` | Raw import-review artifacts held until approved or discarded |
-| `nonces` | Short-lived tokens used for FastAPI signed-request replay protection |
+| `importArtifacts` | Parsed import payloads waiting for approval |
+| `securityNonces` | Short-lived tokens used for FastAPI signed-request replay protection |
 
 ## Environment Variables
 
@@ -30,17 +33,17 @@ Browser
   → POST /api/dcf/run  (Next.js route, signed with INTERNAL_PERSISTENCE_KEY)
     → fetchDcfEngine("/dcf/compute")  (FastAPI, signed with DCF_ENGINE_INTERNAL_KEY)
       ← DCF result
-    → Convex mutation valuations:insert  (server-side, uses CONVEX_URL)
+    → Convex mutation valuations:create  (server-side, uses CONVEX_URL)
       ← Convex document ID
   ← JSON response with result + runId
 ```
 
-Persistence only happens when the Next.js route receives a valid `X-Internal-Signature` header. Unsigned requests (e.g. demo mode, `DCF_ENGINE_ALLOW_UNSIGNED=1`) compute normally but do not write to Convex.
+Persistence only happens when the Next.js route receives valid internal auth headers (`x-dcf-internal-signature`, `x-dcf-internal-ts`, `x-dcf-internal-nonce` — HMAC + timestamp + nonce). Unsigned requests (e.g. demo mode, `DCF_ENGINE_ALLOW_UNSIGNED=1`) compute normally but do not write to Convex.
 
 ## Request Flow — Replay History
 
 ```
-Browser (VALUATION_HISTORY_BROWSER_READS=1)
+Browser (NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1, server: VALUATION_HISTORY_BROWSER_READS=1)
   → GET /api/dcf/history/browser?symbol=AAPL
     → Convex query valuations:listByTicker  (server-side)
     ← sanitized run list (no trace data, only result summaries)
@@ -48,12 +51,12 @@ Browser (VALUATION_HISTORY_BROWSER_READS=1)
 
 Browser selects a run
   → GET /api/dcf/history/browser/{runId}
-    → Convex query valuations:getReplay
+    → Convex query valuations:get
     ← full replay snapshot (inputs, projections, sensitivity, Monte Carlo)
   ← { replay: {...} }
 ```
 
-The browser-facing history route (`/api/dcf/history/browser`) is a sanitized subset. It strips traces and inputs before returning data to the browser. The internal route (`/api/dcf/history`) requires a signed `X-Internal-Signature` header and returns the full record.
+The browser-facing history route (`/api/dcf/history/browser`) requires **both** `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1` (Next.js browser bundle gate) and `VALUATION_HISTORY_BROWSER_READS=1` (server-side route gate). It strips traces and inputs before returning data to the browser. The internal route (`/api/dcf/history`) requires the `x-dcf-internal-signature` / `x-dcf-internal-ts` / `x-dcf-internal-nonce` signed headers and returns the full record.
 
 ## Local Setup
 
