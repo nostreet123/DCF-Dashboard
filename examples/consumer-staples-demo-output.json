@@ -1,0 +1,17 @@
+{
+  "base_fair_value_per_share": 10.5894,
+  "bull_fair_value_per_share": 17.063,
+  "bear_fair_value_per_share": 6.4376,
+  "sensitivity_grid": [
+    9,
+    9
+  ],
+  "monte_carlo": {
+    "runs": 250,
+    "seed": 456,
+    "p10": 9.179647082825902,
+    "median": 10.940920092746788,
+    "p90": 12.696899521846982
+  },
+  "kpi_count": 4
+}

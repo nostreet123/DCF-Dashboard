@@ -49,7 +49,7 @@ Still prototype / evolving:
 - `examples/`: sample request payloads for reproducible demos
 - `docs/`: audit artifacts, roadmap, release notes, and showcase material
 
-Persistence via Convex is optional. If you only want to demo the UI or run the compute engine locally, you do not need Convex configured. When enabled, Convex stores saved valuation runs and related facts so they can be replayed from the UI instead of recomputed ad hoc every time.
+Persistence via Convex is optional. If you only want to demo the UI or run the compute engine locally, you do not need Convex configured. When enabled, Convex stores saved valuation runs and related facts so they can be replayed from the UI instead of recomputed ad hoc every time. The full request flow, env vars, and local setup steps are documented in [`docs/convex-persistence.md`](docs/convex-persistence.md).
 
 ## Monte Carlo
 
@@ -61,6 +61,16 @@ Supported query modes for the API routes:
 - `mc=default`: 25,000 simulations
 - `mc=high`: 100,000 simulations
 - `mc=off`: no Monte Carlo output
+
+### Reading the output
+
+The engine randomises each assumption (revenue growth, margin, WACC, terminal growth) within a range derived from the spread between the base and bull/bear scenarios, then runs the full DCF for each simulated draw. The result is a distribution of fair values rather than a single point estimate.
+
+**Percentile summary** — `p10` and `p90` bound the central 80 % of outcomes. If the base fair value sits near the median, the base case is consistent with the simulation. A large gap between the base value and the median often means the distribution is skewed by an asymmetric bull or bear scenario.
+
+**Histogram** — the UI plots simulated fair values as a density histogram. A narrow, symmetric histogram signals stable value across assumptions; a wide or right-skewed histogram signals high sensitivity to upside assumptions.
+
+**Versus base/bull/bear** — the three named scenarios are manually specified discrete cases. Monte Carlo fills in the continuous probability mass between them. The p10 is not the bear case — it is the 10th percentile of the full simulated distribution, which will differ from the hand-crafted bear inputs.
 
 ## Web Feature Parity
 
