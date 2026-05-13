@@ -99,3 +99,32 @@ export const mockProvenance = {
   latestFilingDate: '2026-10-31',
   latestStatementSource: 'SEC companyfacts',
 };
+
+export const mockDemoReplaySnapshot = {
+  runId: 'demo-replay-r1',
+  ticker: 'AAPL',
+  createdAt: new Date('2026-05-02T10:00:00.000Z').getTime(),
+  scenario: 'base' as const,
+  assumptions: {
+    base: { revenueGrowth: 8, operatingMargin: 20, discountRate: 9, terminalGrowth: 2 },
+    bull: { revenueGrowth: 10, operatingMargin: 24, discountRate: 8, terminalGrowth: 2.5 },
+    bear: { revenueGrowth: 5, operatingMargin: 16, discountRate: 10, terminalGrowth: 1.5 },
+  },
+  scenarios: {
+    base: { fairValue: 145.2 },
+    bull: { fairValue: 185.5 },
+    bear: { fairValue: 112.3 },
+  },
+  range: [112.3, 185.5] as [number, number],
+  histogram: mockHistogram,
+  sensitivityMatrix: mockSensitivityMatrix,
+  sensitivity: {
+    growthOffsets: [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+    waccOffsets: [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2],
+  },
+  projections: mockProjectionRows,
+  kpis: mockKpis,
+  statementHistory: mockStatementHistory,
+  monteCarloSummary: mockMonteCarloSummary,
+  provenance: mockProvenance,
+};

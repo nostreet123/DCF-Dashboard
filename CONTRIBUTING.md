@@ -2,6 +2,8 @@
 
 Thanks for taking a look at DCF Dashboard.
 
+The fastest way to get oriented is the [full onboarding walkthrough](docs/public-repo-audit-phase3.md), which covers golden paths, env configuration, and demo mode in one place. This file covers the mechanics of contributing once you are set up.
+
 ## Before You Start
 
 - Node `22.x` and npm `11.x` are the tested JavaScript toolchain

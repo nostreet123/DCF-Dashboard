@@ -509,7 +509,12 @@ Important clarification:
 - The signed internal headers protect Next.js persistence routes such as
   `POST /api/dcf/run` persistence and `POST /api/company/facts`.
 - Next.js to FastAPI calls use `fetchDcfEngine()` and `DCF_ENGINE_URL`; they are
-  not protected by the same signed-header flow.
+  not protected by the same signed-header flow. This is intentional for local
+  demos: set `DCF_ENGINE_ALLOW_UNSIGNED=1` to skip the key check entirely, or
+  set `DCF_ENGINE_INTERNAL_KEY` to a shared secret when you want request
+  authentication without a full signed-header setup. In production the FastAPI
+  service should sit behind a private network boundary so that only the Next.js
+  layer can reach it.
 
 ---
 

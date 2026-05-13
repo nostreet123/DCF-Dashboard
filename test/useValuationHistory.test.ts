@@ -4,10 +4,14 @@ import { describe, expect, test } from "bun:test";
 import {
   buildValuationHistoryPath,
   buildValuationRunDetailPath,
+  getDemoHistoryItems,
+  getDemoReplayForRun,
+  isDemoHistoryRun,
   mapValuationRunsToHistoryItems,
   normalizeValuationReplay,
   toUserFacingValuationHistoryError,
 } from "../lib/hooks/useValuationHistory";
+import { mockRunHistory } from "../lib/workbench/mockData";
 
 describe("valuation history hook helpers", () => {
   test("builds ticker history path", () => {
@@ -165,5 +169,51 @@ describe("valuation history hook helpers", () => {
         message: "Valuation history fetch failed",
       }).message,
     ).toBe("Unable to load recent runs.");
+  });
+});
+
+describe("demo mode helpers", () => {
+  test("getDemoHistoryItems returns all mock run history entries", () => {
+    const items = getDemoHistoryItems();
+    expect(items).toHaveLength(mockRunHistory.length);
+    expect(items.map((i) => i.id)).toEqual(mockRunHistory.map((r) => r.id));
+    expect(items.map((i) => i.ticker)).toEqual(mockRunHistory.map((r) => r.ticker));
+  });
+
+  test("isDemoHistoryRun returns true for known mock run IDs", () => {
+    for (const run of mockRunHistory) {
+      expect(isDemoHistoryRun(run.id)).toBe(true);
+    }
+  });
+
+  test("isDemoHistoryRun returns false for unknown run IDs", () => {
+    expect(isDemoHistoryRun("unknown-run-id")).toBe(false);
+    expect(isDemoHistoryRun("")).toBe(false);
+  });
+
+  test("getDemoReplayForRun returns a snapshot with the correct runId and ticker", () => {
+    for (const run of mockRunHistory) {
+      const snapshot = getDemoReplayForRun(run.id);
+      expect(snapshot).not.toBeNull();
+      expect(snapshot!.runId).toBe(run.id);
+      expect(snapshot!.ticker).toBe(run.ticker);
+      expect(snapshot!.provenance?.symbol).toBe(run.ticker);
+    }
+  });
+
+  test("getDemoReplayForRun returns null for unknown run IDs", () => {
+    expect(getDemoReplayForRun("not-a-real-run")).toBeNull();
+  });
+
+  test("getDemoReplayForRun snapshots for different runs have independent tickers", () => {
+    const [first, second] = mockRunHistory;
+    if (!first || !second) {
+      return;
+    }
+    const snap1 = getDemoReplayForRun(first.id);
+    const snap2 = getDemoReplayForRun(second.id);
+    expect(snap1!.ticker).not.toBe(snap2!.ticker);
+    expect(snap1!.ticker).toBe(first.ticker);
+    expect(snap2!.ticker).toBe(second.ticker);
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getDashboardDataMode } from '@/lib/dashboardDataMode';
 import {
   buildValuationHistoryPath,
   buildValuationRunDetailPath,
@@ -9,6 +10,30 @@ import {
   type ValuationReplaySnapshot,
   type ValuationRun,
 } from '@/lib/valuationHistory';
+import { mockDemoReplaySnapshot, mockRunHistory } from '@/lib/workbench/mockData';
+
+export function getDemoHistoryItems(): ValuationHistoryItem[] {
+  return mockRunHistory;
+}
+
+export function getDemoReplayForRun(runId: string): ValuationReplaySnapshot | null {
+  const entry = mockRunHistory.find((r) => r.id === runId);
+  if (!entry) {
+    return null;
+  }
+  return {
+    ...mockDemoReplaySnapshot,
+    runId,
+    ticker: entry.ticker,
+    provenance: mockDemoReplaySnapshot.provenance
+      ? { ...mockDemoReplaySnapshot.provenance, symbol: entry.ticker }
+      : undefined,
+  } as ValuationReplaySnapshot;
+}
+
+export function isDemoHistoryRun(runId: string): boolean {
+  return mockRunHistory.some((r) => r.id === runId);
+}
 
 export {
   buildValuationHistoryPath,
@@ -81,13 +106,19 @@ function useValuationHistoryRequest(
   lookup: ValuationHistoryLookup,
   options: ValuationHistoryOptions = {},
 ): ValuationHistoryResult {
+  const isDemo = getDashboardDataMode() === 'demo';
+  const demoRuns = useMemo<ValuationHistoryItem[]>(
+    () => (isDemo ? mockRunHistory : []),
+    [isDemo],
+  );
+
   const [runs, setRuns] = useState<ValuationHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
   const path =
-    options.enabled === false
+    options.enabled === false || isDemo
       ? null
       : buildValuationHistoryPath(lookup, { browserReads: options.browserReads });
 
@@ -155,11 +186,13 @@ function useValuationHistoryRequest(
     };
   }, [path, refreshToken]);
 
+  const effectiveRuns = isDemo ? demoRuns : runs;
+
   return {
-    runs,
+    runs: effectiveRuns,
     isLoading,
     error,
-    latestRun: runs[0] ?? null,
+    latestRun: effectiveRuns[0] ?? null,
     refresh: () => {
       setRefreshToken((value) => value + 1);
     },
@@ -170,6 +203,9 @@ function useValuationReplayRequest(
   runId: string | undefined,
   options: ValuationHistoryOptions = {},
 ): ValuationReplayResult {
+  const isDemo = getDashboardDataMode() === 'demo';
+  const isDemoRun = isDemo && runId !== undefined && isDemoHistoryRun(runId);
+
   const [activeRunId, setActiveRunId] = useState<string | null>(runId ?? null);
   const [replay, setReplay] = useState<ValuationReplaySnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -177,14 +213,16 @@ function useValuationReplayRequest(
   const [refreshToken, setRefreshToken] = useState(0);
 
   const path =
-    options.enabled === false
+    options.enabled === false || isDemoRun
       ? null
       : buildValuationRunDetailPath(runId, { browserReads: options.browserReads });
 
   useEffect(() => {
     if (!path) {
-      setActiveRunId(null);
-      setReplay(null);
+      if (!isDemoRun) {
+        setActiveRunId(null);
+        setReplay(null);
+      }
       setIsLoading(false);
       setError(null);
       return;
@@ -247,9 +285,15 @@ function useValuationReplayRequest(
     };
   }, [path, refreshToken, runId]);
 
+  const effectiveReplay = isDemoRun && runId !== undefined
+    ? getDemoReplayForRun(runId)
+    : replay;
+
+  const effectiveActiveRunId = isDemoRun ? (runId ?? null) : activeRunId;
+
   return {
-    activeRunId,
-    replay,
+    activeRunId: effectiveActiveRunId,
+    replay: effectiveReplay,
     isLoading,
     error,
     refresh: () => {
