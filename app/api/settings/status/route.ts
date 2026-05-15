@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 
 import { isAdminModeConfigured } from "@/app/api/_lib/adminMode";
