@@ -31,6 +31,6 @@ echo "==> Lint"
 npm run lint
 
 echo "==> Next.js build"
-npm run build
+NEXT_BUILD_ASSUME_PRECHECKS=true npm run build
 
 echo "Harness verification passed."
