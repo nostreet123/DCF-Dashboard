@@ -283,7 +283,7 @@ function useValuationReplayRequest(
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [path, refreshToken, runId]);
+  }, [isDemoRun, path, refreshToken, runId]);
 
   const effectiveReplay = isDemoRun && runId !== undefined
     ? getDemoReplayForRun(runId)
