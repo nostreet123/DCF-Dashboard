@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
