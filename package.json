@@ -15,6 +15,7 @@
     "start": "next start",
     "demo:compute": "python scripts/run_workbench_demo.py examples/workbench-demo-request.json",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "smoke:alive": "bash scripts/smoke_alive.sh",
     "harness:verify": "bash scripts/harness_verify.sh",
     "harness:e2e:smoke": "bash scripts/harness_e2e_smoke.sh",
