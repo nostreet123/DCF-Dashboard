@@ -176,6 +176,9 @@ def check_convex_query_indexes(errors: list[str]) -> None:
 
 
 def check_tracked_ds_store(errors: list[str]) -> None:
+    if not (ROOT / ".git").exists():
+        return
+
     result = subprocess.run(
         ["git", "ls-files", "**/.DS_Store", ".DS_Store"],
         cwd=ROOT,
