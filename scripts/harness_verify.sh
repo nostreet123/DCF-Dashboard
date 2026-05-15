@@ -21,13 +21,16 @@ echo "==> Python tests"
   "$python_bin" -m pytest tests -q
 )
 
+echo "==> TypeScript typecheck"
+npm run typecheck
+
 echo "==> Convex typecheck"
 scripts/ensure_bun.sh bunx convex typecheck
 
-echo "==> Next.js build"
-npm run build
-
 echo "==> Lint"
 npm run lint
+
+echo "==> Next.js build"
+npm run build
 
 echo "Harness verification passed."
