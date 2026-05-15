@@ -39,6 +39,16 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next",
+    ".venv",
+    "python",
+    "convex_tests",
+    "test",
+    "e2e",
+    "scripts",
+    "playwright-report",
+    "test-results",
+    "run_asset_backfill.js"
   ]
 }
