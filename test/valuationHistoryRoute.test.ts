@@ -13,6 +13,7 @@ import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
+const originalAllowLocalhost = process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
 const originalQuery = ConvexHttpClient.prototype.query;
 
 let restoreSecurityMock: (() => void) | null = null;
@@ -20,6 +21,7 @@ let restoreSecurityMock: (() => void) | null = null;
 beforeEach(() => {
   process.env.CONVEX_URL = "https://example.convex.cloud";
   process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
+  delete process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
   const securityMock = installSecurityMutationsMock();
   restoreSecurityMock = securityMock.restore;
 });
@@ -47,6 +49,11 @@ afterEach(() => {
     delete process.env.INTERNAL_PERSISTENCE_KEY;
   } else {
     process.env.INTERNAL_PERSISTENCE_KEY = originalInternalPersistenceKey;
+  }
+  if (originalAllowLocalhost === undefined) {
+    delete process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST;
+  } else {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = originalAllowLocalhost;
   }
 });
 

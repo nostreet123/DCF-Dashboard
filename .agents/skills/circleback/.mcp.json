@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "circleback": {
-      "type": "http",
-      "url": "https://app.circleback.ai/api/mcp"
-    }
-  }
-}

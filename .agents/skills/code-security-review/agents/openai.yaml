@@ -1,4 +1,0 @@
-interface:
-  display_name: "Code Security Review"
-  short_description: "Audit code for vulnerabilities and best practices"
-  default_prompt: "Perform a comprehensive security review of the provided code. First, if available, run scripts/quick_scan.py to surface hotspots; treat matches as leads (validate in the manual pass). Identify entry points/trust boundaries and sensitive data flows. Check common vulnerabilities: injection (SQL/NoSQL/raw queries), XSS, authentication/authorization (incl. IDOR), insecure data handling, hardcoded secrets/credentials. Verify best practices: input validation, output encoding, secure defaults, safe error messages, safe logging/redaction. Report findings sorted by severity. For each finding include: file:line, severity, confidence, description (impact + exploitability), evidence pointer (endpoint/function + data flow), recommended fix (specific), and suggested test. If no issues found, say so and list areas reviewed."
