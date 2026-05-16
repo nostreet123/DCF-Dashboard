@@ -81,7 +81,7 @@ export function RightPanel({
             label="Operating Margin"
             value={assumptions.operatingMargin}
             min={5}
-            max={50}
+            max={60}
             step={0.5}
             onChange={(v) => onAssumptionChange?.('operatingMargin', v)}
             formatValue={(v) => `${v.toFixed(1)}%`}
