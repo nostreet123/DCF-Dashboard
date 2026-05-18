@@ -13,7 +13,7 @@ This audit reviewed the public web/API surface in Next.js, the FastAPI DCF engin
 - Next.js shared security helpers under `app/api/_lib/`
 - Convex public queries and mutations under `convex/`
 - FastAPI service entrypoints under `python/dcf_engine/service/`
-- Quick hotspot scan via `python3 .agents/skills/code-security-review/scripts/quick_scan.py /root/DCF-Dashboard --output json`
+- Automated hotspot scan across the above paths
 
 ## Findings
 

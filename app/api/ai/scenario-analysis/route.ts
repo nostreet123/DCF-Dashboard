@@ -73,7 +73,7 @@ const scenarioJsonSchema = {
   ],
   properties: {
     revenueGrowth: { type: "number", minimum: -5, maximum: 30 },
-    operatingMargin: { type: "number", minimum: 5, maximum: 50 },
+    operatingMargin: { type: "number", minimum: 5, maximum: 60 },
     discountRate: { type: "number", minimum: 5, maximum: 20 },
     terminalGrowth: { type: "number", minimum: 0, maximum: 5 },
     rationale: { type: "string", minLength: 1 },
@@ -104,7 +104,7 @@ const isNumber = (value: unknown): value is number =>
 
 const assumptionBounds = {
   revenueGrowth: { min: -5, max: 30 },
-  operatingMargin: { min: 5, max: 50 },
+  operatingMargin: { min: 5, max: 60 },
   discountRate: { min: 5, max: 20 },
   terminalGrowth: { min: 0, max: 5 },
 } as const;

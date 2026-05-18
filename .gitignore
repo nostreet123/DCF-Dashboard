@@ -37,3 +37,15 @@ bun.lockb
 playwright-report/
 test-results/
 blob-report/
+.playwright-cli/
+
+# Internal agent/process artifacts — kept local, not published
+.agent/
+.agents/
+ASSISTANT_LOG.md
+AGENTS.md
+AGENT_INDEX.md
+documentation/
+docs/agent-context-policy.md
+docs/assistant-log-archive.md
+docs/plans/
