@@ -1,0 +1,21 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/guides/configuration-overview
+#
+# Exclude internal-only artifacts that are gitignored locally but appear
+# in PR diffs whenever they are first untracked. These are agent process,
+# planning, and skill files — not product code — and they make the file
+# count balloon past CodeRabbit's review limit on cleanup PRs.
+
+reviews:
+  path_filters:
+    - "!.agent/**"
+    - "!.agents/**"
+    - "!documentation/**"
+    - "!docs/plans/**"
+    - "!docs/agent-context-policy.md"
+    - "!docs/assistant-log-archive.md"
+    - "!ASSISTANT_LOG.md"
+    - "!AGENTS.md"
+    - "!AGENT_INDEX.md"
+    - "!.replit"
+    - "!.playwright-cli/**"
