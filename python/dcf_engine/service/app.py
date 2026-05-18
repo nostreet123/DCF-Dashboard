@@ -40,6 +40,17 @@ app = FastAPI(
     openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
 
+@app.get("/healthz", include_in_schema=False)
+async def healthz() -> dict[str, str]:
+    """Liveness endpoint for platform health checks (Render, Fly, etc.).
+
+    Unauthenticated by design — exposes only a static 'ok' marker so a
+    platform can verify the service is up without triggering rate-limit
+    or signed-request paths.
+    """
+    return {"status": "ok"}
+
+
 SEC_SEARCH_FAILURE_DETAIL = "SEC search failed"
 SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
 SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"

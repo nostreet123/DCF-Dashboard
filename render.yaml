@@ -1,0 +1,38 @@
+# Render IaC for the FastAPI DCF engine
+# https://render.com/docs/blueprint-spec
+#
+# Connect this repo to Render via Blueprint and it will provision the
+# service below. Secrets (sync: false) must be set in the Render dashboard
+# after the first deploy — see DEPLOY_SECURITY_RUNBOOK.md.
+
+services:
+  - type: web
+    name: dcf-engine
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: |
+      python -m pip install --upgrade pip
+      python -m pip install -r python/requirements.txt -c python/constraints.txt
+    startCommand: |
+      cd python && python -m uvicorn dcf_engine.service.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: PYTHONPATH
+        value: python
+      # ---- secrets — set in Render dashboard, do NOT commit ----
+      - key: SEC_USER_AGENT
+        sync: false
+      - key: DCF_ENGINE_INTERNAL_KEY
+        sync: false
+      - key: CONVEX_URL
+        sync: false
+      - key: DAMODARAN_SYNC_TOKEN
+        sync: false
+      # ---- production hardening: leave unset ----
+      # DCF_ENGINE_EXPOSE_DOCS — keep unset
+      # DCF_ENGINE_ALLOW_UNSIGNED — keep unset
+      # DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES — keep unset
