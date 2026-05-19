@@ -15,40 +15,45 @@ for (const entry of glob.scanSync({ cwd: convexDir, absolute: false })) {
 }
 
 test("performance regression test for approveImportedFacts", async () => {
-    const t = convexTest(schema, modules);
-    process.env.DAMODARAN_SYNC_TOKEN = TEST_SYNC_TOKEN;
+  const t = convexTest(schema, modules);
+  process.env.DAMODARAN_SYNC_TOKEN = TEST_SYNC_TOKEN;
 
-    const artifactIds = Array.from({ length: 50 }, (_, i) => `artifact-${i}`);
+  const artifactIds = Array.from({ length: 50 }, (_, i) => `artifact-${i}`);
 
-    await t.run(async (ctx) => {
-        for (const id of artifactIds) {
-            await ctx.db.insert("importArtifacts", {
-                artifactId: id,
-                listingId: "XLON:VOD",
-                kind: "incomeStatement",
-                status: "pending",
-                originalFilename: `${id}.pdf`,
-                parserName: "test",
-                fileFormat: "pdf",
-                byteSize: 1000,
-                createdAt: Date.now()
-            });
-        }
-    });
-
-    const start = performance.now();
-    await t.mutation(api.imports.approveImportedFacts, {
-        syncToken: TEST_SYNC_TOKEN,
+  await t.run(async (ctx) => {
+    for (const id of artifactIds) {
+      await ctx.db.insert("importArtifacts", {
+        artifactId: id,
         listingId: "XLON:VOD",
-        symbol: "VOD",
-        name: "Vodafone",
-        coverageState: "valuation_ready",
-        facts: {},
-        review: {},
-        provenance: {},
-        sourceLinks: [],
-        artifactIds: artifactIds
-    });
-    const end = performance.now();
-    console.log(`approveImportedFacts took ${end - start} ms`);
+        kind: "incomeStatement",
+        status: "pending",
+        originalFilename: `${id}.pdf`,
+        parserName: "test",
+        fileFormat: "pdf",
+        byteSize: 1000,
+        createdAt: Date.now(),
+      });
+    }
+  });
+
+  await t.mutation(api.imports.approveImportedFacts, {
+    syncToken: TEST_SYNC_TOKEN,
+    listingId: "XLON:VOD",
+    symbol: "VOD",
+    name: "Vodafone",
+    coverageState: "valuation_ready",
+    facts: {},
+    review: {},
+    provenance: {},
+    sourceLinks: [],
+    artifactIds: artifactIds,
+  });
+
+  const artifacts = await t.query(api.imports.listArtifactsForListing, {
+    syncToken: TEST_SYNC_TOKEN,
+    listingId: "XLON:VOD",
+    limit: 50,
+  });
+  expect(artifacts.length).toBe(50);
+  expect(artifacts.every((a) => a.status === "approved")).toBe(true);
 });
