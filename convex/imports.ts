@@ -1,6 +1,9 @@
 import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { normalizeOptionalSymbol, normalizePositiveIntegerLimit } from "./normalization";
+import {
+  normalizeOptionalSymbol,
+  normalizePositiveIntegerLimit,
+} from "./normalization";
 import { requireSyncToken } from "./syncAuth";
 
 const ImportedArtifactKind = v.union(
@@ -100,7 +103,9 @@ export const saveParsedArtifact = mutation({
     requireSyncToken(args.syncToken);
     const existing = await ctx.db
       .query("importArtifacts")
-      .withIndex("by_artifactId", (q: any) => q.eq("artifactId", args.artifactId))
+      .withIndex("by_artifactId", (q: any) =>
+        q.eq("artifactId", args.artifactId),
+      )
       .unique();
     const patch = {
       listingId: args.listingId,
@@ -149,7 +154,10 @@ export const approveImportedFacts = mutation({
     requireSyncToken(args.syncToken);
     const symbol = normalizeOptionalSymbol(args.symbol);
     if (!symbol) {
-      throw new ConvexError({ code: "BAD_REQUEST", message: "Symbol is required" });
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Symbol is required",
+      });
     }
     const now = Date.now();
     const existing = await ctx.db
@@ -174,15 +182,22 @@ export const approveImportedFacts = mutation({
       approvedAt: now,
       updatedAt: now,
     };
-    for (const artifactId of args.artifactIds) {
-      const artifact = await ctx.db
-        .query("importArtifacts")
-        .withIndex("by_artifactId", (q: any) => q.eq("artifactId", artifactId))
-        .unique();
-      if (artifact) {
-        await ctx.db.patch(artifact._id, { status: "approved", approvedAt: now });
-      }
-    }
+    await Promise.all(
+      args.artifactIds.map(async (artifactId) => {
+        const artifact = await ctx.db
+          .query("importArtifacts")
+          .withIndex("by_artifactId", (q: any) =>
+            q.eq("artifactId", artifactId),
+          )
+          .unique();
+        if (artifact) {
+          await ctx.db.patch(artifact._id, {
+            status: "approved",
+            approvedAt: now,
+          });
+        }
+      }),
+    );
     if (existing) {
       await ctx.db.patch(existing._id, doc);
       return existing._id;
@@ -206,7 +221,9 @@ export const getImportedFacts = query({
 
     return ctx.db
       .query("importedFacts")
-      .withIndex("by_listingId_updatedAt", (q: any) => q.eq("listingId", listingId))
+      .withIndex("by_listingId_updatedAt", (q: any) =>
+        q.eq("listingId", listingId),
+      )
       .filter((q) => q.eq(q.field("coverageState"), "valuation_ready"))
       .order("desc")
       .first();
@@ -257,7 +274,9 @@ export const listArtifactsForListing = query({
     }
     return ctx.db
       .query("importArtifacts")
-      .withIndex("by_listingId_createdAt", (q: any) => q.eq("listingId", args.listingId))
+      .withIndex("by_listingId_createdAt", (q: any) =>
+        q.eq("listingId", args.listingId),
+      )
       .order("desc")
       .take(limit);
   },
