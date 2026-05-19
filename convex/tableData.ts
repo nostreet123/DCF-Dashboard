@@ -290,9 +290,9 @@ export const deleteBySnapshotBuild = mutation({
       )
       .take(args.limit);
 
-    for (const row of rows) {
-      await ctx.db.delete(row._id);
-    }
+    await Promise.all(
+      rows.map(row => ctx.db.delete(row._id))
+    );
 
     await logAudit(ctx, "tableData.deleteBySnapshotBuild", {
       snapshotId: args.snapshotId,
@@ -388,13 +388,13 @@ export const deleteNonActiveRowsPage = mutation({
         numItems: limit,
       });
 
-    let deleted = 0;
-    for (const row of result.page) {
-      if (row.buildId !== args.activeBuildId) {
-        await ctx.db.delete(row._id);
-        deleted += 1;
-      }
-    }
+    const rowsToDelete = result.page.filter(row => row.buildId !== args.activeBuildId);
+
+    await Promise.all(
+      rowsToDelete.map(row => ctx.db.delete(row._id))
+    );
+
+    const deleted = rowsToDelete.length;
 
     if (deleted > 0) {
       await logAudit(ctx, "tableData.deleteNonActiveRowsPage", {
@@ -436,15 +436,16 @@ export const backfillPrimaryKeyNormPage = mutation({
         numItems: limit,
       });
 
-    let updated = 0;
-    for (const row of result.page) {
-      if (row.primaryKeyNorm) {
-        continue;
-      }
-      const normalized = normalizePrimaryKey(row.primaryKey);
-      await ctx.db.patch(row._id, { primaryKeyNorm: normalized });
-      updated += 1;
-    }
+    const rowsToUpdate = result.page.filter(row => !row.primaryKeyNorm);
+
+    await Promise.all(
+      rowsToUpdate.map(row => {
+        const normalized = normalizePrimaryKey(row.primaryKey);
+        return ctx.db.patch(row._id, { primaryKeyNorm: normalized });
+      })
+    );
+
+    const updated = rowsToUpdate.length;
 
     return {
       updated,
@@ -480,8 +481,9 @@ export const backfillMissingPrimaryKeyNormPage = mutation({
         numItems: limit,
       });
 
-    let updated = 0;
     const seenSnapshots = new Map<string, { snapshotId: any; buildId: string }>();
+    const rowsToUpdate = [];
+
     for (const row of result.page) {
       const snapshotKey = `${row.snapshotId}:${row.buildId}`;
       if (!seenSnapshots.has(snapshotKey)) {
@@ -490,13 +492,19 @@ export const backfillMissingPrimaryKeyNormPage = mutation({
           buildId: row.buildId,
         });
       }
-      if (row.primaryKeyNorm) {
-        continue;
+      if (!row.primaryKeyNorm) {
+        rowsToUpdate.push(row);
       }
-      const normalized = normalizePrimaryKey(row.primaryKey);
-      await ctx.db.patch(row._id, { primaryKeyNorm: normalized });
-      updated += 1;
     }
+
+    await Promise.all(
+      rowsToUpdate.map(row => {
+        const normalized = normalizePrimaryKey(row.primaryKey);
+        return ctx.db.patch(row._id, { primaryKeyNorm: normalized });
+      })
+    );
+
+    const updated = rowsToUpdate.length;
 
     return {
       updated,
