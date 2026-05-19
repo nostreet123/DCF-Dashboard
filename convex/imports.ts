@@ -182,22 +182,27 @@ export const approveImportedFacts = mutation({
       approvedAt: now,
       updatedAt: now,
     };
-    await Promise.all(
-      args.artifactIds.map(async (artifactId) => {
-        const artifact = await ctx.db
-          .query("importArtifacts")
-          .withIndex("by_artifactId", (q: any) =>
-            q.eq("artifactId", artifactId),
-          )
-          .unique();
-        if (artifact) {
-          await ctx.db.patch(artifact._id, {
-            status: "approved",
-            approvedAt: now,
-          });
-        }
-      }),
-    );
+    const artifactIds = Array.from(new Set(args.artifactIds));
+    const approvalBatchSize = 25;
+    for (let i = 0; i < artifactIds.length; i += approvalBatchSize) {
+      const batch = artifactIds.slice(i, i + approvalBatchSize);
+      await Promise.all(
+        batch.map(async (artifactId) => {
+          const artifact = await ctx.db
+            .query("importArtifacts")
+            .withIndex("by_artifactId", (q: any) =>
+              q.eq("artifactId", artifactId),
+            )
+            .unique();
+          if (artifact) {
+            await ctx.db.patch(artifact._id, {
+              status: "approved",
+              approvedAt: now,
+            });
+          }
+        }),
+      );
+    }
     if (existing) {
       await ctx.db.patch(existing._id, doc);
       return existing._id;
