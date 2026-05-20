@@ -388,13 +388,9 @@ export const deleteNonActiveRowsPage = mutation({
         numItems: limit,
       });
 
-    let deleted = 0;
-    for (const row of result.page) {
-      if (row.buildId !== args.activeBuildId) {
-        await ctx.db.delete(row._id);
-        deleted += 1;
-      }
-    }
+    const toDelete = result.page.filter((row) => row.buildId !== args.activeBuildId);
+    await Promise.all(toDelete.map((row) => ctx.db.delete(row._id)));
+    const deleted = toDelete.length;
 
     if (deleted > 0) {
       await logAudit(ctx, "tableData.deleteNonActiveRowsPage", {
