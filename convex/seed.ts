@@ -13,7 +13,7 @@ type SeedDataset = {
   defaultRegionCode: string;
 };
 
-export const SEED_CATEGORIES = [
+const SEED_CATEGORIES = [
   {
     slug: "corporate_governance",
     name: "Corporate Governance",
@@ -76,7 +76,7 @@ export const SEED_CATEGORIES = [
   },
 ];
 
-export const SEED_REGIONS = [
+const SEED_REGIONS = [
   {
     code: "us",
     name: "United States",
@@ -133,7 +133,7 @@ export const SEED_REGIONS = [
   },
 ];
 
-export const SEED_DATASETS: SeedDataset[] = [
+const SEED_DATASETS: SeedDataset[] = [
   {
     key: "inshold",
     name: "Insider and Institutional Holdings",
@@ -479,7 +479,7 @@ const REGIONAL_BASE_DATASETS = [
   "optvar",
 ];
 
-export const SEED_DATASET_MAPPINGS = [
+const SEED_DATASET_MAPPINGS = [
   { pattern: "dollarus", datasetKey: "dollar", isRegex: false },
   { pattern: "r&d", datasetKey: "rd", isRegex: false },
   { pattern: regionalPattern("dollar"), datasetKey: "dollar", isRegex: true },
@@ -526,75 +526,58 @@ export const upsertAll = mutation({
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
 
-    const [
-      existingCategories,
-      existingRegions,
-      existingDatasets,
-      existingMappings,
-    ] = await Promise.all([
-      ctx.db.query("categories").collect(),
-      ctx.db.query("regions").collect(),
-      ctx.db.query("datasets").collect(),
-      ctx.db.query("datasetMappings").collect(),
-    ]);
-
-    const categoryMap = new Map(existingCategories.map((c) => [c.slug, c]));
-    const regionMap = new Map(existingRegions.map((r) => [r.code, r]));
-    const datasetMap = new Map(existingDatasets.map((d) => [d.key, d]));
-    const mappingMap = new Map(
-      existingMappings.map((m) => [
-        JSON.stringify([m.pattern, m.datasetKey, m.isRegex]),
-        m,
-      ]),
-    );
-
-    const categoryOps = SEED_CATEGORIES.map((category) => {
-      const existing = categoryMap.get(category.slug);
+    for (const category of SEED_CATEGORIES) {
+      const existing = await ctx.db
+        .query("categories")
+        .withIndex("by_slug", (q) => q.eq("slug", category.slug))
+        .unique();
       if (existing) {
-        return ctx.db.patch(existing._id, category);
+        await ctx.db.patch(existing._id, category);
       } else {
-        return ctx.db.insert("categories", category);
+        await ctx.db.insert("categories", category);
       }
-    });
+    }
 
-    const regionOps = SEED_REGIONS.map((region) => {
-      const existing = regionMap.get(region.code);
+    for (const region of SEED_REGIONS) {
+      const existing = await ctx.db
+        .query("regions")
+        .withIndex("by_code", (q) => q.eq("code", region.code))
+        .unique();
       if (existing) {
-        return ctx.db.patch(existing._id, region);
+        await ctx.db.patch(existing._id, region);
       } else {
-        return ctx.db.insert("regions", region);
+        await ctx.db.insert("regions", region);
       }
-    });
+    }
 
-    const datasetOps = SEED_DATASETS.map((dataset) => {
-      const existing = datasetMap.get(dataset.key);
+    for (const dataset of SEED_DATASETS) {
+      const existing = await ctx.db
+        .query("datasets")
+        .withIndex("by_key", (q) => q.eq("key", dataset.key))
+        .unique();
       if (existing) {
-        return ctx.db.patch(existing._id, dataset);
+        await ctx.db.patch(existing._id, dataset);
       } else {
-        return ctx.db.insert("datasets", dataset);
+        await ctx.db.insert("datasets", dataset);
       }
-    });
+    }
 
-    const mappingOps = SEED_DATASET_MAPPINGS.map((mapping) => {
-      const key = JSON.stringify([
-        mapping.pattern,
-        mapping.datasetKey,
-        mapping.isRegex,
-      ]);
-      const existing = mappingMap.get(key);
+    for (const mapping of SEED_DATASET_MAPPINGS) {
+      const existing = await ctx.db
+        .query("datasetMappings")
+        .withIndex("by_identity", (q) =>
+          q
+            .eq("pattern", mapping.pattern)
+            .eq("datasetKey", mapping.datasetKey)
+            .eq("isRegex", mapping.isRegex),
+        )
+        .unique();
       if (existing) {
-        return ctx.db.patch(existing._id, mapping);
+        await ctx.db.patch(existing._id, mapping);
       } else {
-        return ctx.db.insert("datasetMappings", mapping);
+        await ctx.db.insert("datasetMappings", mapping);
       }
-    });
-
-    await Promise.all([
-      ...categoryOps,
-      ...regionOps,
-      ...datasetOps,
-      ...mappingOps,
-    ]);
+    }
     return null;
   },
 });
