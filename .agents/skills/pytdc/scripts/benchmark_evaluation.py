@@ -11,6 +11,8 @@ Usage:
 
 from tdc.benchmark_group import admet_group
 from tdc import Evaluator
+from tdc.chem_utils.featurize.molconvert import MoleculeFingerprint
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 import numpy as np
 import pandas as pd
 
@@ -56,36 +58,49 @@ def single_dataset_evaluation(group, dataset_name='Caco2_Wang'):
 
     # Required: Evaluate with 5 different seeds
     predictions = {}
+    fp = MoleculeFingerprint(fp='ECFP4')
 
     for seed in [1, 2, 3, 4, 5]:
         print(f"\n--- Seed {seed} ---")
 
-        # Get train/valid data for this seed
+        # Get train/valid/test data for this seed
         train = benchmark[seed]['train']
         valid = benchmark[seed]['valid']
+        test = benchmark[seed]['test']
 
         print(f"Train size: {len(train)}")
         print(f"Valid size: {len(valid)}")
 
-        # TODO: Replace with your model training
-        # model = YourModel()
-        # model.fit(train['Drug'], train['Y'])
-
-        # For demonstration, create dummy predictions
-        # Replace with: predictions[seed] = model.predict(benchmark[seed]['test'])
-        test = benchmark[seed]['test']
+        # Featurize the SMILES strings
+        X_train = fp(train['Drug'].values.tolist())
+        X_test = fp(test['Drug'].values.tolist())
+        y_train = train['Y'].values
         y_true = test['Y'].values
 
-        # Simulate predictions (add controlled noise)
-        np.random.seed(seed)
-        y_pred = y_true + np.random.normal(0, 0.3, len(y_true))
+        # Detect task type: classification (binary 0/1) or regression
+        unique_y = np.unique(y_train)
+        is_classification = len(unique_y) == 2 and np.all(np.isin(unique_y, [0, 1]))
+
+        if is_classification:
+            # Initialize and train RandomForestClassifier
+            model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=seed)
+            model.fit(X_train, y_train)
+            # Use predict_proba for the positive class to get AUC-based scores
+            y_pred = model.predict_proba(X_test)[:, 1]
+            metric_name = 'ROC-AUC'
+        else:
+            # Initialize and train RandomForestRegressor
+            model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=seed)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            metric_name = 'MAE'
 
         predictions[seed] = y_pred
 
         # Evaluate this seed
-        evaluator = Evaluator(name='MAE')
+        evaluator = Evaluator(name=metric_name)
         score = evaluator(y_true, y_pred)
-        print(f"MAE for seed {seed}: {score:.4f}")
+        print(f"{metric_name} for seed {seed}: {score:.4f}")
 
     # Evaluate across all seeds
     print("\n--- Overall Evaluation ---")
@@ -112,6 +127,7 @@ def multiple_datasets_evaluation(group):
 
     all_predictions = {}
     all_results = {}
+    fp = MoleculeFingerprint(fp='ECFP4')
 
     for dataset_name in selected_datasets:
         print(f"\n{'='*40}")
@@ -126,15 +142,27 @@ def multiple_datasets_evaluation(group):
             train = benchmark[seed]['train']
             test = benchmark[seed]['test']
 
-            # TODO: Replace with your model
-            # model = YourModel()
-            # model.fit(train['Drug'], train['Y'])
-            # predictions[seed] = model.predict(test['Drug'])
+            # Featurize the SMILES strings
+            X_train = fp(train['Drug'].values.tolist())
+            X_test = fp(test['Drug'].values.tolist())
+            y_train = train['Y'].values
 
-            # Dummy predictions for demonstration
-            np.random.seed(seed)
-            y_true = test['Y'].values
-            y_pred = y_true + np.random.normal(0, 0.3, len(y_true))
+            # Detect task type: classification (binary 0/1) or regression
+            unique_y = np.unique(y_train)
+            is_classification = len(unique_y) == 2 and np.all(np.isin(unique_y, [0, 1]))
+
+            if is_classification:
+                # Initialize and train RandomForestClassifier
+                model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=seed)
+                model.fit(X_train, y_train)
+                # Use predict_proba for the positive class to get AUC-based scores
+                y_pred = model.predict_proba(X_test)[:, 1]
+            else:
+                # Initialize and train RandomForestRegressor
+                model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=seed)
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+
             predictions[seed] = y_pred
 
         all_predictions[dataset_name] = predictions
@@ -154,8 +182,8 @@ def multiple_datasets_evaluation(group):
     results_df = pd.DataFrame([
         {
             'Dataset': name,
-            'Mean MAE': f"{mean:.4f}",
-            'Std MAE': f"{std:.4f}"
+            'Mean Score': f"{mean:.4f}",
+            'Std Dev': f"{std:.4f}"
         }
         for name, (mean, std) in all_results.items()
     ])
