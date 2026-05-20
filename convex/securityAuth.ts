@@ -18,9 +18,7 @@ const pruneExpiredNonces = async (ctx: any, nowMs: number) => {
     .query("securityNonces")
     .withIndex("by_expiresAt", (q: any) => q.lt("expiresAt", nowMs))
     .take(25);
-  for (const row of expiredRows) {
-    await ctx.db.delete(row._id);
-  }
+  await Promise.all(expiredRows.map((row: any) => ctx.db.delete(row._id)));
 };
 
 const listRowsByNonce = async (ctx: any, nonce: string) => {
@@ -71,9 +69,7 @@ export const reserveNonce = mutation({
       return { reserved: false };
     }
 
-    for (const row of rows) {
-      await ctx.db.delete(row._id);
-    }
+    await Promise.all(rows.map((row) => ctx.db.delete(row._id)));
 
     await ctx.db.insert("securityNonces", {
       nonce: args.nonce,
@@ -116,11 +112,8 @@ export const markNonceUsed = mutation({
       updatedAt: now,
     });
 
-    for (const row of rows) {
-      if (row._id !== selected._id) {
-        await ctx.db.delete(row._id);
-      }
-    }
+    const toDelete = rows.filter((row: NonceRow) => row._id !== selected._id);
+    await Promise.all(toDelete.map((row) => ctx.db.delete(row._id)));
 
     return { marked: true };
   },
@@ -139,13 +132,10 @@ export const releasePendingNonce = mutation({
     await pruneExpiredNonces(ctx, Date.now());
 
     const rows = (await listRowsByNonce(ctx, args.nonce)) as NonceRow[];
-    let released = 0;
-    for (const row of rows) {
-      if (row.status === "pending") {
-        await ctx.db.delete(row._id);
-        released += 1;
-      }
-    }
+    const pendingRows = rows.filter((row: NonceRow) => row.status === "pending");
+    await Promise.all(pendingRows.map((row) => ctx.db.delete(row._id)));
+    const released = pendingRows.length;
+
     return { released };
   },
 });
