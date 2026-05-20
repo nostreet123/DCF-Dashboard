@@ -640,9 +640,7 @@ export const clearDuplicateGroupsForScanInternal = internalMutation({
       if (snap.length === 0) {
         break;
       }
-      for (const doc of snap) {
-        await ctx.db.delete(doc._id);
-      }
+      await Promise.all(snap.map((doc: any) => ctx.db.delete(doc._id)));
     }
     while (true) {
       const assets = await ctx.db
@@ -652,9 +650,7 @@ export const clearDuplicateGroupsForScanInternal = internalMutation({
       if (assets.length === 0) {
         break;
       }
-      for (const doc of assets) {
-        await ctx.db.delete(doc._id);
-      }
+      await Promise.all(assets.map((doc: any) => ctx.db.delete(doc._id)));
     }
     return null;
   },
