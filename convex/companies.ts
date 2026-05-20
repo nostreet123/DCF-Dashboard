@@ -218,15 +218,17 @@ export const backfillSearchTextPage = mutation({
         numItems: limit,
       });
 
-    let updated = 0;
-    for (const company of result.page as any[]) {
-      const patch = getCompanyBackfillPatch(company);
-      if (!patch) {
-        continue;
-      }
-      await ctx.db.patch(company._id, patch);
-      updated += 1;
-    }
+    const patches = (result.page as any[])
+      .map((company) => ({
+        id: company._id,
+        patch: getCompanyBackfillPatch(company),
+      }))
+      .filter((item) => item.patch !== null);
+
+    await Promise.all(
+      patches.map((item) => ctx.db.patch(item.id, item.patch!)),
+    );
+    const updated = patches.length;
 
     return {
       processed: result.page.length,
