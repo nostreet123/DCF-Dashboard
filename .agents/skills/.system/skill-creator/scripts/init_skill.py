@@ -3,7 +3,7 @@
 Skill Initializer - Creates a new skill from template
 
 Usage:
-    init_skill.py <skill-name> --path <path> [--resources scripts,references,assets] [--examples] [--interface key=value]
+    init_skill.py <skill-name> --path <path> [--resources scripts,references,assets] [--examples] [--interface key=value] [--structure workflow|task|reference|capability] [--description "Skill description"]
 
 Examples:
     init_skill.py my-new-skill --path skills/public
@@ -11,6 +11,7 @@ Examples:
     init_skill.py my-api-helper --path skills/private --resources scripts --examples
     init_skill.py custom-skill --path /custom/location
     init_skill.py my-skill --path skills/public --interface short_description="Short UI label"
+    init_skill.py helper --path skills/public --structure task --description "Helper for common tasks"
 """
 
 import argparse
@@ -23,18 +24,86 @@ from generate_openai_yaml import write_openai_yaml
 MAX_SKILL_NAME_LENGTH = 64
 ALLOWED_RESOURCES = {"scripts", "references", "assets"}
 
-SKILL_TEMPLATE = """---
-name: {skill_name}
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
----
+STRUCTURE_TEMPLATES = {
+    "workflow": """## Workflow Decision Tree
 
-# {skill_title}
+[TODO: Provide a decision tree to help the user choose the right process]
+- **Scenario A**: Use [Step 1](#step-1-name)
+- **Scenario B**: Use [Step 2](#step-2-name)
 
-## Overview
+## Step 1: [Step 1 Name]
 
-[TODO: 1-2 sentences explaining what this skill enables]
+[TODO: Detailed instructions for Step 1]
+- Include code samples if applicable
+- Mention specific tools or scripts
 
-## Structuring This Skill
+## Step 2: [Step 2 Name]
+
+[TODO: Detailed instructions for Step 2]
+
+## Examples
+
+### [Realistic User Request]
+**Request**: "I need to [perform a specific task using this workflow]"
+**Solution**: [Step-by-step guide on how to use the skill to solve this request]""",
+    "task": """## Quick Start
+
+```python
+# [TODO: Add a 5-10 line code sample showing the most common use case]
+```
+
+## [Task Category 1]
+
+### [Task A Name]
+[TODO: How to perform Task A]
+```bash
+# Example command or code snippet
+```
+
+### [Task B Name]
+[TODO: How to perform Task B]
+
+## Examples
+
+### [Realistic User Request]
+**Request**: "How do I [perform Task A]?"
+**Solution**: [Short explanation and the specific command or code needed]""",
+    "reference": """## Guidelines
+
+[TODO: High-level principles, standards, or rules that govern this skill]
+
+## Specifications
+
+[TODO: Detailed technical specifications, schemas, API formats, or requirements]
+
+## Usage
+
+[TODO: How to apply these guidelines and specifications in practice]
+
+## Examples
+
+### [Realistic User Request]
+**Request**: "What are the rules for [specific scenario]?"
+**Solution**: [Explanation based on the guidelines and specifications above]""",
+    "capability": """## Core Capabilities
+
+### 1. [Feature 1 Name]
+[TODO: Description and usage of Feature 1]
+
+### 2. [Feature 2 Name]
+[TODO: Description and usage of Feature 2]
+
+### 3. [Feature 3 Name]
+[TODO: Description and usage of Feature 3]
+
+## Examples
+
+### [Realistic User Request]
+**Request**: "Can you [use Feature 1] to [achieve a goal]?"
+**Solution**: [Explanation of which capabilities are used and how]""",
+}
+
+DEFAULT_STRUCTURE_GUIDANCE = """## Structuring This Skill
 
 [TODO: Choose the structure that best fits this skill's purpose. Common patterns:
 
@@ -68,7 +137,20 @@ Delete this entire "Structuring This Skill" section when done - it's just guidan
 - Code samples for technical skills
 - Decision trees for complex workflows
 - Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
+- References to scripts/templates/references as needed]"""
+
+SKILL_TEMPLATE = """---
+name: {skill_name}
+description: {description}
+---
+
+# {skill_title}
+
+## Overview
+
+[TODO: 1-2 sentences explaining what this skill enables]
+
+{structure_content}
 
 ## Resources (optional)
 
@@ -255,7 +337,15 @@ def create_resource_dirs(skill_dir, skill_name, skill_title, resources, include_
                 print("[OK] Created assets/")
 
 
-def init_skill(skill_name, path, resources, include_examples, interface_overrides):
+def init_skill(
+    skill_name,
+    path,
+    resources,
+    include_examples,
+    interface_overrides,
+    structure=None,
+    description=None,
+):
     """
     Initialize a new skill directory with template SKILL.md.
 
@@ -264,6 +354,9 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
         path: Path where the skill directory should be created
         resources: Resource directories to create
         include_examples: Whether to create example files in resource directories
+        interface_overrides: Interface overrides for agents/openai.yaml
+        structure: Pre-populate SKILL.md with a specific structure
+        description: Skill description for frontmatter
 
     Returns:
         Path to created skill directory, or None if error
@@ -284,9 +377,17 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
         print(f"[ERROR] Error creating directory: {e}")
         return None
 
-    # Create SKILL.md from template
+    # Determine SKILL.md content
     skill_title = title_case_skill_name(skill_name)
-    skill_content = SKILL_TEMPLATE.format(skill_name=skill_name, skill_title=skill_title)
+    skill_description = description or "[TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]"
+    structure_content = STRUCTURE_TEMPLATES.get(structure, DEFAULT_STRUCTURE_GUIDANCE)
+
+    skill_content = SKILL_TEMPLATE.format(
+        skill_name=skill_name,
+        skill_title=skill_title,
+        description=skill_description,
+        structure_content=structure_content,
+    )
 
     skill_md_path = skill_dir / "SKILL.md"
     try:
@@ -352,6 +453,15 @@ def main():
         default=[],
         help="Interface override in key=value format (repeatable)",
     )
+    parser.add_argument(
+        "--structure",
+        choices=sorted(STRUCTURE_TEMPLATES.keys()),
+        help="Pre-populate SKILL.md with a specific structure",
+    )
+    parser.add_argument(
+        "--description",
+        help="Skill description for frontmatter",
+    )
     args = parser.parse_args()
 
     raw_skill_name = args.skill_name
@@ -385,7 +495,15 @@ def main():
         print("   Resources: none (create as needed)")
     print()
 
-    result = init_skill(skill_name, path, resources, args.examples, args.interface)
+    result = init_skill(
+        skill_name,
+        path,
+        resources,
+        args.examples,
+        args.interface,
+        args.structure,
+        args.description,
+    )
 
     if result:
         sys.exit(0)
