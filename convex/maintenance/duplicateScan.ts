@@ -375,30 +375,20 @@ export const getSnapshotsByIdsInternal = internalQuery({
     ),
   ),
   handler: async (ctx, args) => {
-    const out: Array<{
-      _id: Id<"snapshots">;
-      _creationTime: number;
-      activeBuildId?: string;
-      pendingBuildId?: string;
-      downloadedAt: number;
-      parsedAt: number;
-    } | null> = [];
-    for (const id of args.ids) {
-      const snapshot = await ctx.db.get(id);
+    const snapshots = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return snapshots.map((snapshot) => {
       if (!snapshot) {
-        out.push(null);
-        continue;
+        return null;
       }
-      out.push({
+      return {
         _id: snapshot._id,
         _creationTime: snapshot._creationTime,
         activeBuildId: snapshot.activeBuildId,
         pendingBuildId: snapshot.pendingBuildId,
         downloadedAt: snapshot.downloadedAt,
         parsedAt: snapshot.parsedAt,
-      });
-    }
-    return out;
+      };
+    });
   },
 });
 
@@ -416,26 +406,18 @@ export const getAssetsByIdsInternal = internalQuery({
     ),
   ),
   handler: async (ctx, args) => {
-    const out: Array<{
-      _id: Id<"assets">;
-      _creationTime: number;
-      resolved: boolean;
-      discoveredAt: number;
-    } | null> = [];
-    for (const id of args.ids) {
-      const asset = await ctx.db.get(id);
+    const assets = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return assets.map((asset) => {
       if (!asset) {
-        out.push(null);
-        continue;
+        return null;
       }
-      out.push({
+      return {
         _id: asset._id,
         _creationTime: asset._creationTime,
         resolved: asset.resolved,
         discoveredAt: asset.discoveredAt,
-      });
-    }
-    return out;
+      };
+    });
   },
 });
 
@@ -640,9 +622,7 @@ export const clearDuplicateGroupsForScanInternal = internalMutation({
       if (snap.length === 0) {
         break;
       }
-      for (const doc of snap) {
-        await ctx.db.delete(doc._id);
-      }
+      await Promise.all(snap.map((doc) => ctx.db.delete(doc._id)));
     }
     while (true) {
       const assets = await ctx.db
@@ -652,9 +632,7 @@ export const clearDuplicateGroupsForScanInternal = internalMutation({
       if (assets.length === 0) {
         break;
       }
-      for (const doc of assets) {
-        await ctx.db.delete(doc._id);
-      }
+      await Promise.all(assets.map((doc) => ctx.db.delete(doc._id)));
     }
     return null;
   },
