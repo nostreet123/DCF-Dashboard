@@ -23,7 +23,11 @@ describe("backfillSearchTextPage", () => {
   });
 
   afterEach(() => {
-    process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+    if (originalSyncToken === undefined) {
+      delete process.env.DAMODARAN_SYNC_TOKEN;
+    } else {
+      process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+    }
   });
 
   test("identifies and patches companies needing backfill", async () => {

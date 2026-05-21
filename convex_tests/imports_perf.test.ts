@@ -1,9 +1,11 @@
-import { test, expect } from "bun:test";
+/// <reference types="bun-types" />
+import { test, expect, beforeEach, afterEach } from "bun:test";
 import { convexTest } from "convex-test";
 import { api } from "../convex/_generated/api";
 import schema from "../convex/schema";
 
 const TEST_SYNC_TOKEN = "test-sync-token";
+const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 
 const modules: Record<string, () => Promise<any>> = {};
 const glob = new Bun.Glob("**/*.ts");
@@ -14,9 +16,20 @@ for (const entry of glob.scanSync({ cwd: convexDir, absolute: false })) {
   modules[key] = () => import(fullPath);
 }
 
+beforeEach(() => {
+  process.env.DAMODARAN_SYNC_TOKEN = TEST_SYNC_TOKEN;
+});
+
+afterEach(() => {
+  if (originalSyncToken === undefined) {
+    delete process.env.DAMODARAN_SYNC_TOKEN;
+  } else {
+    process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
+  }
+});
+
 test("performance regression test for approveImportedFacts", async () => {
   const t = convexTest(schema, modules);
-  process.env.DAMODARAN_SYNC_TOKEN = TEST_SYNC_TOKEN;
 
   const artifactIds = Array.from({ length: 50 }, (_, i) => `artifact-${i}`);
 
