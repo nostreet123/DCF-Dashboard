@@ -3,6 +3,7 @@ import {
   resolvePlaywrightPort,
   resolvePlaywrightWebServer,
 } from './lib/utils/playwrightWebServer';
+import { VALID_ADMIN_TOKEN_HASH } from './test/helpers/adminModeTestToken';
 
 const port = resolvePlaywrightPort(process.env);
 const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
@@ -12,6 +13,7 @@ const convexFixturePort = Number(process.env.PLAYWRIGHT_CONVEX_FIXTURE_PORT || p
 const usesConvexFixture = !externalBaseUrl && process.env.PLAYWRIGHT_CONVEX_FIXTURE !== '0';
 process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS ??= '1';
 process.env.VALUATION_HISTORY_BROWSER_READS ??= '1';
+process.env.DCF_DEMO_ADMIN_TOKEN_SHA256 ??= VALID_ADMIN_TOKEN_HASH;
 if (usesConvexFixture) {
   process.env.CONVEX_URL ??= `http://127.0.0.1:${convexFixturePort}`;
   process.env.DAMODARAN_SYNC_TOKEN ??= 'playwright-sync-token';

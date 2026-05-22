@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 
-import { isAdminModeConfigured } from "@/app/api/_lib/adminMode";
+import { isAdminModeConfigured, isAdminModeRequest } from "@/app/api/_lib/adminMode";
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import { errorResponse } from "@/app/api/_lib/errors";
 import {
   enforceRateLimit,
   getRateLimitPerMinute,
@@ -19,6 +20,10 @@ export async function GET(request: Request) {
   });
   if (!rateLimit.allowed) {
     return rateLimitErrorResponse(rateLimit);
+  }
+
+  if (!isAdminModeConfigured() || !isAdminModeRequest(request)) {
+    return errorResponse("forbidden", "Admin access required.", 403);
   }
 
   const convexClient = getConvexClient();

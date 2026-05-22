@@ -25,6 +25,7 @@ import {
   type RailVariant,
   useWorkbenchViewState,
 } from '@/lib/hooks/useWorkbenchViewState';
+import type { SettingsStatus } from '@/lib/settingsStatus';
 import {
   fallbackRange,
   mockKpis,
@@ -122,18 +123,6 @@ type ImportParseResult = {
 type ConvexImportContext = {
   importedFacts: unknown | null;
   artifacts: unknown[];
-};
-
-type SettingsStatus = {
-  secUserAgent?: { configured: boolean };
-  ai?: { configured: boolean; model?: string | null };
-  convex?: {
-    configured: boolean;
-    syncTokenConfigured: boolean;
-    historyReady: boolean;
-    importsReady: boolean;
-  };
-  dataMode?: string;
 };
 
 type AiAnalysisStatus = 'idle' | 'loading' | 'applied' | 'error';
@@ -719,14 +708,35 @@ export function useDashboardController() {
   }, []);
 
   useEffect(() => {
-    if (isDemoMode) {
+    if (isDemoMode || !aiAdminToken) {
+      setSettingsStatus(null);
       return;
     }
-    void fetch('/api/settings/status')
+
+    const controller = new AbortController();
+
+    void fetch('/api/settings/status', {
+      headers: { 'x-dcf-admin-token': aiAdminToken },
+      signal: controller.signal,
+    })
       .then(async (response) => (response.ok ? response.json() : null))
-      .then((payload: SettingsStatus | null) => setSettingsStatus(payload))
-      .catch(() => setSettingsStatus(null));
-  }, [isDemoMode]);
+      .then((payload: SettingsStatus | null) => {
+        if (!controller.signal.aborted) {
+          setSettingsStatus(payload);
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setSettingsStatus(null);
+      });
+
+    return () => {
+      controller.abort();
+      setSettingsStatus(null);
+    };
+  }, [aiAdminToken, isDemoMode]);
 
   const rememberCompany = useCallback((company: CompanySearchResult) => {
     setRecentCompanies((current) => {

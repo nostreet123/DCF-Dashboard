@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
-import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
+import { DcfEngineHttpError, engineUnavailableMessage, fetchDcfEngine, isEngineConnectionError } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
   enforceRateLimit,
@@ -64,6 +64,26 @@ const readSymbolFromBody = async (request: Request): Promise<string | null> => {
   } catch {
     return null;
   }
+};
+
+const exposeEngineSetupHint = () => process.env.NODE_ENV !== "production";
+
+const formatFactsFetchError = (error: unknown): string => {
+  if (exposeEngineSetupHint() && isEngineConnectionError(error)) {
+    return engineUnavailableMessage();
+  }
+  if (error instanceof DcfEngineHttpError) {
+    return error.message;
+  }
+  return "EDGAR facts failed";
+};
+
+const logFactsFetchFailure = (error: unknown) => {
+  if (exposeEngineSetupHint() && isEngineConnectionError(error)) {
+    console.warn("Company facts fetch skipped: DCF engine unavailable");
+    return;
+  }
+  console.error("Company facts fetch failed", error);
 };
 
 const fetchFacts = async (symbol: string): Promise<EdgarFacts> => {
@@ -341,9 +361,9 @@ export async function GET(request: Request) {
     const facts = await fetchFacts(symbol);
     return noStoreJson(facts);
   } catch (error) {
-    console.error("Company facts fetch failed", error);
+    logFactsFetchFailure(error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
+    return errorResponse("EDGAR_ERROR", formatFactsFetchError(error), status);
   }
 }
 
@@ -374,9 +394,9 @@ export async function POST(request: Request) {
   try {
     facts = await fetchFacts(symbol);
   } catch (error) {
-    console.error("Company facts fetch failed", error);
+    logFactsFetchFailure(error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
+    return errorResponse("EDGAR_ERROR", formatFactsFetchError(error), status);
   }
 
   try {

@@ -9,6 +9,24 @@ export class DcfEngineHttpError extends Error {
   }
 }
 
+export const isEngineConnectionError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (error.message.includes("fetch failed")) {
+    return true;
+  }
+  const cause = error.cause;
+  if (cause && typeof cause === "object" && "code" in cause) {
+    const code = (cause as { code?: unknown }).code;
+    return code === "ECONNREFUSED" || code === "ENOTFOUND";
+  }
+  return false;
+};
+
+export const engineUnavailableMessage = (): string =>
+  "DCF engine is not running. Start it with npm run dev:engine, or use NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo for mock data.";
+
 const resolveBaseUrl = () => {
   const baseUrl = process.env.DCF_ENGINE_URL;
   if (!baseUrl) {
