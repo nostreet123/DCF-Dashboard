@@ -8,6 +8,7 @@ import type {
   ParsedFieldName,
   SourceLink,
 } from '@/lib/contracts/company';
+import type { SettingsStatus } from '@/lib/settingsStatus';
 import styles from './ParityPanels.module.css';
 
 const reviewFields: ParsedFieldName[] = [
@@ -22,18 +23,6 @@ const reviewFields: ParsedFieldName[] = [
 type ImportParseResult = {
   artifacts: ImportedArtifactMetadata[];
   review: ImportReview;
-};
-
-type SettingsStatus = {
-  secUserAgent?: { configured: boolean };
-  ai?: { configured: boolean; model?: string | null };
-  convex?: {
-    configured: boolean;
-    syncTokenConfigured: boolean;
-    historyReady: boolean;
-    importsReady: boolean;
-  };
-  dataMode?: string;
 };
 
 const fieldLabel = (field: ParsedFieldName): string =>

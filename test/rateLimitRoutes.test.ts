@@ -235,6 +235,21 @@ describe("route rate limiting", () => {
     expect(secondPayload.code).toBe("RATE_LIMITED");
   });
 
+  test("falls back to local buckets in development when Convex function is missing", async () => {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
+    ConvexHttpClient.prototype.mutation = async () => {
+      throw new Error(
+        "Could not find public function for 'securityRateLimit:hitBucket'. Did you forget to run `npx convex dev`?",
+      );
+    };
+
+    const response = await companySearchGet(
+      new Request("http://localhost/api/company/search?q=AAPL"),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   test("uses x-vercel-forwarded-for even when spoofed x-real-ip is present", async () => {
     const vercelIp = "203.0.113.14";
     const first = await companySearchGet(

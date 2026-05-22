@@ -115,6 +115,11 @@ const trustedClientIdentifier = (request: Request): string | null => {
   return null;
 };
 
+const isMissingConvexFunctionError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Could not find public function");
+};
+
 const hitRateLimitBucket = async (
   bucketKey: string,
   limit: number,
@@ -157,7 +162,15 @@ const hitRateLimitBucket = async (
       nowMs: Date.now(),
     });
   } catch (error) {
-    console.warn("Rate-limit mutation failed", error);
+    if (isMissingConvexFunctionError(error)) {
+      if (isLocalDevelopment()) {
+        // Expected when Convex dev has not deployed securityRateLimit yet.
+      } else {
+        console.warn("Rate-limit mutation failed: Convex function missing", error);
+      }
+    } else {
+      console.warn("Rate-limit mutation failed", error);
+    }
     if (isLocalDevelopment()) {
       return hitLocalBucket();
     }

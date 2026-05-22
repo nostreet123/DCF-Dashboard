@@ -89,6 +89,25 @@ describe("company facts route auth boundaries", () => {
     expect(response.status).toBe(400);
   });
 
+  test("GET returns development guidance when the DCF engine is unavailable", async () => {
+    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
+    globalThis.fetch = async () => {
+      throw Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNREFUSED" },
+      });
+    };
+
+    const response = await GET(
+      new Request("http://localhost/api/company/facts?symbol=AAPL"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(payload.code).toBe("EDGAR_ERROR");
+    expect(payload.message).toContain("npm run dev:engine");
+    expect(payload.message).toContain("NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo");
+  });
+
   test("POST rejects unauthorized persistence requests", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     const response = await POST(
