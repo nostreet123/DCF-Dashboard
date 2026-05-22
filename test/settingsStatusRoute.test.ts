@@ -27,6 +27,8 @@ const requestWithAdminToken = (token?: string, forwardedFor = "203.0.113.100") =
 
 beforeEach(() => {
   resetRateLimitStateForTests();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
   const securityMock = installSecurityMutationsMock();
   restoreSecurityMock = securityMock.restore;
 });

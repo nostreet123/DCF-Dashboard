@@ -72,9 +72,6 @@ const formatFactsFetchError = (error: unknown): string => {
   if (exposeEngineSetupHint() && isEngineConnectionError(error)) {
     return engineUnavailableMessage();
   }
-  if (error instanceof DcfEngineHttpError) {
-    return error.message;
-  }
   return "EDGAR facts failed";
 };
 
