@@ -1,3 +1,5 @@
+import type { DashboardDataMode } from "@/lib/dashboardDataMode";
+
 export type SettingsStatus = {
   secUserAgent?: { configured: boolean };
   ai?: { configured: boolean; model?: string | null; adminModeAvailable?: boolean };
@@ -7,7 +9,7 @@ export type SettingsStatus = {
     historyReady: boolean;
     importsReady: boolean;
   };
-  dataMode?: string;
+  dataMode?: DashboardDataMode;
 };
 
 export function shouldShowSettingsStatusPanel({

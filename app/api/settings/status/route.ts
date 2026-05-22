@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   }
 
   if (!isAdminModeConfigured() || !isAdminModeRequest(request)) {
-    return errorResponse("forbidden", "Admin access required.", 403);
+    return errorResponse("FORBIDDEN", "Admin access required.", 403);
   }
 
   const convexClient = getConvexClient();

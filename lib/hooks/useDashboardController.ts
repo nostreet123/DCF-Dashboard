@@ -725,7 +725,7 @@ export function useDashboardController() {
           setSettingsStatus(payload);
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (controller.signal.aborted) {
           return;
         }
