@@ -81,11 +81,11 @@ export function useCompanyDiscovery({
   }, []);
 
   const applyCompanySelection = useCallback(
-    (company: CompanySearchResult) => {
+    (company: CompanySearchResult): boolean => {
       const symbol = getCompanySearchSymbol(company);
       if (!symbol) {
         setSearchFeedback('Search result did not include a ticker symbol.');
-        return;
+        return false;
       }
       setSearchFeedback(null);
       setSearchResults([]);
@@ -96,13 +96,16 @@ export function useCompanyDiscovery({
       rememberCompany(company);
       selectCompany(getCompanySearchId(company, symbol), symbol);
       setWorkspaceMode(workspaceModeForCoverage(company.coverageState));
+      return true;
     },
     [onCompanyChange, rememberCompany, selectCompany, setSelectedRunId],
   );
 
   const handleSelectSearchResult = useCallback(
     (company: CompanySearchResult) => {
-      applyCompanySelection(company);
+      if (!applyCompanySelection(company)) {
+        return;
+      }
       const detailRequestId = detailRequestIdRef.current + 1;
       detailRequestIdRef.current = detailRequestId;
       void fetch(`/api/company/detail?id=${encodeURIComponent(company.id)}`)
