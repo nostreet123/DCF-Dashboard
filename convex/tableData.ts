@@ -214,14 +214,20 @@ const assertPendingBuildForInsert = async (
   }
   if (snapshot.dataStatus !== "rebuilding") {
     throw new ConvexError({
-      code: "CONFLICT",
+      code: "BAD_REQUEST",
       message: "Snapshot is not rebuilding",
     });
   }
-  if (!snapshot.pendingBuildId || snapshot.pendingBuildId !== buildId) {
+  if (!snapshot.pendingBuildId) {
     throw new ConvexError({
-      code: "CONFLICT",
-      message: "buildId does not match pendingBuildId",
+      code: "BAD_REQUEST",
+      message: "Snapshot has no pending build",
+    });
+  }
+  if (snapshot.pendingBuildId !== buildId) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Build ID does not match pending build",
     });
   }
 };

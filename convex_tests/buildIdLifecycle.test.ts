@@ -355,7 +355,7 @@ describe("Build ID lifecycle", () => {
     expect(snapshot!.activeBuildId).toBe("build-300");
   });
 
-  test("insertBatch rejects stale, active, or unknown build IDs", async () => {
+  test("insertBatch rejects mismatched build IDs and inserts when snapshot is ready", async () => {
     const t = convexTest(schema, modules);
 
     const created = await t.mutation(api.snapshots.upsertByIdentity, {
@@ -374,7 +374,7 @@ describe("Build ID lifecycle", () => {
         buildId: "build-guard-wrong",
         rows: makeRows("build-guard-wrong"),
       }),
-    ).rejects.toThrow("buildId does not match pendingBuildId");
+    ).rejects.toThrow("Build ID does not match pending build");
 
     await t.mutation(api.tableData.insertBatch, {
       syncToken: TEST_SYNC_TOKEN,
