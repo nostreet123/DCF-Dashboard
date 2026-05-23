@@ -4,6 +4,16 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { isAdminModeRequest } from "@/app/api/_lib/adminMode";
 import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  queryCompaniesGet,
+  queryCompanyStatementsListBySymbol,
+  queryImportsGetImportedFacts,
+  queryImportsListArtifactsForListing,
+  queryImportsListBySymbol,
+  querySeedGetReference,
+  queryValuationsGet,
+  queryValuationsListByTicker,
+} from "@/app/api/_lib/convexServer";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
   estimateChatInputTokens,
@@ -688,37 +698,20 @@ const loadConvexAiContext = async (
 
   try {
     const [companyCache, statementHistoryResult, referenceDataCatalog] = await Promise.all([
+      lookup.symbol ? queryCompaniesGet({ symbol: lookup.symbol }) : Promise.resolve(null),
       lookup.symbol
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-        ? (convexClient as any).query("companies:get" as any, { symbol: lookup.symbol })
+        ? queryCompanyStatementsListBySymbol({ symbol: lookup.symbol, limit: 10 })
         : Promise.resolve(null),
-      lookup.symbol
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-        ? (convexClient as any).query("companyStatements:listBySymbol" as any, {
-            symbol: lookup.symbol,
-            limit: 10,
-          })
-        : Promise.resolve(null),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      (convexClient as any).query("seed:getReference" as any, {}),
+      querySeedGetReference(),
     ]);
 
     const syncToken = getSyncTokenOptional();
     let importedFacts: unknown = null;
     if (includeImportContext && syncToken && lookup.listingId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      importedFacts = await (convexClient as any).query("imports:getImportedFacts" as any, {
-        syncToken,
-        listingId: lookup.listingId,
-      });
+      importedFacts = await queryImportsGetImportedFacts({ listingId: lookup.listingId });
     }
     if (includeImportContext && syncToken && !importedFacts && lookup.symbol) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const matches = await (convexClient as any).query("imports:listBySymbol" as any, {
-        syncToken,
-        symbol: lookup.symbol,
-        limit: 1,
-      });
+      const matches = await queryImportsListBySymbol({ symbol: lookup.symbol, limit: 1 });
       importedFacts = Array.isArray(matches) ? matches[0] ?? null : null;
     }
 
@@ -729,9 +722,7 @@ const loadConvexAiContext = async (
       : null;
     let importArtifacts: unknown[] = [];
     if (includeImportContext && syncToken && resolvedListingId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const artifacts = await (convexClient as any).query("imports:listArtifactsForListing" as any, {
-        syncToken,
+      const artifacts = await queryImportsListArtifactsForListing({
         listingId: resolvedListingId,
         status: "approved",
         limit: 20,
@@ -750,12 +741,7 @@ const loadConvexAiContext = async (
     let recentValuationRuns: unknown[] = [];
     let latestValuationRunDetail: unknown = null;
     if (syncToken && lookup.symbol) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const runs = await (convexClient as any).query("valuations:listByTicker" as any, {
-        syncToken,
-        symbol: lookup.symbol,
-        limit: 5,
-      });
+      const runs = await queryValuationsListByTicker({ symbol: lookup.symbol, limit: 5 });
       recentValuationRuns = Array.isArray(runs) ? runs : [];
       const latestSuccessfulRun = recentValuationRuns.find((run) => {
         const runRecord = readRecord(run);
@@ -763,9 +749,7 @@ const loadConvexAiContext = async (
       });
       const latestRunId = readString(readRecord(latestSuccessfulRun)?._id);
       if (includeSavedRunTrace && latestRunId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-        latestValuationRunDetail = await (convexClient as any).query("valuations:get" as any, {
-          syncToken,
+        latestValuationRunDetail = await queryValuationsGet({
           runId: latestRunId,
           includeTrace: true,
         });
