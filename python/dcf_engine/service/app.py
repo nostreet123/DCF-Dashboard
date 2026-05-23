@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from functools import lru_cache
 import ipaddress
 import math
 import logging
@@ -11,8 +10,13 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 import requests
 
-from dcf_engine.service.convex_security import ConvexSecurityStateClient
-from dcf_engine.service.internal_auth import require_internal_request
+from dcf_engine.service.internal_auth import (
+    INTERNAL_AUTH_PATHS,
+    SECURITY_BACKEND_UNAVAILABLE_DETAIL,
+    allow_unsigned_requests,
+    require_internal_request,
+    shared_security_client,
+)
 from dcf_engine.service.company_contracts import (
     CompanyDetail,
     ImportParseRequest,
@@ -56,17 +60,8 @@ SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
 SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"
 DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
 DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
-SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 _MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
-_INTERNAL_AUTH_PATHS = {
-    "/sec/search",
-    "/sec/facts",
-    "/company/search",
-    "/company/detail",
-    "/company/import/parse",
-    "/dcf/compute",
-}
 
 
 @app.middleware("http")
@@ -74,7 +69,7 @@ async def _internal_auth_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    if request.url.path in _INTERNAL_AUTH_PATHS:
+    if request.url.path in INTERNAL_AUTH_PATHS:
         try:
             await require_internal_request(request)
             request.state.internal_request_verified = True
@@ -102,15 +97,6 @@ def _compute_rate_limit_config() -> tuple[int, float]:
 
 
 _MAX_REQUESTS, _WINDOW_SECONDS = _compute_rate_limit_config()
-
-
-def _allow_unsigned_requests() -> bool:
-    return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1" and not os.getenv("DCF_ENGINE_INTERNAL_KEY")
-
-
-@lru_cache(maxsize=1)
-def _rate_limit_security_client() -> ConvexSecurityStateClient:
-    return ConvexSecurityStateClient()
 
 
 def _rate_limit_window_ms() -> int:
@@ -188,17 +174,17 @@ def _enforce_dcf_rate_limit(request: Request) -> None:
     limit = min(_MAX_REQUESTS, _MAX_RATE_LIMIT_REQUESTS)
     window_ms = _rate_limit_window_ms()
     try:
-        result = _rate_limit_security_client().hit_rate_limit_bucket(
+        result = shared_security_client().hit_rate_limit_bucket(
             bucket_key,
             limit,
             window_ms,
         )
     except ValueError as exc:
-        if _allow_unsigned_requests():
+        if allow_unsigned_requests():
             return
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
-        if _allow_unsigned_requests():
+        if allow_unsigned_requests():
             return
         raise HTTPException(status_code=503, detail=SECURITY_BACKEND_UNAVAILABLE_DETAIL) from exc
 

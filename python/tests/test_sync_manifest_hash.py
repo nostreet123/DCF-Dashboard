@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from damodaran_sync import discover
-from damodaran_sync.sync import _stable_manifest_hash
+from damodaran_sync.sync_discovery import stable_manifest_hash as _stable_manifest_hash
 
 
 def _asset(

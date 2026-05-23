@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from damodaran_sync import discover, excel_parse, sync, transform
+from damodaran_sync import discover, download, excel_parse, sync, sync_upload, transform
 from damodaran_sync.convex_client import SnapshotUpsertResult
 from damodaran_sync.download import DownloadResult
 
@@ -164,10 +164,40 @@ class _FakeClient:
         return 0
 
 
+def _fake_download_result(asset: discover.DiscoveredAsset) -> DownloadResult:
+    return DownloadResult(
+        url=asset.source_url,
+        path=Path("/tmp/test_us_2024.xls"),
+        sha256="abc123",
+        size_bytes=10,
+        from_cache=False,
+        etag=None,
+        last_modified=None,
+        not_modified=False,
+    )
+
+
+def _stub_asset_stages(monkeypatch, assets: list[discover.DiscoveredAsset]) -> None:
+    download_res = _fake_download_result(assets[0])
+    monkeypatch.setattr(sync, "run_download_stage", lambda *_args, **_kwargs: (download_res, 1))
+    monkeypatch.setattr(
+        sync,
+        "parse_downloaded_asset",
+        lambda _res, _timing: (_make_parsed_table(), 1),
+    )
+    monkeypatch.setattr(
+        sync,
+        "transform_parsed_asset",
+        lambda _parsed, _timing: _make_transform_result(),
+    )
+
+
 def test_process_page_fast_exit_when_manifest_is_unchanged(monkeypatch) -> None:
     client = _FakeClient()
     assets = [_make_asset()]
-    manifest_hash = sync._stable_manifest_hash(assets)
+    from damodaran_sync.sync_discovery import stable_manifest_hash
+
+    manifest_hash = stable_manifest_hash(assets)
     client.latest_manifest = {"manifestHash": manifest_hash}
 
     monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "true")
@@ -205,24 +235,7 @@ def test_process_page_runs_upsert_insert_finalize_cleanup(monkeypatch) -> None:
         assets=assets,
     )
     monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
-    monkeypatch.setattr(
-        sync.download,
-        "download_file",
-        lambda *_args, **_kwargs: DownloadResult(
-            url=assets[0].source_url,
-            path=Path("/tmp/test_us_2024.xls"),
-            sha256="abc123",
-            size_bytes=10,
-            from_cache=False,
-            etag=None,
-            last_modified=None,
-            not_modified=False,
-        ),
-    )
-    monkeypatch.setattr(sync.excel_parse, "parse_excel", lambda _path: _make_parsed_table())
-    monkeypatch.setattr(
-        sync.transform, "transform_table", lambda _parsed: _make_transform_result()
-    )
+    _stub_asset_stages(monkeypatch, assets)
 
     sync.process_page("https://example.com/page", "current", client)
 
@@ -266,7 +279,7 @@ def test_process_page_additive_only_skips_existing_ready_snapshot(monkeypatch) -
     def _unexpected_download(*_args, **_kwargs):
         raise AssertionError("download_file should not run for additive-only existing snapshots")
 
-    monkeypatch.setattr(sync.download, "download_file", _unexpected_download)
+    monkeypatch.setattr(download, "download_file", _unexpected_download)
 
     sync.process_page(
         "https://example.com/page",
@@ -307,24 +320,7 @@ def test_process_page_additive_only_processes_not_ready_snapshot(monkeypatch) ->
         assets=assets,
     )
     monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
-    monkeypatch.setattr(
-        sync.download,
-        "download_file",
-        lambda *_args, **_kwargs: DownloadResult(
-            url=assets[0].source_url,
-            path=Path("/tmp/test_us_2024.xls"),
-            sha256="abc123",
-            size_bytes=10,
-            from_cache=False,
-            etag=None,
-            last_modified=None,
-            not_modified=False,
-        ),
-    )
-    monkeypatch.setattr(sync.excel_parse, "parse_excel", lambda _path: _make_parsed_table())
-    monkeypatch.setattr(
-        sync.transform, "transform_table", lambda _parsed: _make_transform_result()
-    )
+    _stub_asset_stages(monkeypatch, assets)
 
     sync.process_page(
         "https://example.com/page",
