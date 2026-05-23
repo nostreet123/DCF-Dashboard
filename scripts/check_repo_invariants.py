@@ -38,7 +38,6 @@ LINE_COUNT_ALLOWLIST = {
     "test/aiScenarioRoute.test.ts",
     "convex/maintenance/duplicateScan.ts",
     # Fixed in downstream stacked PRs; allowlisted so guardrails can land first.
-    "app/api/ai/scenario-analysis/route.ts",
     "lib/hooks/useDashboardController.ts",
     "python/damodaran_sync/sync.py",
 }
