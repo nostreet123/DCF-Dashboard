@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from dcf_engine.engine import DCFEngine
+from dcf_engine.valuation_kernel import compute_equity_value_per_share_vectorized
 from dcf_engine.workbench.schema import (
     MonteCarloHistogram,
     MonteCarloOneFactor,
@@ -293,30 +293,22 @@ def _run_vectorized_dynamic_monte_carlo(
         rng, wacc_dist, runs, periods, target=wacc_stable, latent_quality=latent_quality, loading=loading, sign=-1.0
     )
 
-    prior_revenue = np.full(runs, request.revenue_t0, dtype=np.float64)
-    discount_factor = np.ones(runs, dtype=np.float64)
-    pv_fcff = np.zeros(runs, dtype=np.float64)
-    fcff = np.zeros(runs, dtype=np.float64)
-
-    for idx in range(periods):
-        current_revenue = prior_revenue * (1.0 + growth[:, idx])
-        nopat = current_revenue * margin[:, idx] * (1.0 - tax[:, idx])
-        lag_index = max(0, idx - request.reinvestment_lag_years)
-        reinvestment = (current_revenue - prior_revenue) / sales_to_capital[:, lag_index]
-        fcff = nopat - reinvestment
-        discount_factor /= 1.0 + wacc[:, idx]
-        pv_fcff += fcff * discount_factor
-        prior_revenue = current_revenue
-
-    terminal_value = (fcff * (1.0 + g_stable)) / (wacc_stable - g_stable)
-    firm_value = pv_fcff + (terminal_value * discount_factor)
-    equity_value = (
-        firm_value
-        + request.cash
-        + request.other_non_operating_assets
-        - request.debt
+    values = compute_equity_value_per_share_vectorized(
+        revenue_t0=request.revenue_t0,
+        growth=growth,
+        margin=margin,
+        tax=tax,
+        sales_to_capital=sales_to_capital,
+        wacc=wacc,
+        g_stable=g_stable,
+        wacc_stable=wacc_stable,
+        periods=periods,
+        reinvestment_lag_years=request.reinvestment_lag_years,
+        cash=request.cash,
+        debt=request.debt,
+        other_non_operating_assets=request.other_non_operating_assets,
+        shares_outstanding=request.shares_outstanding,
     )
-    values = equity_value / request.shares_outstanding
     finite_values = values[np.isfinite(values)]
     if finite_values.size != runs:
         raise ValueError(
@@ -327,12 +319,9 @@ def _run_vectorized_dynamic_monte_carlo(
 
 
 def run_monte_carlo(
-    engine: DCFEngine,
     request: WorkbenchRequest,
     spec: MonteCarloSpec,
 ) -> MonteCarloResult:
-    _ = engine
-
     base = request.base
     bull = request.bull
     bear = request.bear

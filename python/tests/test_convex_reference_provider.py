@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dcf_engine import convex_transport
 from dcf_engine.reference import convex_provider
 from dcf_engine.reference.provider import SnapshotRef
 
@@ -55,7 +56,7 @@ class DummyConvexClient:
 
 
 def test_convex_reference_provider_queries(monkeypatch):
-    monkeypatch.setattr(convex_provider, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     provider = convex_provider.ConvexReferenceProvider(convex_url="http://example")
 
     snapshot = provider.get_latest_snapshot("wacc", "us")

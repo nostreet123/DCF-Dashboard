@@ -21,27 +21,38 @@ INTERNAL_MAX_SKEW_MS = 5 * 60 * 1000
 NONCE_TTL_MS = INTERNAL_MAX_SKEW_MS
 SECURITY_BACKEND_UNAVAILABLE_DETAIL = "Security backend unavailable"
 SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL = "Shared nonce store is not configured"
+INTERNAL_AUTH_PATHS = {
+    "/sec/search",
+    "/sec/facts",
+    "/company/search",
+    "/company/detail",
+    "/company/import/parse",
+    "/dcf/compute",
+}
 
 _nonce_lock = threading.Lock()
 _seen_nonces: dict[str, int] = {}
 
 
-def _internal_key() -> str | None:
+def internal_key() -> str | None:
     secret = os.getenv("DCF_ENGINE_INTERNAL_KEY")
     if not secret:
         return None
     return secret
 
 
-def _allow_unsigned_requests() -> bool:
-    return os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1"
+def allow_unsigned_requests() -> bool:
+    return (
+        os.getenv("DCF_ENGINE_ALLOW_UNSIGNED") == "1"
+        and not os.getenv("DCF_ENGINE_INTERNAL_KEY")
+    )
 
 
-def _allow_process_local_nonces() -> bool:
+def allow_process_local_nonces() -> bool:
     return os.getenv("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES") == "1"
 
 
-def _shared_nonce_store_configured() -> bool:
+def shared_nonce_store_configured() -> bool:
     return bool(os.getenv("CONVEX_URL") and os.getenv("DAMODARAN_SYNC_TOKEN"))
 
 
@@ -64,7 +75,7 @@ def _canonical_payload(
 
 
 @lru_cache(maxsize=1)
-def _shared_security_client() -> ConvexSecurityStateClient:
+def shared_security_client() -> ConvexSecurityStateClient:
     return ConvexSecurityStateClient()
 
 
@@ -85,22 +96,22 @@ def _reserve_process_local_nonce(nonce: str, now_ms: int) -> bool:
 
 
 def _reserve_nonce_shared(nonce: str) -> bool:
-    return _shared_security_client().reserve_nonce(nonce, NONCE_TTL_MS)
+    return shared_security_client().reserve_nonce(nonce, NONCE_TTL_MS)
 
 
 def _mark_nonce_used_shared(nonce: str) -> bool:
-    return _shared_security_client().mark_nonce_used(nonce, NONCE_TTL_MS)
+    return shared_security_client().mark_nonce_used(nonce, NONCE_TTL_MS)
 
 
 async def _reserve_nonce(nonce: str, now_ms: int) -> bool:
-    if not _shared_nonce_store_configured():
-        if _allow_process_local_nonces():
+    if not shared_nonce_store_configured():
+        if allow_process_local_nonces():
             return _reserve_process_local_nonce(nonce, now_ms)
         raise HTTPException(status_code=503, detail=SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL)
     try:
         return await anyio.to_thread.run_sync(_reserve_nonce_shared, nonce)
     except ValueError as exc:
-        if _allow_process_local_nonces():
+        if allow_process_local_nonces():
             return _reserve_process_local_nonce(nonce, now_ms)
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
@@ -108,14 +119,14 @@ async def _reserve_nonce(nonce: str, now_ms: int) -> bool:
 
 
 async def _mark_nonce_used(nonce: str) -> bool:
-    if not _shared_nonce_store_configured():
-        if _allow_process_local_nonces():
+    if not shared_nonce_store_configured():
+        if allow_process_local_nonces():
             return True
         raise HTTPException(status_code=503, detail=SHARED_NONCE_STORE_NOT_CONFIGURED_DETAIL)
     try:
         return await anyio.to_thread.run_sync(_mark_nonce_used_shared, nonce)
     except ValueError as exc:
-        if _allow_process_local_nonces():
+        if allow_process_local_nonces():
             return True
         raise HTTPException(status_code=503, detail="Service not configured") from exc
     except RuntimeError as exc:
@@ -126,9 +137,9 @@ async def require_internal_request(request: Request) -> None:
     if getattr(request.state, "internal_request_verified", False):
         return
 
-    secret = _internal_key()
+    secret = internal_key()
     if secret is None:
-        if _allow_unsigned_requests():
+        if allow_unsigned_requests():
             return
         raise HTTPException(status_code=503, detail="Service not configured")
 

@@ -5,9 +5,8 @@ import os
 from dataclasses import asdict
 from typing import Any
 
-from convex import ConvexClient
-
 from dcf_engine import __version__
+from dcf_engine.convex_transport import ConvexTransport
 from dcf_engine.schema import InputAssumptions, NormalizedAssumptions, Trace, ValuationResult
 from dcf_engine.normalization import Provenance
 
@@ -17,11 +16,16 @@ MAX_TRACE_BYTES = 180_000
 
 class ConvexRunPersister:
     def __init__(self, convex_url: str | None = None) -> None:
-        self._convex_url = convex_url or os.getenv("CONVEX_URL")
-        if not self._convex_url:
+        resolved_url = convex_url or os.getenv("CONVEX_URL")
+        if not resolved_url:
             raise ValueError("CONVEX_URL is required")
         self._sync_token = os.getenv("DAMODARAN_SYNC_TOKEN")
-        self._client = ConvexClient(self._convex_url)
+        self._transport = ConvexTransport(
+            resolved_url,
+            sync_token=self._sync_token,
+            max_attempts=1,
+            retry_transient=False,
+        )
 
     def save(
         self,
@@ -53,7 +57,6 @@ class ConvexRunPersister:
             else:
                 trace_storage = "external"
         payload: dict[str, Any] = {
-            "syncToken": self._sync_token,
             "engineVersion": __version__,
             "status": status,
             "inputs": inputs.model_dump(),
@@ -77,4 +80,4 @@ class ConvexRunPersister:
             payload["trace"] = trace_payload
         if trace_storage != "none" and trace_bytes:
             payload["traceByteSize"] = trace_bytes
-        return self._client.mutation("valuations:create", payload)
+        return self._transport.mutation("valuations:create", payload)

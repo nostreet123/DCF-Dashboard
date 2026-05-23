@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-import time
-from typing import Any, Callable
-
-import requests
-from convex import ConvexClient
+from typing import Any
 
 from damodaran_sync.convex_client_models import SnapshotUpsertResult
 from damodaran_sync.convex_client_validation import (
@@ -18,88 +14,28 @@ from damodaran_sync.convex_client_validation import (
     expect_str,
     parse_seen_snapshots,
 )
+from dcf_engine.convex_transport import ConvexTransport
 
 logger = logging.getLogger(__name__)
 
 
 class ConvexSyncClient:
-    _MAX_ATTEMPTS = 3
-    _BACKOFF_BASE_SECONDS = 0.5
-    _BACKOFF_MAX_SECONDS = 4.0
-
     def __init__(self, convex_url: str | None = None, sync_token: str | None = None) -> None:
-        self._convex_url = convex_url or os.getenv("CONVEX_URL")
-        if not self._convex_url:
+        resolved_url = convex_url or os.getenv("CONVEX_URL")
+        if not resolved_url:
             raise ValueError("CONVEX_URL is required")
         self._sync_token = sync_token or os.getenv("DAMODARAN_SYNC_TOKEN")
-        self._client = ConvexClient(self._convex_url)
+        self._transport = ConvexTransport(
+            resolved_url,
+            sync_token=self._sync_token,
+        )
 
     def clone(self) -> "ConvexSyncClient":
-        return ConvexSyncClient(self._convex_url, self._sync_token)
+        cloned = ConvexSyncClient(self._transport.convex_url, self._sync_token)
+        return cloned
 
-    def _token_arg(self) -> dict[str, Any]:
-        return {"syncToken": self._sync_token} if self._sync_token is not None else {}
-
-    def _sanitize_args(self, args: dict[str, Any] | None) -> dict[str, Any] | None:
-        if args is None:
-            return None
-        sanitized: dict[str, Any] = {}
-        for key, value in args.items():
-            if key == "syncToken":
-                sanitized[key] = "***"
-            elif isinstance(value, list):
-                sanitized[key] = f"<{len(value)} items>"
-            else:
-                sanitized[key] = value
-        return sanitized
-
-    def _is_transient_error(self, exc: Exception) -> bool:
-        if isinstance(exc, (TimeoutError, OSError)):
-            return True
-        if isinstance(exc, requests.RequestException):
-            resp = getattr(exc, "response", None)
-            if resp is not None:
-                return resp.status_code == 429 or resp.status_code >= 500
-            return True
-        return False
-
-    def _execute(
-        self,
-        operation: str,
-        args: dict[str, Any] | None,
-        func: Callable[[], Any],
-    ) -> Any:
-        attempt = 0
-        while True:
-            try:
-                return func()
-            except Exception as exc:
-                attempt += 1
-                if self._is_transient_error(exc) and attempt < self._MAX_ATTEMPTS:
-                    delay = min(
-                        self._BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
-                        self._BACKOFF_MAX_SECONDS,
-                    )
-                    logger.warning(
-                        "Transient Convex error during %s (attempt %s/%s); retrying in %.1fs.",
-                        operation,
-                        attempt,
-                        self._MAX_ATTEMPTS,
-                        delay,
-                        exc_info=exc,
-                    )
-                    time.sleep(delay)
-                    continue
-                sanitized = self._sanitize_args(args)
-                logger.error(
-                    "Convex %s failed with args=%s",
-                    operation,
-                    sanitized,
-                    exc_info=exc,
-                )
-                raise RuntimeError(
-                    f"Convex {operation} failed with args {sanitized}"
-                ) from exc
+    def _log_invalid_response(self, operation: str, result: Any) -> None:
+        logger.error("Unexpected %s response: %r", operation, result)
 
     def _query(
         self,
@@ -108,26 +44,10 @@ class ConvexSyncClient:
         *,
         include_token: bool = True,
     ) -> Any:
-        payload = dict(args or {})
-        if include_token:
-            payload.update(self._token_arg())
-        return self._execute(
-            f"query {name}",
-            payload,
-            lambda: self._client.query(name, payload),
-        )
+        return self._transport.query(name, args, include_token=include_token)
 
     def _mutation(self, name: str, args: dict[str, Any] | None = None) -> Any:
-        payload = dict(args or {})
-        payload.update(self._token_arg())
-        return self._execute(
-            f"mutation {name}",
-            payload,
-            lambda: self._client.mutation(name, payload),
-        )
-
-    def _log_invalid_response(self, operation: str, result: Any) -> None:
-        logger.error("Unexpected %s response: %r", operation, result)
+        return self._transport.mutation(name, args, include_token=True)
 
     def upsert_seed(self) -> None:
         self._mutation("seed:upsertAll", {})
@@ -224,7 +144,6 @@ class ConvexSyncClient:
             ),
             self._log_invalid_response,
         )
-
 
     def create_sync_log(
         self,

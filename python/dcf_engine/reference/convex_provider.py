@@ -3,17 +3,21 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from convex import ConvexClient
-
+from dcf_engine.convex_transport import ConvexTransport
 from dcf_engine.reference.provider import ReferenceProvider, RowRef, SnapshotRef
 
 
 class ConvexReferenceProvider(ReferenceProvider):
     def __init__(self, convex_url: str | None = None) -> None:
-        self._convex_url = convex_url or os.getenv("CONVEX_URL")
-        if not self._convex_url:
+        resolved_url = convex_url or os.getenv("CONVEX_URL")
+        if not resolved_url:
             raise ValueError("CONVEX_URL is required")
-        self._client = ConvexClient(self._convex_url)
+        self._transport = ConvexTransport(
+            resolved_url,
+            sync_token=None,
+            max_attempts=1,
+            retry_transient=False,
+        )
 
     def _snapshot_from_payload(self, payload: dict[str, Any]) -> SnapshotRef:
         return SnapshotRef(
@@ -27,12 +31,13 @@ class ConvexReferenceProvider(ReferenceProvider):
         )
 
     def get_latest_snapshot(self, dataset_key: str, region_code: str) -> SnapshotRef | None:
-        result = self._client.query(
+        result = self._transport.query(
             "reference:getLatestSnapshot",
             {
                 "datasetKey": dataset_key,
                 "regionCode": region_code,
             },
+            include_token=False,
         )
         if result is None:
             return None
@@ -41,13 +46,14 @@ class ConvexReferenceProvider(ReferenceProvider):
     def get_snapshot_at_or_before(
         self, dataset_key: str, region_code: str, target_date: str
     ) -> SnapshotRef | None:
-        result = self._client.query(
+        result = self._transport.query(
             "reference:getSnapshotAtOrBefore",
             {
                 "datasetKey": dataset_key,
                 "regionCode": region_code,
                 "targetDate": target_date,
             },
+            include_token=False,
         )
         if result is None:
             return None
@@ -70,7 +76,7 @@ class ConvexReferenceProvider(ReferenceProvider):
             payload["asOfDate"] = as_of_date
         if secondary_key is not None:
             payload["secondaryKey"] = secondary_key
-        result = self._client.query("reference:getRow", payload)
+        result = self._transport.query("reference:getRow", payload, include_token=False)
         if result is None:
             return None
         snapshot = self._snapshot_from_payload(result["snapshot"])

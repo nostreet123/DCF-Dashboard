@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 
-from damodaran_sync.sync import sync_dataset_at_url, _is_batch_too_large_error
+from damodaran_sync.sync_batching import _is_batch_too_large_error
+from damodaran_sync.sync_upload import sync_dataset_at_url
 from damodaran_sync.convex_client import ConvexSyncClient
 from damodaran_sync.discover import Asset
 from damodaran_sync.excel_parse import ParsedTable
@@ -209,7 +210,7 @@ def test_sync_small_dataset_performance(mock_convex_client, mock_downloader,
     
     asset = create_mock_asset(row_count=100)
     
-    with patch('damodaran_sync.sync.ConvexSyncClient', return_value=mock_convex_client):
+    with patch('damodaran_sync.sync_upload.ConvexSyncClient', return_value=mock_convex_client):
         with patch('damodaran_sync.download.Downloader', return_value=mock_downloader):
             with patch('damodaran_sync.excel_parse.ExcelParser', return_value=mock_parser):
                 result = sync_dataset_at_url(
@@ -238,7 +239,7 @@ def test_sync_medium_dataset_performance(mock_convex_client, mock_downloader,
     
     total_start = time.time()
     
-    with patch('damodaran_sync.sync.ConvexSyncClient', return_value=mock_convex_client):
+    with patch('damodaran_sync.sync_upload.ConvexSyncClient', return_value=mock_convex_client):
         with patch('damodaran_sync.download.Downloader', return_value=mock_downloader):
             with patch('damodaran_sync.excel_parse.ExcelParser', return_value=parser):
                 result = sync_dataset_at_url(
@@ -269,7 +270,7 @@ def test_sync_large_dataset_performance(mock_convex_client, mock_downloader,
     
     total_start = time.time()
     
-    with patch('damodaran_sync.sync.ConvexSyncClient', return_value=mock_convex_client):
+    with patch('damodaran_sync.sync_upload.ConvexSyncClient', return_value=mock_convex_client):
         with patch('damodaran_sync.download.Downloader', return_value=mock_downloader):
             with patch('damodaran_sync.excel_parse.ExcelParser', return_value=parser):
                 result = sync_dataset_at_url(
@@ -295,7 +296,7 @@ def test_sync_with_cache_hit(mock_convex_client, mock_downloader, mock_parser):
     
     total_start = time.time()
     
-    with patch('damodaran_sync.sync.ConvexSyncClient', return_value=mock_convex_client):
+    with patch('damodaran_sync.sync_upload.ConvexSyncClient', return_value=mock_convex_client):
         with patch('damodaran_sync.download.Downloader', return_value=mock_downloader):
             with patch('damodaran_sync.excel_parse.ExcelParser', return_value=mock_parser):
                 result1 = sync_dataset_at_url(
@@ -342,7 +343,7 @@ def test_sync_error_recovery_performance(mock_convex_client, mock_downloader):
     
     total_start = time.time()
     
-    with patch('damodaran_sync.sync.ConvexSyncClient', return_value=mock_convex_client):
+    with patch('damodaran_sync.sync_upload.ConvexSyncClient', return_value=mock_convex_client):
         with patch('damodaran_sync.download.Downloader', return_value=mock_downloader):
             with patch('damodaran_sync.excel_parse.ExcelParser', return_value=parser):
                 result = sync_dataset_at_url(

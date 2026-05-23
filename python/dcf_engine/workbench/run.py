@@ -88,7 +88,7 @@ def run_workbench(request: WorkbenchRequest) -> WorkbenchResponse:
     kpis = build_kpi_summary(scenario_inputs, scenario_trace, request.statements)
     monte_carlo = None
     if request.monte_carlo is not None:
-        monte_carlo = run_monte_carlo(engine, request, request.monte_carlo)
+        monte_carlo = run_monte_carlo(request, request.monte_carlo)
 
     return WorkbenchResponse(
         base=base,

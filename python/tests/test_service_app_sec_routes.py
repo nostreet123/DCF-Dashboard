@@ -177,10 +177,8 @@ class _SharedSecurityClientStub:
 @pytest.fixture(autouse=True)
 def _stub_shared_security_client(monkeypatch: pytest.MonkeyPatch) -> None:
     _SharedSecurityClientStub.reset()
-    service_app._rate_limit_security_client.cache_clear()
-    monkeypatch.setattr(service_app, "ConvexSecurityStateClient", _SharedSecurityClientStub)
     internal_auth = importlib.import_module("dcf_engine.service.internal_auth")
-    internal_auth._shared_security_client.cache_clear()
+    internal_auth.shared_security_client.cache_clear()
     monkeypatch.setattr(
         internal_auth,
         "ConvexSecurityStateClient",
@@ -521,13 +519,9 @@ def test_dcf_compute_rate_limit_returns_503_when_backend_is_unavailable_even_if_
             raise RuntimeError("backend unavailable")
 
     internal_auth = importlib.import_module("dcf_engine.service.internal_auth")
+    internal_auth.shared_security_client.cache_clear()
     monkeypatch.setattr(
         internal_auth,
-        "ConvexSecurityStateClient",
-        _AuthSecurityClientStub,
-    )
-    monkeypatch.setattr(
-        service_app,
         "ConvexSecurityStateClient",
         _RateLimitFailingSecurityClientStub,
     )

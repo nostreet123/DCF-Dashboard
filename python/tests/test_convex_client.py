@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from damodaran_sync import convex_client
+from dcf_engine import convex_transport
 
 
 class DummyConvexClient:
@@ -39,7 +40,7 @@ class DummyConvexClientInvalid:
 
 
 def test_get_reference_does_not_send_sync_token(monkeypatch) -> None:
-    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",
         sync_token="secret-token",
@@ -55,7 +56,7 @@ def test_get_reference_does_not_send_sync_token(monkeypatch) -> None:
 
 
 def test_sync_log_idempotency_args(monkeypatch) -> None:
-    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",
         sync_token="secret-token",
@@ -81,7 +82,7 @@ def test_sync_log_idempotency_args(monkeypatch) -> None:
 
 
 def test_get_latest_manifest_validates_response_type(monkeypatch) -> None:
-    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClientInvalid)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClientInvalid)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",
         sync_token="secret-token",
@@ -92,7 +93,7 @@ def test_get_latest_manifest_validates_response_type(monkeypatch) -> None:
 
 
 def test_delete_non_active_rows_page_validates_cursor_type(monkeypatch) -> None:
-    monkeypatch.setattr(convex_client, "ConvexClient", DummyConvexClientInvalid)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClientInvalid)
     client = convex_client.ConvexSyncClient(
         convex_url="http://example",
         sync_token="secret-token",
