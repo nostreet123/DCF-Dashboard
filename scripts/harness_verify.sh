@@ -24,6 +24,9 @@ echo "==> Python tests"
 echo "==> TypeScript typecheck"
 npm run typecheck
 
+echo "==> Test TypeScript typecheck"
+npm run typecheck:test
+
 echo "==> Convex typecheck"
 scripts/ensure_bun.sh bunx convex typecheck
 
