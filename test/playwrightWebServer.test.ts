@@ -7,21 +7,21 @@ import {
 
 describe("playwright port resolution", () => {
   test("defaults to 3000 when no explicit Playwright port is provided", () => {
-    expect(resolvePlaywrightPort({})).toBe(3000);
+    expect(resolvePlaywrightPort({} as unknown as NodeJS.ProcessEnv)).toBe(3000);
   });
 
   test("uses PLAYWRIGHT_PORT when provided", () => {
-    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "4200", PORT: "3000" })).toBe(4200);
+    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "4200", PORT: "3000" } as unknown as NodeJS.ProcessEnv)).toBe(4200);
   });
 
   test("falls back to PORT when PLAYWRIGHT_PORT is not provided", () => {
-    expect(resolvePlaywrightPort({ PORT: "3000" })).toBe(3000);
-    expect(resolvePlaywrightPort({ PORT: "4100" })).toBe(4100);
+    expect(resolvePlaywrightPort({ PORT: "3000" } as unknown as NodeJS.ProcessEnv)).toBe(3000);
+    expect(resolvePlaywrightPort({ PORT: "4100" } as unknown as NodeJS.ProcessEnv)).toBe(4100);
   });
 
   test("falls back to 3000 when env values are invalid", () => {
-    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "nope" })).toBe(3000);
-    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "0" })).toBe(3000);
+    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "nope" } as unknown as NodeJS.ProcessEnv)).toBe(3000);
+    expect(resolvePlaywrightPort({ PLAYWRIGHT_PORT: "0" } as unknown as NodeJS.ProcessEnv)).toBe(3000);
   });
 });
 
@@ -31,7 +31,7 @@ describe("playwright web server config", () => {
       port: 3000,
       externalBaseUrl: undefined,
       mode: undefined,
-      env: { CI: "" },
+      env: { CI: "" } as unknown as NodeJS.ProcessEnv,
     });
 
     expect(result).not.toBeNull();
@@ -47,7 +47,7 @@ describe("playwright web server config", () => {
       port: 4173,
       externalBaseUrl: undefined,
       mode: "dev",
-      env: {},
+      env: {} as unknown as NodeJS.ProcessEnv,
     });
 
     expect(result?.command).toBe("bun run dev -- --port 4173");
@@ -58,7 +58,7 @@ describe("playwright web server config", () => {
       port: 3000,
       externalBaseUrl: "http://127.0.0.1:3101",
       mode: undefined,
-      env: {},
+      env: {} as unknown as NodeJS.ProcessEnv,
     });
 
     expect(result).toBeNull();
@@ -69,7 +69,7 @@ describe("playwright web server config", () => {
       port: 3000,
       externalBaseUrl: undefined,
       mode: undefined,
-      env: { CI: "1" },
+      env: { CI: "1" } as unknown as NodeJS.ProcessEnv,
     });
 
     expect(result?.reuseExistingServer).toBe(false);
