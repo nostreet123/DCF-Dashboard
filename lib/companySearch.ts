@@ -2,6 +2,7 @@ import type {
   CompanySearchResult as ContractCompanySearchResult,
   CoverageState,
 } from '@/lib/contracts/company';
+import { normalizeCompanySearchResult } from '@/lib/contracts/dashboard';
 
 export type CompanyCoverageState = CoverageState | 'search_only';
 
@@ -36,6 +37,11 @@ export const getCompanySearchSymbol = (company: CompanySearchResult): string | n
   const symbol = company.symbol ?? company.ticker;
   return symbol?.trim() || null;
 };
+
+export const toStrictCompanySearchResult = (
+  company: CompanySearchResult,
+): ContractCompanySearchResult =>
+  normalizeCompanySearchResult(company as Record<string, unknown>);
 
 export const getCompanySearchId = (
   company: CompanySearchResult,
