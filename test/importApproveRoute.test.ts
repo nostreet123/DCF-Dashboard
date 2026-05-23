@@ -8,6 +8,9 @@ import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
+const asFetchMock = (fn: (...args: unknown[]) => Promise<Response>): typeof fetch =>
+  fn as unknown as typeof fetch;
+
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
@@ -140,7 +143,7 @@ describe("company import approval route", () => {
 
   test("preserves decimal comma values in reviewed import units", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
-    globalThis.fetch = async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify({
           base: { valuation: 10 },
@@ -148,7 +151,7 @@ describe("company import approval route", () => {
           bear: { valuation: 8 },
         }),
         { headers: { "Content-Type": "application/json" } },
-      );
+      ));
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",
@@ -209,7 +212,7 @@ describe("company import approval route", () => {
 
   test("preserves single comma thousands separators in reviewed import units", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
-    globalThis.fetch = async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify({
           base: { valuation: 10 },
@@ -217,7 +220,7 @@ describe("company import approval route", () => {
           bear: { valuation: 8 },
         }),
         { headers: { "Content-Type": "application/json" } },
-      );
+      ));
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",
@@ -278,7 +281,7 @@ describe("company import approval route", () => {
 
   test("preserves bare m million suffix in reviewed import values", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = asFetchMock(async (url) => {
       expect(String(url)).toBe("http://engine.example/dcf/compute");
       return new Response(
         JSON.stringify({
@@ -288,7 +291,7 @@ describe("company import approval route", () => {
         }),
         { headers: { "Content-Type": "application/json" } },
       );
-    };
+    });
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",
@@ -349,7 +352,7 @@ describe("company import approval route", () => {
 
   test("preserves compact bn and k suffixes in reviewed import values", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
-    globalThis.fetch = async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify({
           base: { valuation: 10 },
@@ -357,7 +360,7 @@ describe("company import approval route", () => {
           bear: { valuation: 8 },
         }),
         { headers: { "Content-Type": "application/json" } },
-      );
+      ));
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",
@@ -417,9 +420,11 @@ describe("company import approval route", () => {
 
   test("normalizes reviewer period end before computing imports", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
-    globalThis.fetch = async (url, init) => {
+    globalThis.fetch = asFetchMock(async (url, init) => {
       expect(String(url)).toBe("http://engine.example/dcf/compute");
-      const requestBody = JSON.parse(String(init?.body)) as { statements?: Array<{ periodEnd?: string }> };
+      const requestBody = JSON.parse(String((init as RequestInit | undefined)?.body)) as {
+        statements?: Array<{ periodEnd?: string }>;
+      };
       expect(requestBody.statements?.[0]?.periodEnd).toBe("2025-03-31");
       return new Response(
         JSON.stringify({
@@ -429,7 +434,7 @@ describe("company import approval route", () => {
         }),
         { headers: { "Content-Type": "application/json" } },
       );
-    };
+    });
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",
@@ -625,7 +630,7 @@ describe("company import approval route", () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
     process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = asFetchMock(async (url) => {
       expect(String(url)).toBe("http://engine.example/dcf/compute");
       return new Response(
         JSON.stringify({
@@ -635,7 +640,7 @@ describe("company import approval route", () => {
         }),
         { headers: { "Content-Type": "application/json" } },
       );
-    };
+    });
     const body = JSON.stringify({
       company: {
         id: "XTSE:SHOP",

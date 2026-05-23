@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  convexConfigured,
+  mutationImportsApproveImportedFacts,
+  mutationValuationsCreate,
+} from "@/app/api/_lib/convexServer";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
@@ -198,9 +202,7 @@ export async function POST(request: Request) {
     return errorResponse("BAD_REQUEST", validationError, 400);
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return errorResponse(
       "SERVICE_UNAVAILABLE",
       "Import persistence backend is not configured",
@@ -242,9 +244,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    await (convexClient as any).mutation("imports:approveImportedFacts" as any, {
-      syncToken,
+    await mutationImportsApproveImportedFacts({
       listingId: payload.company.id,
       symbol: payload.company.symbol,
       name: payload.company.name,
@@ -265,9 +265,7 @@ export async function POST(request: Request) {
     const base = typeof result.base === "object" && result.base ? result.base as Record<string, unknown> : null;
     const bull = typeof result.bull === "object" && result.bull ? result.bull as Record<string, unknown> : null;
     const bear = typeof result.bear === "object" && result.bear ? result.bear as Record<string, unknown> : null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    await (convexClient as any).mutation("valuations:create" as any, {
-      syncToken,
+    await mutationValuationsCreate({
       engineVersion: "workbench-v1",
       status: "success",
       inputs: workbenchPayload,

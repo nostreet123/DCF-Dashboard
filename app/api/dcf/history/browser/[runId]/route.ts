@@ -1,38 +1,18 @@
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  convexConfigured,
+  queryValuationsGet,
+} from "@/app/api/_lib/convexServer";
 import { errorResponse } from "@/app/api/_lib/errors";
+import { browserHistoryReadsEnabled } from "@/app/api/_lib/browserRouteGuards";
 import {
   enforceRateLimit,
   getRateLimitPerMinute,
   rateLimitErrorResponse,
 } from "@/app/api/_lib/rateLimit";
-import { normalizeValuationReplay, type ValuationReplaySnapshot } from "@/lib/valuationHistory";
-
-const browserHistoryReadsEnabled = (): boolean =>
-  process.env.VALUATION_HISTORY_BROWSER_READS === "1";
-
-const redactBrowserReplay = (replay: ValuationReplaySnapshot) => {
-  const {
-    runId,
-    ticker,
-    createdAt,
-    scenario,
-    scenarios,
-    range,
-    histogram,
-  } = replay;
-  return {
-    runId,
-    ticker,
-    createdAt,
-    scenario,
-    scenarios,
-    range,
-    histogram,
-    projections: [],
-    kpis: [],
-    statementHistory: [],
-  };
-};
+import {
+  decodeValuationReplayResponse,
+  redactBrowserReplay,
+} from "@/lib/valuation/decoders";
 
 export async function GET(
   request: Request,
@@ -57,9 +37,7 @@ export async function GET(
     return errorResponse("BAD_REQUEST", "Missing runId parameter", 400);
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return errorResponse(
       "SERVICE_UNAVAILABLE",
       "Valuation history backend is not configured",
@@ -68,9 +46,7 @@ export async function GET(
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const result = await (convexClient as any).query("valuations:get" as any, {
-      syncToken,
+    const result = await queryValuationsGet({
       runId: trimmedRunId,
       includeTrace: true,
     });
@@ -79,7 +55,7 @@ export async function GET(
       return errorResponse("NOT_FOUND", "Valuation run not found", 404);
     }
 
-    const replay = normalizeValuationReplay(result);
+    const replay = decodeValuationReplayResponse(result);
     if (!replay) {
       return errorResponse("CONFLICT", "Valuation run has no replayable trace", 409);
     }

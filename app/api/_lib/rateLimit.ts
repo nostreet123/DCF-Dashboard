@@ -1,4 +1,5 @@
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import { mutationSecurityRateLimitHitBucket } from "@/app/api/_lib/convexServer";
 import { isIP } from "node:net";
 import { errorResponse } from "@/app/api/_lib/errors";
 
@@ -115,11 +116,6 @@ const trustedClientIdentifier = (request: Request): string | null => {
   return null;
 };
 
-const isMissingConvexFunctionError = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("Could not find public function");
-};
-
 const hitRateLimitBucket = async (
   bucketKey: string,
   limit: number,
@@ -153,24 +149,14 @@ const hitRateLimitBucket = async (
     return null;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    return await (convexClient as any).mutation("securityRateLimit:hitBucket" as any, {
-      syncToken,
+    return (await mutationSecurityRateLimitHitBucket({
       bucketKey,
       limit,
       windowMs,
       nowMs: Date.now(),
-    });
+    })) as HitBucketResult;
   } catch (error) {
-    if (isMissingConvexFunctionError(error)) {
-      if (isLocalDevelopment()) {
-        // Expected when Convex dev has not deployed securityRateLimit yet.
-      } else {
-        console.warn("Rate-limit mutation failed: Convex function missing", error);
-      }
-    } else {
-      console.warn("Rate-limit mutation failed", error);
-    }
+    console.warn("Rate-limit mutation failed", error);
     if (isLocalDevelopment()) {
       return hitLocalBucket();
     }

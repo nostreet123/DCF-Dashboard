@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConvexClient } from "@/app/api/_lib/convex";
+import { queryCompaniesSearch } from "@/app/api/_lib/convexServer";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
@@ -71,13 +72,10 @@ export async function GET(request: Request) {
   const convexClient = getConvexClient();
   if (convexClient) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const searchCompanies = "companies:search" as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const results = await (convexClient as any).query(searchCompanies, {
+      const results = (await queryCompaniesSearch({
         q,
         limit,
-      });
+      })) as Array<Record<string, unknown>>;
       if (results.length > 0) {
         return NextResponse.json({
           results: results.map((result: Record<string, unknown>) => {
