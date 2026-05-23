@@ -1,161 +1,30 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
 
 import { POST } from "../app/api/ai/scenario-analysis/route";
-import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
-import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
+import {
+  createMockFetch,
+  installAiScenarioTestEnv,
+  providerResponseForAnalysis,
+  sha256Hex,
+  validAdminToken,
+  validProviderResponse,
+} from "./helpers/aiScenario";
 
 const originalFetch = globalThis.fetch;
-const originalQuery = ConvexHttpClient.prototype.query;
-const originalHfKey = process.env.HUGGING_FACE_API_KEY;
-const originalHfModel = process.env.HUGGING_FACE_MODEL;
-const originalConvexUrl = process.env.CONVEX_URL;
-const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
-const originalAdminTokenHash = process.env.DCF_DEMO_ADMIN_TOKEN_SHA256;
-const originalDailyLimit = process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY;
-const originalMinuteLimit = process.env.API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE;
-const originalMaxInputBytes = process.env.HUGGING_FACE_MAX_INPUT_BYTES;
-const originalMaxOutputTokens = process.env.HUGGING_FACE_MAX_OUTPUT_TOKENS;
-const originalReasoningEffort = process.env.HUGGING_FACE_REASONING_EFFORT;
-const originalResponseFormat = process.env.HUGGING_FACE_RESPONSE_FORMAT;
-const originalTemperature = process.env.HUGGING_FACE_TEMPERATURE;
-const originalTopP = process.env.HUGGING_FACE_TOP_P;
-const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
-const originalImportContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
-const validAdminToken = "test-admin-token-123456";
-const noopPreconnect: typeof fetch.preconnect = () => {};
-let restoreSecurityMock: (() => void) | null = null;
-
-function createMockFetch(
-  impl: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
-): typeof fetch {
-  return Object.assign(impl, { preconnect: noopPreconnect });
-}
-
-const sha256Hex = (value: string): string =>
-  createHash("sha256").update(value, "utf8").digest("hex");
+let restoreEnv: (() => void) | null = null;
 
 beforeEach(() => {
-  resetRateLimitStateForTests();
-  process.env.HUGGING_FACE_API_KEY = "hf_secret";
-  process.env.HUGGING_FACE_MODEL = "test/model";
-  process.env.CONVEX_URL = "https://example.convex.cloud";
-  process.env.DAMODARAN_SYNC_TOKEN = "sync-token";
-  process.env.DCF_DEMO_ADMIN_TOKEN_SHA256 =
-    "3163e9ca0a8a3732674d6ea50aa8b48c77818fa6f38da5db28f5316c17ad8bb1";
-  process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = "25";
-  process.env.HUGGING_FACE_MAX_INPUT_BYTES = "32000";
-  process.env.HUGGING_FACE_MAX_OUTPUT_TOKENS = "8192";
-  process.env.HUGGING_FACE_REASONING_EFFORT = "xhigh";
-  process.env.HUGGING_FACE_RESPONSE_FORMAT = "json_object";
-  process.env.HUGGING_FACE_TEMPERATURE = "1";
-  process.env.HUGGING_FACE_TOP_P = "1";
-  delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
-  ConvexHttpClient.prototype.query = async (name, args) => {
-    if (String(name) === "imports:listBySymbol") {
-      expect(args).toMatchObject({ syncToken: "sync-token" });
-      return [];
-    }
-    if (String(name) === "imports:listArtifactsForListing") {
-      expect(args).toMatchObject({ syncToken: "sync-token" });
-      return [];
-    }
-    if (String(name) === "valuations:listByTicker") {
-      return [];
-    }
-    if (String(name) === "companyStatements:listBySymbol") {
-      return { statements: [], nextCursor: null };
-    }
-    return null;
-  };
-  const securityMock = installSecurityMutationsMock();
-  restoreSecurityMock = securityMock.restore;
+  const setup = installAiScenarioTestEnv();
+  restoreEnv = setup.restore;
 });
 
 afterEach(() => {
-  resetRateLimitStateForTests();
-  restoreSecurityMock?.();
-  restoreSecurityMock = null;
+  restoreEnv?.();
+  restoreEnv = null;
   globalThis.fetch = originalFetch;
-  ConvexHttpClient.prototype.query = originalQuery;
-  if (originalHfKey === undefined) delete process.env.HUGGING_FACE_API_KEY;
-  else process.env.HUGGING_FACE_API_KEY = originalHfKey;
-  if (originalHfModel === undefined) delete process.env.HUGGING_FACE_MODEL;
-  else process.env.HUGGING_FACE_MODEL = originalHfModel;
-  if (originalConvexUrl === undefined) delete process.env.CONVEX_URL;
-  else process.env.CONVEX_URL = originalConvexUrl;
-  if (originalSyncToken === undefined) delete process.env.DAMODARAN_SYNC_TOKEN;
-  else process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
-  if (originalAdminTokenHash === undefined) delete process.env.DCF_DEMO_ADMIN_TOKEN_SHA256;
-  else process.env.DCF_DEMO_ADMIN_TOKEN_SHA256 = originalAdminTokenHash;
-  if (originalDailyLimit === undefined) delete process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY;
-  else process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = originalDailyLimit;
-  if (originalMinuteLimit === undefined) delete process.env.API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE;
-  else process.env.API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE = originalMinuteLimit;
-  if (originalMaxInputBytes === undefined) delete process.env.HUGGING_FACE_MAX_INPUT_BYTES;
-  else process.env.HUGGING_FACE_MAX_INPUT_BYTES = originalMaxInputBytes;
-  if (originalMaxOutputTokens === undefined) delete process.env.HUGGING_FACE_MAX_OUTPUT_TOKENS;
-  else process.env.HUGGING_FACE_MAX_OUTPUT_TOKENS = originalMaxOutputTokens;
-  if (originalReasoningEffort === undefined) delete process.env.HUGGING_FACE_REASONING_EFFORT;
-  else process.env.HUGGING_FACE_REASONING_EFFORT = originalReasoningEffort;
-  if (originalResponseFormat === undefined) delete process.env.HUGGING_FACE_RESPONSE_FORMAT;
-  else process.env.HUGGING_FACE_RESPONSE_FORMAT = originalResponseFormat;
-  if (originalTemperature === undefined) delete process.env.HUGGING_FACE_TEMPERATURE;
-  else process.env.HUGGING_FACE_TEMPERATURE = originalTemperature;
-  if (originalTopP === undefined) delete process.env.HUGGING_FACE_TOP_P;
-  else process.env.HUGGING_FACE_TOP_P = originalTopP;
-  if (originalBrowserReads === undefined) delete process.env.VALUATION_HISTORY_BROWSER_READS;
-  else process.env.VALUATION_HISTORY_BROWSER_READS = originalBrowserReads;
-  if (originalImportContextTokenHash === undefined) delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
-  else process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalImportContextTokenHash;
 });
-
-const validProviderResponse = (label = "Base case.", usage?: Record<string, number>) =>
-  JSON.stringify({
-    choices: [
-      {
-        message: {
-          content: JSON.stringify({
-            base: {
-              revenueGrowth: 8,
-              operatingMargin: 24,
-              discountRate: 9,
-              terminalGrowth: 2.5,
-              rationale: label,
-            },
-            bull: {
-              revenueGrowth: 12,
-              operatingMargin: 28,
-              discountRate: 8,
-              terminalGrowth: 3,
-              rationale: "Bull case.",
-            },
-            bear: {
-              revenueGrowth: 3,
-              operatingMargin: 18,
-              discountRate: 11,
-              terminalGrowth: 1.5,
-              rationale: "Bear case.",
-            },
-          }),
-        },
-      },
-    ],
-    ...(usage ? { usage } : {}),
-  });
-
-const providerResponseForAnalysis = (analysis: unknown) =>
-  JSON.stringify({
-    choices: [
-      {
-        message: {
-          content: JSON.stringify(analysis),
-        },
-      },
-    ],
-  });
 
 describe("AI scenario analysis route", () => {
   test("accepts strict base bull bear scenario output", async () => {
@@ -317,22 +186,22 @@ describe("AI scenario analysis route", () => {
     ConvexHttpClient.prototype.query = async (name, args) => {
       calledQueries.push(String(name));
       if (String(name) === "imports:getImportedFacts") {
-        expect(args).toEqual({ syncToken: "sync-token", listingId: "sec:0000320193:AAPL" });
+        expect(args as unknown).toEqual({ syncToken: "sync-token", listingId: "sec:0000320193:AAPL" });
         return importedFacts;
       }
       if (String(name) === "companies:get") {
-        expect(args).toEqual({ symbol: "AAPL" });
+        expect(args as unknown).toEqual({ symbol: "AAPL" });
         return { symbol: "AAPL", name: "Apple Inc.", cik: "0000320193", source: "edgar" };
       }
       if (String(name) === "companyStatements:listBySymbol") {
-        expect(args).toEqual({ symbol: "AAPL", limit: 10 });
+        expect(args as unknown).toEqual({ symbol: "AAPL", limit: 10 });
         return {
           statements: [{ periodEnd: "2025-09-30", revenue: 395000, operatingMargin: 0.31 }],
           nextCursor: null,
         };
       }
       if (String(name) === "imports:listArtifactsForListing") {
-        expect(args).toEqual({
+        expect(args as unknown).toEqual({
           syncToken: "sync-token",
           listingId: "sec:0000320193:AAPL",
           status: "approved",
@@ -350,14 +219,14 @@ describe("AI scenario analysis route", () => {
         ];
       }
       if (String(name) === "valuations:listByTicker") {
-        expect(args).toEqual({ syncToken: "sync-token", symbol: "AAPL", limit: 5 });
+        expect(args as unknown).toEqual({ syncToken: "sync-token", symbol: "AAPL", limit: 5 });
         return [{ _id: "run-1", symbol: "AAPL", status: "success" }];
       }
       if (String(name) === "valuations:get") {
         throw new Error("Public import-context requests must not fetch saved-run traces");
       }
       if (String(name) === "seed:getReference") {
-        expect(args).toEqual({});
+        expect(args as unknown).toEqual({});
         return { datasets: [{ key: "wacc", defaultRegionCode: "us", dataType: "industry" }], regions: [], datasetMappings: [] };
       }
       return null;
@@ -417,19 +286,19 @@ describe("AI scenario analysis route", () => {
     ConvexHttpClient.prototype.query = async (name, args) => {
       calledQueries.push(String(name));
       if (String(name) === "companies:get") {
-        expect(args).toEqual({ symbol: "ADMTRACE" });
+        expect(args as unknown).toEqual({ symbol: "ADMTRACE" });
         return { symbol: "ADMTRACE", name: "Admin Trace Co.", source: "edgar" };
       }
       if (String(name) === "companyStatements:listBySymbol") {
-        expect(args).toEqual({ symbol: "ADMTRACE", limit: 10 });
+        expect(args as unknown).toEqual({ symbol: "ADMTRACE", limit: 10 });
         return { statements: [], nextCursor: null };
       }
       if (String(name) === "valuations:listByTicker") {
-        expect(args).toEqual({ syncToken: "sync-token", symbol: "ADMTRACE", limit: 5 });
+        expect(args as unknown).toEqual({ syncToken: "sync-token", symbol: "ADMTRACE", limit: 5 });
         return [{ _id: "run-admin", symbol: "ADMTRACE", status: "success" }];
       }
       if (String(name) === "valuations:get") {
-        expect(args).toEqual({ syncToken: "sync-token", runId: "run-admin", includeTrace: true });
+        expect(args as unknown).toEqual({ syncToken: "sync-token", runId: "run-admin", includeTrace: true });
         return {
           run: { _id: "run-admin", symbol: "ADMTRACE" },
           trace: {

@@ -24,7 +24,7 @@ export const estimateTextTokens = (text: string): number => {
     return 0;
   }
 
-  const parts = text.match(/[A-Za-z0-9_]+|[^\sA-Za-z0-9_]/g) ?? [];
+  const parts = (text.match(/[A-Za-z0-9_]+|[^\sA-Za-z0-9_]/g) ?? []) as string[];
   const count = parts.reduce((sum, part) => {
     if (/^[A-Za-z0-9_]+$/.test(part)) {
       return sum + Math.max(1, Math.ceil(part.length / 4));
