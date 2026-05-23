@@ -32,6 +32,10 @@ export function useAiScenarioAnalysis({
   shouldLoadBrowserHistory,
   workspaceMode,
   assumptions,
+  aiAdminToken,
+  aiAdminModeEnabled,
+  setAiAdminToken,
+  setAiAdminModeEnabled,
 }: {
   activeCompanyId: string | null;
   activeTicker: string;
@@ -51,13 +55,15 @@ export function useAiScenarioAnalysis({
   shouldLoadBrowserHistory: boolean;
   workspaceMode: WorkspaceMode;
   assumptions: Assumptions;
+  aiAdminToken: string | null;
+  aiAdminModeEnabled: boolean;
+  setAiAdminToken: (token: string | null) => void;
+  setAiAdminModeEnabled: (enabled: boolean) => void;
 }) {
   const [aiAnalysisStatus, setAiAnalysisStatus] = useState<AiAnalysisStatus>('idle');
   const [aiRationales, setAiRationales] = useState<Partial<Record<Scenario, string>>>({});
   const [aiAnalysisStream, setAiAnalysisStream] = useState<string[]>([]);
   const [aiTokenUsage, setAiTokenUsage] = useState<AiTokenUsage | null>(null);
-  const [aiAdminModeEnabled, setAiAdminModeEnabled] = useState(false);
-  const [aiAdminToken, setAiAdminToken] = useState<string | null>(null);
 
   const aiAnalysisRequestIdRef = useRef(0);
   const activeContextRef = useRef({

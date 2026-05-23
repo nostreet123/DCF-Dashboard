@@ -50,6 +50,8 @@ export function useDashboardController(): DashboardViewModel {
   } = useWorkbenchViewState();
 
   const [retryToken, setRetryToken] = useState(0);
+  const [aiAdminToken, setAiAdminToken] = useState<string | null>(null);
+  const [aiAdminModeEnabled, setAiAdminModeEnabled] = useState(false);
   const resetWorkflowRef = useRef<() => void>(() => undefined);
   const isDemoMode = getDashboardDataMode() === 'demo';
 
@@ -72,6 +74,7 @@ export function useDashboardController(): DashboardViewModel {
     selectedSearchCompany: discovery.selectedSearchCompany,
     retryToken,
     setRetryToken,
+    aiAdminToken,
   });
 
   const importWorkflow = useImportWorkflow({
@@ -104,6 +107,10 @@ export function useDashboardController(): DashboardViewModel {
     shouldLoadBrowserHistory: dataSource.shouldLoadBrowserHistory,
     workspaceMode: discovery.workspaceMode,
     assumptions,
+    aiAdminToken,
+    aiAdminModeEnabled,
+    setAiAdminToken,
+    setAiAdminModeEnabled,
   });
 
   resetWorkflowRef.current = () => {
