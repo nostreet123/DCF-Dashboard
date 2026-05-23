@@ -1,3 +1,4 @@
+import type { DashboardDataMode } from '@/lib/dashboardDataMode';
 import type { Assumptions, Scenario } from '@/lib/workbench/scenarioProfiles';
 import type {
   CompanySearchResult,
@@ -29,7 +30,7 @@ export type SettingsStatus = {
     historyReady: boolean;
     importsReady: boolean;
   };
-  dataMode?: string;
+  dataMode?: DashboardDataMode;
 };
 
 export type AiAnalysisStatus = 'idle' | 'loading' | 'applied' | 'error';
