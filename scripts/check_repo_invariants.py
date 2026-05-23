@@ -29,9 +29,59 @@ QUERY_WITH_INDEX_ALLOWLIST = {
     "withSearchIndex",
 }
 
+LINE_COUNT_WARN = 800
+LINE_COUNT_FAIL = 1000
+
+# Temporary allowlist for known oversized files during unblock remediation.
+# Remove entries as each phase lands below the limit.
+LINE_COUNT_ALLOWLIST = {
+    "test/aiScenarioRoute.test.ts",
+    "convex/maintenance/duplicateScan.ts",
+    # Fixed in downstream stacked PRs; allowlisted so guardrails can land first.
+    "app/api/ai/scenario-analysis/route.ts",
+    "lib/hooks/useDashboardController.ts",
+    "python/damodaran_sync/sync.py",
+}
+
+# Routes still using route-local Convex escape hatches until PR 2 migrates them.
+ROUTE_CONVEX_ANY_REMEDIATION_ALLOWLIST = {
+    "app/api/ai/scenario-analysis/route.ts",
+    "app/api/company/search/route.ts",
+    "app/api/company/facts/route.ts",
+    "app/api/company/import/context/route.ts",
+    "app/api/company/import/parse/route.ts",
+    "app/api/company/import/approve/route.ts",
+    "app/api/dcf/run/route.ts",
+    "app/api/dcf/history/route.ts",
+    "app/api/dcf/history/browser/route.ts",
+    "app/api/dcf/history/[runId]/route.ts",
+    "app/api/dcf/history/browser/[runId]/route.ts",
+}
+
+GENERATED_PATH_PARTS = {
+    "_generated",
+    "node_modules",
+    ".next",
+    ".venv",
+    ".bun-home",
+    "__pycache__",
+    "playwright-report",
+    "test-results",
+}
+
+CONVEX_ANY_FACADE_FILES = {
+    ROOT / "app" / "api" / "_lib" / "convexServer.ts",
+    ROOT / "app" / "api" / "_lib" / "internalAuth.ts",
+    ROOT / "app" / "api" / "_lib" / "rateLimit.ts",
+}
+
+ROUTE_CONVEX_ANY_PATTERN = re.compile(
+    r"\(\s*convexClient\s+as\s+any\s*\)\.(query|mutation)\("
+)
+
 
 def rel(path: Path) -> str:
-    return str(path.relative_to(ROOT))
+    return path.relative_to(ROOT).as_posix()
 
 
 def iter_files(base: Path, suffix: str) -> list[Path]:
@@ -175,6 +225,67 @@ def check_convex_query_indexes(errors: list[str]) -> None:
             )
 
 
+def is_generated_or_ignored(path: Path) -> bool:
+    return any(part in GENERATED_PATH_PARTS for part in path.parts)
+
+
+def count_source_lines(path: Path) -> int:
+    return len(path.read_text(encoding="utf-8").splitlines())
+
+
+def check_line_counts(errors: list[str], warnings: list[str]) -> None:
+    extensions = {".ts", ".tsx", ".py"}
+    for base in (ROOT / "app", ROOT / "components", ROOT / "lib", ROOT / "convex", ROOT / "test", ROOT / "python"):
+        if not base.exists():
+            continue
+        for path in base.rglob("*"):
+            if path.suffix not in extensions or not path.is_file() or is_generated_or_ignored(path):
+                continue
+            rel_path = rel(path)
+            line_count = count_source_lines(path)
+            if line_count >= LINE_COUNT_FAIL:
+                if rel_path in LINE_COUNT_ALLOWLIST:
+                    warnings.append(
+                        f"{rel_path}:{line_count} lines exceeds {LINE_COUNT_FAIL} "
+                        f"(allowlisted during remediation)"
+                    )
+                else:
+                    add_error(
+                        errors,
+                        path,
+                        1,
+                        f"file exceeds {LINE_COUNT_FAIL} lines ({line_count}); split before adding more code",
+                    )
+            elif line_count >= LINE_COUNT_WARN:
+                warnings.append(
+                    f"{rel_path}:{line_count} lines exceeds {LINE_COUNT_WARN} line warning threshold"
+                )
+
+
+def check_route_convex_any_hatches(errors: list[str], warnings: list[str]) -> None:
+    route_root = ROOT / "app" / "api"
+    if not route_root.exists():
+        return
+    for path in iter_files(route_root, ".ts"):
+        if path in CONVEX_ANY_FACADE_FILES:
+            continue
+        rel_path = rel(path)
+        text = path.read_text(encoding="utf-8")
+        for match in ROUTE_CONVEX_ANY_PATTERN.finditer(text):
+            if rel_path in ROUTE_CONVEX_ANY_REMEDIATION_ALLOWLIST:
+                warnings.append(
+                    f"{rel_path}:{line_for_offset(text, match.start())} "
+                    f"route-local Convex escape hatch (allowlisted during remediation)"
+                )
+                continue
+            add_error(
+                errors,
+                path,
+                line_for_offset(text, match.start()),
+                "route-local Convex (convexClient as any) call; use app/api/_lib/convex.ts (convexServer.ts in stacked PR #98)",
+            )
+
+
 def check_tracked_ds_store(errors: list[str]) -> None:
     if not (ROOT / ".git").exists():
         return
@@ -196,11 +307,19 @@ def check_tracked_ds_store(errors: list[str]) -> None:
 
 def main() -> int:
     errors: list[str] = []
+    warnings: list[str] = []
     check_ds_store(errors)
     check_tracked_ds_store(errors)
     check_python_prints(errors)
     check_convex_mutation_auth(errors)
     check_convex_query_indexes(errors)
+    check_line_counts(errors, warnings)
+    check_route_convex_any_hatches(errors, warnings)
+
+    if warnings:
+        print("Repository invariant warnings:", file=sys.stderr)
+        for warning in warnings:
+            print(f"- {warning}", file=sys.stderr)
 
     if errors:
         print("Repository invariant check failed:", file=sys.stderr)

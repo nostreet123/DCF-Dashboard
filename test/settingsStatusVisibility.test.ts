@@ -12,7 +12,7 @@ const sampleStatus = {
     historyReady: true,
     importsReady: true,
   },
-  dataMode: "live",
+  dataMode: "live" as const,
 };
 
 describe("settings status panel visibility", () => {
