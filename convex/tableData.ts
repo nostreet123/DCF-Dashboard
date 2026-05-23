@@ -1,6 +1,7 @@
-import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { normalizePositiveIntegerLimit } from "./normalization";
 import { requireSyncToken } from "./syncAuth";
 
@@ -199,6 +200,58 @@ const insertTableDataRow = async (
   });
 };
 
+const assertPendingBuildForInsert = async (
+  ctx: MutationCtx,
+  snapshotId: Id<"snapshots">,
+  buildId: string,
+) => {
+  const snapshot = await ctx.db.get(snapshotId);
+  if (!snapshot) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Snapshot not found",
+    });
+  }
+  if (snapshot.dataStatus !== "rebuilding") {
+    throw new ConvexError({
+      code: "CONFLICT",
+      message: "Snapshot is not rebuilding",
+    });
+  }
+  if (!snapshot.pendingBuildId || snapshot.pendingBuildId !== buildId) {
+    throw new ConvexError({
+      code: "CONFLICT",
+      message: "buildId does not match pendingBuildId",
+    });
+  }
+};
+
+const assertInactiveBuildForDelete = async (
+  ctx: MutationCtx,
+  snapshotId: Id<"snapshots">,
+  buildId: string,
+) => {
+  const snapshot = await ctx.db.get(snapshotId);
+  if (!snapshot) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Snapshot not found",
+    });
+  }
+  if (snapshot.activeBuildId === buildId) {
+    throw new ConvexError({
+      code: "CONFLICT",
+      message: "Cannot delete active build",
+    });
+  }
+  if (snapshot.pendingBuildId === buildId) {
+    throw new ConvexError({
+      code: "CONFLICT",
+      message: "Cannot delete pending build",
+    });
+  }
+};
+
 const processInsertBatchRow = async (
   ctx: MutationCtx,
   snapshotId: any,
@@ -240,6 +293,7 @@ export const insertBatch = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+    await assertPendingBuildForInsert(ctx, args.snapshotId, args.buildId);
     const maxRows = getMaxInsertRowsPerCall();
     assertInsertBatchSize(args.rows as InsertBatchRow[], maxRows);
 
@@ -272,6 +326,7 @@ export const deleteBySnapshotBuild = mutation({
   }),
   handler: async (ctx, args) => {
     requireSyncToken(args.syncToken);
+    await assertInactiveBuildForDelete(ctx, args.snapshotId, args.buildId);
     if (
       !Number.isInteger(args.limit) ||
       args.limit <= 0 ||
