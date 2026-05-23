@@ -81,7 +81,7 @@ ROUTE_CONVEX_ANY_PATTERN = re.compile(
 
 
 def rel(path: Path) -> str:
-    return str(path.relative_to(ROOT))
+    return path.relative_to(ROOT).as_posix()
 
 
 def iter_files(base: Path, suffix: str) -> list[Path]:
@@ -282,7 +282,7 @@ def check_route_convex_any_hatches(errors: list[str], warnings: list[str]) -> No
                 errors,
                 path,
                 line_for_offset(text, match.start()),
-                "route-local Convex (convexClient as any) call; use app/api/_lib/convexServer.ts",
+                "route-local Convex (convexClient as any) call; use app/api/_lib/convex.ts (convexServer.ts in stacked PR #98)",
             )
 
 
