@@ -8,6 +8,7 @@ import {
   getCompanyMarketLabel,
   getCompanySearchId,
   getCompanySearchSymbol,
+  type CompanySearchResult,
 } from "../lib/companySearch";
 
 describe("company search result helpers", () => {
@@ -19,7 +20,7 @@ describe("company search result helpers", () => {
       exchange: "Nasdaq",
       mic: "XNAS",
       coverage_state: "valuation_ready" as const,
-    };
+    } as CompanySearchResult;
 
     expect(getCompanySearchSymbol(result)).toBe("AAPL");
     expect(getCompanySearchId(result, "AAPL")).toBe("XNAS:AAPL");
@@ -34,7 +35,7 @@ describe("company search result helpers", () => {
       _id: "company:1",
       ticker: "MSFT",
       name: "Microsoft Corp.",
-    };
+    } as CompanySearchResult;
 
     expect(getCompanySearchSymbol(result)).toBe("MSFT");
     expect(getCompanySearchId(result, "MSFT")).toBe("company:1");
@@ -53,7 +54,7 @@ describe("company search result helpers", () => {
         name: "Microsoft Corp.",
         coverage_state: "valuation_ready" as const,
       },
-    ];
+    ] as CompanySearchResult[];
 
     expect(getBestValuationSearchResult(results)?.symbol).toBe("MSFT");
   });
@@ -65,7 +66,7 @@ describe("company search result helpers", () => {
         name: "Mixed Search Only Ltd.",
         coverage_state: "search_only" as const,
       },
-    ];
+    ] as CompanySearchResult[];
 
     expect(getBestValuationSearchResult(results)?.symbol).toBe("MIXL");
   });
