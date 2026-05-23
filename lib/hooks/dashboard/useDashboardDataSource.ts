@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   areBrowserHistoryReadsEnabled,
   getDashboardDataMode,
@@ -117,6 +117,7 @@ export function useDashboardDataSource({
 
   const [settingsStatus, setSettingsStatus] = useState<SettingsStatus | null>(null);
   const [convexImportContext, setConvexImportContext] = useState<ConvexImportContext | null>(null);
+  const settingsStatusRequestIdRef = useRef(0);
 
   const isDemoMode = getDashboardDataMode() === 'demo';
   const shouldLoadBrowserHistory = !isDemoMode && areBrowserHistoryReadsEnabled();
@@ -255,13 +256,26 @@ export function useDashboardDataSource({
       return;
     }
     const controller = new AbortController();
+    const requestId = settingsStatusRequestIdRef.current + 1;
+    settingsStatusRequestIdRef.current = requestId;
     void fetch('/api/settings/status', {
       headers: { 'x-dcf-admin-token': aiAdminToken },
       signal: controller.signal,
     })
       .then(async (response) => (response.ok ? response.json() : null))
-      .then((payload: SettingsStatus | null) => setSettingsStatus(payload))
-      .catch(() => setSettingsStatus(null));
+      .then((payload: SettingsStatus | null) => {
+        if (requestId === settingsStatusRequestIdRef.current) {
+          setSettingsStatus(payload);
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        if (requestId === settingsStatusRequestIdRef.current) {
+          setSettingsStatus(null);
+        }
+      });
     return () => controller.abort();
   }, [aiAdminToken, isDemoMode]);
 
