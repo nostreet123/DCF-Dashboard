@@ -355,6 +355,96 @@ describe("Build ID lifecycle", () => {
     expect(snapshot!.activeBuildId).toBe("build-300");
   });
 
+  test("insertBatch rejects stale, active, or unknown build IDs", async () => {
+    const t = convexTest(schema, modules);
+
+    const created = await t.mutation(api.snapshots.upsertByIdentity, {
+      syncToken: TEST_SYNC_TOKEN,
+      datasetKey: "ds-build-guard",
+      regionCode: "US",
+      asOfDate: "2025-05-01",
+      buildId: "build-guard-100",
+      metadata: makeMetadata(),
+    });
+
+    await expect(
+      t.mutation(api.tableData.insertBatch, {
+        syncToken: TEST_SYNC_TOKEN,
+        snapshotId: created.snapshotId,
+        buildId: "build-guard-wrong",
+        rows: makeRows("build-guard-wrong"),
+      }),
+    ).rejects.toThrow("buildId does not match pendingBuildId");
+
+    await t.mutation(api.tableData.insertBatch, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-guard-100",
+      rows: makeRows("build-guard-100"),
+    });
+
+    await t.mutation(api.snapshots.finalizeRebuild, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-guard-100",
+      metadata: makeMetadata(),
+    });
+
+    await expect(
+      t.mutation(api.tableData.insertBatch, {
+        syncToken: TEST_SYNC_TOKEN,
+        snapshotId: created.snapshotId,
+        buildId: "build-guard-100",
+        rows: makeRows("build-guard-100"),
+      }),
+    ).rejects.toThrow("Snapshot is not rebuilding");
+  });
+
+  test("deleteBySnapshotBuild rejects active and pending builds", async () => {
+    const t = convexTest(schema, modules);
+
+    const created = await t.mutation(api.snapshots.upsertByIdentity, {
+      syncToken: TEST_SYNC_TOKEN,
+      datasetKey: "ds-delete-guard",
+      regionCode: "US",
+      asOfDate: "2025-06-01",
+      buildId: "build-delete-100",
+      metadata: makeMetadata(),
+    });
+
+    await t.mutation(api.tableData.insertBatch, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-delete-100",
+      rows: makeRows("build-delete-100"),
+    });
+
+    await expect(
+      t.mutation(api.tableData.deleteBySnapshotBuild, {
+        syncToken: TEST_SYNC_TOKEN,
+        snapshotId: created.snapshotId,
+        buildId: "build-delete-100",
+        limit: 100,
+      }),
+    ).rejects.toThrow("Cannot delete pending build");
+
+    await t.mutation(api.snapshots.finalizeRebuild, {
+      syncToken: TEST_SYNC_TOKEN,
+      snapshotId: created.snapshotId,
+      buildId: "build-delete-100",
+      metadata: makeMetadata(),
+    });
+
+    await expect(
+      t.mutation(api.tableData.deleteBySnapshotBuild, {
+        syncToken: TEST_SYNC_TOKEN,
+        snapshotId: created.snapshotId,
+        buildId: "build-delete-100",
+        limit: 100,
+      }),
+    ).rejects.toThrow("Cannot delete active build");
+  });
+
   test("auth enforcement: mutations reject missing/invalid syncToken", async () => {
     const t = convexTest(schema, modules);
 
