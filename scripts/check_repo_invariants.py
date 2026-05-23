@@ -43,6 +43,11 @@ LINE_COUNT_ALLOWLIST = {
     "python/damodaran_sync/sync.py",
 }
 
+# Route still using route-local Convex escape hatches until PR 4 migrates it.
+ROUTE_CONVEX_ANY_REMEDIATION_ALLOWLIST = {
+    "app/api/ai/scenario-analysis/route.ts",
+}
+
 
 GENERATED_PATH_PARTS = {
     "_generated",
@@ -248,15 +253,22 @@ def check_line_counts(errors: list[str], warnings: list[str]) -> None:
                 )
 
 
-def check_route_convex_any_hatches(errors: list[str]) -> None:
+def check_route_convex_any_hatches(errors: list[str], warnings: list[str]) -> None:
     route_root = ROOT / "app" / "api"
     if not route_root.exists():
         return
     for path in iter_files(route_root, ".ts"):
         if path in CONVEX_ANY_FACADE_FILES:
             continue
+        rel_path = rel(path)
         text = path.read_text(encoding="utf-8")
         for match in ROUTE_CONVEX_ANY_PATTERN.finditer(text):
+            if rel_path in ROUTE_CONVEX_ANY_REMEDIATION_ALLOWLIST:
+                warnings.append(
+                    f"{rel_path}:{line_for_offset(text, match.start())} "
+                    f"route-local Convex escape hatch (allowlisted during remediation)"
+                )
+                continue
             add_error(
                 errors,
                 path,
@@ -293,7 +305,7 @@ def main() -> int:
     check_convex_mutation_auth(errors)
     check_convex_query_indexes(errors)
     check_line_counts(errors, warnings)
-    check_route_convex_any_hatches(errors)
+    check_route_convex_any_hatches(errors, warnings)
 
     if warnings:
         print("Repository invariant warnings:", file=sys.stderr)
