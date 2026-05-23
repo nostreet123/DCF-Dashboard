@@ -24,6 +24,7 @@ import {
   AI_ANALYSIS_PROGRESS_STEP_COUNT,
   useDashboardController,
 } from '@/lib/hooks/useDashboardController';
+import { shouldShowSettingsStatusPanel } from '@/lib/settingsStatus';
 import styles from './page.module.css';
 
 function DashboardShell() {
@@ -190,7 +191,11 @@ function DashboardShell() {
             null
           )}
 
-          {!demo.isDemoMode ? (
+          {shouldShowSettingsStatusPanel({
+            isDemoMode: demo.isDemoMode,
+            aiAdminModeEnabled: ai.adminModeEnabled,
+            settingsStatus: settings.status,
+          }) ? (
             <SettingsStatusPanel
               className={`${styles.reveal} ${styles.revealDelay4}`}
               status={settings.status}

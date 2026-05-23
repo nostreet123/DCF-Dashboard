@@ -93,6 +93,7 @@ export function useDashboardDataSource({
   selectedSearchCompany,
   retryToken,
   setRetryToken,
+  aiAdminToken,
 }: {
   scenario: Scenario;
   scenarioAssumptions: Record<Scenario, Assumptions>;
@@ -104,6 +105,7 @@ export function useDashboardDataSource({
   selectedSearchCompany: CompanySearchResult | null;
   retryToken: number;
   setRetryToken: (updater: (value: number) => number) => void;
+  aiAdminToken: string | null;
 }) {
   const {
     compute,
@@ -248,14 +250,20 @@ export function useDashboardDataSource({
   ]);
 
   useEffect(() => {
-    if (isDemoMode) {
+    if (isDemoMode || !aiAdminToken?.trim()) {
+      setSettingsStatus(null);
       return;
     }
-    void fetch('/api/settings/status')
+    const controller = new AbortController();
+    void fetch('/api/settings/status', {
+      headers: { 'x-dcf-admin-token': aiAdminToken },
+      signal: controller.signal,
+    })
       .then(async (response) => (response.ok ? response.json() : null))
       .then((payload: SettingsStatus | null) => setSettingsStatus(payload))
       .catch(() => setSettingsStatus(null));
-  }, [isDemoMode]);
+    return () => controller.abort();
+  }, [aiAdminToken, isDemoMode]);
 
   const clearError = useCallback(() => {
     reset();
