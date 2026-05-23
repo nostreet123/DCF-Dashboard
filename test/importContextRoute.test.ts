@@ -48,7 +48,11 @@ afterEach(() => {
   else process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalContextTokenHash;
   if (originalImportContextRateLimit === undefined) delete process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE;
   else process.env.API_RATE_LIMIT_COMPANY_IMPORT_CONTEXT_PER_MINUTE = originalImportContextRateLimit;
-  process.env.NODE_ENV = originalNodeEnv;
+  if (originalNodeEnv === undefined) {
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
+  } else {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
+  }
 });
 
 describe("company import context route", () => {
@@ -177,7 +181,8 @@ describe("company import context route", () => {
       },
       { artifactId: "artifact-2", status: "approved", originalFilename: "ignored.xlsx" },
     ];
-    ConvexHttpClient.prototype.query = async (name) => {
+    (ConvexHttpClient.prototype as { query: (...args: unknown[]) => Promise<unknown> }).query =
+      async (name) => {
       if (String(name) === "imports:getImportedFacts") {
         return importedFacts;
       }
@@ -249,7 +254,7 @@ describe("company import context route", () => {
   test("rejects import context reads when internal auth backing store is not configured", async () => {
     delete process.env.CONVEX_URL;
     delete process.env.DAMODARAN_SYNC_TOKEN;
-    process.env.NODE_ENV = "development";
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "development";
 
     const url = "http://localhost/api/company/import/context?symbol=AAPL";
     const authHeaders = createInternalPersistenceHeaders({

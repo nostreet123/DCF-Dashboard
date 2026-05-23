@@ -92,7 +92,7 @@ export const installSecurityMutationsMock = (options: SecurityMockOptions = {}) 
       return await options.fallbackMutation(name, args);
     }
     return {};
-  }) as ConvexHttpClient["mutation"];
+  }) as unknown as ConvexHttpClient["mutation"];
 
   return {
     calls,

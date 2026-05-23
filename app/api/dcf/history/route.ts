@@ -2,7 +2,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  convexConfigured,
+  queryValuationsListBySymbol,
+  queryValuationsListByTicker,
+} from "@/app/api/_lib/convexServer";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import {
@@ -56,9 +60,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return errorResponse(
       "SERVICE_UNAVAILABLE",
       "Valuation history backend is not configured",
@@ -68,18 +70,11 @@ export async function GET(request: Request) {
 
   try {
     if (symbol) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-      const runs = await (convexClient as any).query("valuations:listByTicker" as any, {
-        syncToken,
-        symbol,
-        limit,
-      });
+      const runs = await queryValuationsListByTicker({ symbol, limit });
       return NextResponse.json({ runs });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const runs = await (convexClient as any).query("valuations:listBySymbol" as any, {
-      syncToken,
+    const runs = await queryValuationsListBySymbol({
       primaryKeyNorm,
       regionCode,
       limit,

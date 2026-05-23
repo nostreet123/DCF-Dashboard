@@ -1,7 +1,11 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  convexConfigured,
+  mutationImportsGenerateUploadUrl,
+  mutationImportsSaveParsedArtifact,
+} from "@/app/api/_lib/convexServer";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
@@ -54,15 +58,10 @@ const uploadToConvexStorage = async (
   bytes: Buffer,
   contentType?: string,
 ): Promise<string | undefined> => {
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return undefined;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-  const uploadUrl = await (convexClient as any).mutation("imports:generateUploadUrl" as any, {
-    syncToken,
-  });
+  const uploadUrl = (await mutationImportsGenerateUploadUrl()) as string;
   const uploadResponse = await fetch(uploadUrl, {
     method: "POST",
     headers: { "Content-Type": contentType || "application/octet-stream" },
@@ -208,18 +207,14 @@ export async function POST(request: Request) {
     return errorResponse("IMPORT_PARSE_ERROR", "Import parse failed", status);
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (canPersistArtifacts && convexClient && syncToken) {
+  if (canPersistArtifacts && convexConfigured()) {
     try {
       for (const artifact of parsed.artifacts ?? []) {
         const stored = uploadCandidatesByArtifactId.get(artifact.id);
         const storageId = stored
           ? await uploadToConvexStorage(stored.bytes, stored.contentType)
           : undefined;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-        await (convexClient as any).mutation("imports:saveParsedArtifact" as any, {
-          syncToken,
+        await mutationImportsSaveParsedArtifact({
           listingId,
           artifactId: artifact.id,
           kind: artifact.kind,

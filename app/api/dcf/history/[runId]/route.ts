@@ -1,4 +1,7 @@
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import {
+  convexConfigured,
+  queryValuationsGet,
+} from "@/app/api/_lib/convexServer";
 import { errorResponse } from "@/app/api/_lib/errors";
 import { isInternalPersistenceRequest } from "@/app/api/_lib/internalAuth";
 import {
@@ -6,7 +9,7 @@ import {
   getRateLimitPerMinute,
   rateLimitErrorResponse,
 } from "@/app/api/_lib/rateLimit";
-import { normalizeValuationReplay } from "@/lib/valuationHistory";
+import { decodeValuationReplayResponse } from "@/lib/valuation/decoders";
 
 export async function GET(
   request: Request,
@@ -31,9 +34,7 @@ export async function GET(
     return errorResponse("BAD_REQUEST", "Missing runId parameter", 400);
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return errorResponse(
       "SERVICE_UNAVAILABLE",
       "Valuation history backend is not configured",
@@ -42,9 +43,7 @@ export async function GET(
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const result = await (convexClient as any).query("valuations:get" as any, {
-      syncToken,
+    const result = await queryValuationsGet({
       runId: trimmedRunId,
       includeTrace: true,
     });
@@ -53,7 +52,7 @@ export async function GET(
       return errorResponse("NOT_FOUND", "Valuation run not found", 404);
     }
 
-    const replay = normalizeValuationReplay(result);
+    const replay = decodeValuationReplayResponse(result);
     if (!replay) {
       return errorResponse("CONFLICT", "Valuation run has no replayable trace", 409);
     }
