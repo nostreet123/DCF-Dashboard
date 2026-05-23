@@ -6,6 +6,7 @@ import { GET as companySearchGet } from "../app/api/company/search/route";
 import { POST as dcfPreviewPost } from "../app/api/dcf/preview/route";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
+import { createMockFetch } from "./helpers/fetchMock";
 
 const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
@@ -59,11 +60,12 @@ afterEach(() => {
 });
 
 const mockUpstreamError = (status = 500) => {
-  globalThis.fetch = async () =>
+  globalThis.fetch = createMockFetch(async () =>
     new Response(JSON.stringify({ message: "sensitive upstream detail" }), {
       status,
       headers: { "Content-Type": "application/json" },
-    });
+    }),
+  );
 };
 
 describe("API error sanitization", () => {
@@ -88,9 +90,9 @@ describe("API error sanitization", () => {
   });
 
   test("dcf preview route defaults to 502 for unknown errors", async () => {
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error("Network error");
-    };
+    });
 
     const response = await dcfPreviewPost(
       new Request("http://localhost/api/dcf/preview", {

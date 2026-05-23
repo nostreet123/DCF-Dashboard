@@ -4,6 +4,9 @@ import { GET } from "../app/api/company/search/route";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
+const asFetchMock = (fn: (...args: unknown[]) => Promise<Response>): typeof fetch =>
+  fn as unknown as typeof fetch;
+
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalConvexUrl = process.env.CONVEX_URL;
@@ -52,14 +55,14 @@ afterEach(() => {
 
 describe("company search route", () => {
   test("does not downgrade official search timeouts to legacy SEC results", async () => {
-    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = asFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/company/search")) {
         init?.signal?.dispatchEvent(new Event("abort"));
         throw new DOMException("The operation was aborted.", "AbortError");
       }
       throw new Error(`Unexpected URL: ${url}`);
-    };
+    });
 
     const response = await GET(
       new Request("http://localhost/api/company/search?q=AAPL", {
@@ -73,7 +76,7 @@ describe("company search route", () => {
   });
 
   test("preserves SEC exchange metadata in fallback results", async () => {
-    globalThis.fetch = async (input: RequestInfo | URL) => {
+    globalThis.fetch = asFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/company/search")) {
         return new Response(JSON.stringify({ detail: "official search unavailable" }), {
@@ -102,7 +105,7 @@ describe("company search route", () => {
         );
       }
       throw new Error(`Unexpected URL: ${url}`);
-    };
+    });
 
     const response = await GET(
       new Request("http://localhost/api/company/search?q=SAP", {
@@ -128,7 +131,7 @@ describe("company search route", () => {
   });
 
   test("does not downgrade upstream timeout statuses to legacy SEC results", async () => {
-    globalThis.fetch = async (input: RequestInfo | URL) => {
+    globalThis.fetch = asFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/company/search")) {
         return new Response(JSON.stringify({ detail: "gateway timeout" }), {
@@ -137,7 +140,7 @@ describe("company search route", () => {
         });
       }
       throw new Error(`Unexpected URL: ${url}`);
-    };
+    });
 
     const response = await GET(
       new Request("http://localhost/api/company/search?q=AAPL", {

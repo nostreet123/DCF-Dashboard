@@ -89,23 +89,9 @@ interface UseDcfComputeOptions {
   debounceMs?: number;
 }
 
-const IMPORT_CONTEXT_TOKEN_STORAGE_KEY = 'dcf-dashboard:import-context-token';
-const SEC_LISTING_MIC_PREFIXES = new Set(['XNAS', 'XNYS', 'ARCX', 'XASE']);
+import { readBrowserImportFactsToken } from '@/lib/browserImportTokens';
 
-const readBrowserImportFactsToken = (): string | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    return (
-      window.sessionStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
-      window.localStorage.getItem(IMPORT_CONTEXT_TOKEN_STORAGE_KEY)?.trim() ||
-      null
-    );
-  } catch {
-    return null;
-  }
-};
+const SEC_LISTING_MIC_PREFIXES = new Set(['XNAS', 'XNYS', 'ARCX', 'XASE']);
 
 const listingMicPrefix = (listingId: string | null | undefined): string | null => {
   const normalized = listingId?.trim().toUpperCase();

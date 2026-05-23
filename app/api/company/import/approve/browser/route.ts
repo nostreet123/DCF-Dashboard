@@ -1,7 +1,10 @@
-import { createHash, timingSafeEqual } from "crypto";
-
 import { BodyLimitError, readTextWithLimit } from "@/app/api/_lib/body";
 import { createInternalPersistenceHeaders } from "@/app/api/_lib/internalAuth";
+import { isAuthorizedBrowserTokenRequest } from "@/app/api/_lib/browserTokenAuth";
+import {
+  browserImportApprovalWritesEnabled,
+  setRateLimitIdentityHeaders,
+} from "@/app/api/_lib/browserRouteGuards";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
   enforceGlobalRateLimit,
@@ -10,44 +13,13 @@ import {
 } from "@/app/api/_lib/rateLimit";
 import { POST as approveImport } from "@/app/api/company/import/approve/route";
 
-const IMPORT_APPROVAL_TOKEN_HEADER = "x-import-approval-token";
-const MAX_IMPORT_APPROVAL_TOKEN_BYTES = 256;
 const INTERNAL_APPROVAL_CLIENT_IP = "127.0.0.1";
-const RATE_LIMIT_IDENTITY_HEADERS = [
-  "x-vercel-forwarded-for",
-  "cf-connecting-ip",
-  "x-real-ip",
-];
-
-const sha256Hex = (value: string): string =>
-  createHash("sha256").update(value, "utf8").digest("hex");
-
-const safeCompare = (provided: string, expected: string): boolean => {
-  const providedBytes = Buffer.from(provided, "utf8");
-  const expectedBytes = Buffer.from(expected, "utf8");
-  if (providedBytes.length !== expectedBytes.length) {
-    return false;
-  }
-  return timingSafeEqual(providedBytes, expectedBytes);
-};
-
-const isAuthorizedBrowserApprovalRequest = (request: Request): boolean => {
-  const expectedHash = process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256?.trim().toLowerCase();
-  if (!expectedHash || !/^[a-f0-9]{64}$/.test(expectedHash)) {
-    return false;
-  }
-  const token = request.headers.get(IMPORT_APPROVAL_TOKEN_HEADER)?.trim();
-  if (!token || Buffer.byteLength(token, "utf8") > MAX_IMPORT_APPROVAL_TOKEN_BYTES) {
-    return false;
-  }
-  return safeCompare(sha256Hex(token), expectedHash);
-};
 
 export async function POST(request: Request) {
-  if (process.env.IMPORT_APPROVAL_BROWSER_WRITES !== "1") {
+  if (!browserImportApprovalWritesEnabled()) {
     return errorResponse("NOT_FOUND", "Not found", 404);
   }
-  if (!isAuthorizedBrowserApprovalRequest(request)) {
+  if (!isAuthorizedBrowserTokenRequest(request, "import-approval")) {
     return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
   }
   const secret = process.env.INTERNAL_PERSISTENCE_KEY;
@@ -87,9 +59,11 @@ export async function POST(request: Request) {
   });
   const headers = new Headers(authHeaders);
   headers.set("Content-Type", request.headers.get("Content-Type") ?? "application/json");
-  for (const headerName of RATE_LIMIT_IDENTITY_HEADERS) {
-    headers.set(headerName, INTERNAL_APPROVAL_CLIENT_IP);
-  }
+  setRateLimitIdentityHeaders(headers, {
+    "x-vercel-forwarded-for": INTERNAL_APPROVAL_CLIENT_IP,
+    "cf-connecting-ip": INTERNAL_APPROVAL_CLIENT_IP,
+    "x-real-ip": INTERNAL_APPROVAL_CLIENT_IP,
+  });
 
   return approveImport(
     new Request(url, {

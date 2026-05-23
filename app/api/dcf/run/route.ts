@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import { convexConfigured, mutationValuationsCreate } from "@/app/api/_lib/convexServer";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
@@ -83,9 +83,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return errorResponse(
       "SERVICE_UNAVAILABLE",
       "Valuation persistence backend is not configured",
@@ -114,11 +112,7 @@ export async function POST(request: Request) {
       monteCarlo: result.monteCarlo,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const createValuation = "valuations:create" as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    await (convexClient as any).mutation(createValuation, {
-      syncToken,
+    await mutationValuationsCreate({
       engineVersion: "workbench-v1",
       status: "success",
       error: undefined,

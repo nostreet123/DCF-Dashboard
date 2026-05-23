@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
-import { DcfEngineHttpError, engineUnavailableMessage, fetchDcfEngine, isEngineConnectionError } from "@/app/api/_lib/dcfEngine";
+import {
+  convexConfigured,
+  mutationCompaniesUpsertCompany,
+  mutationCompanyStatementsUpsertBatch,
+  queryImportsGetImportedFacts,
+  queryImportsListBySymbol,
+} from "@/app/api/_lib/convexServer";
+import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
   enforceRateLimit,
@@ -66,23 +72,6 @@ const readSymbolFromBody = async (request: Request): Promise<string | null> => {
   }
 };
 
-const exposeEngineSetupHint = () => process.env.NODE_ENV !== "production";
-
-const formatFactsFetchError = (error: unknown): string => {
-  if (exposeEngineSetupHint() && isEngineConnectionError(error)) {
-    return engineUnavailableMessage();
-  }
-  return "EDGAR facts failed";
-};
-
-const logFactsFetchFailure = (error: unknown) => {
-  if (exposeEngineSetupHint() && isEngineConnectionError(error)) {
-    console.warn("Company facts fetch skipped: DCF engine unavailable");
-    return;
-  }
-  console.error("Company facts fetch failed", error);
-};
-
 const fetchFacts = async (symbol: string): Promise<EdgarFacts> => {
   return fetchDcfEngine<EdgarFacts>(
     `/sec/facts?symbol=${encodeURIComponent(symbol)}`,
@@ -128,31 +117,18 @@ const readImportedFacts = async (
   listingId: string | null,
   canReadImportedFacts: boolean,
 ): Promise<EdgarFacts | null> => {
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     return null;
   }
 
   let imported: Record<string, unknown> | null = null;
   if (shouldReadImportedFacts(listingId, canReadImportedFacts)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const getImportedFacts = "imports:getImportedFacts" as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    imported = await (convexClient as any).query(getImportedFacts, {
-      syncToken,
-      listingId,
-    });
+    imported = (await queryImportsGetImportedFacts({
+      listingId: listingId!,
+    })) as Record<string, unknown> | null;
   }
   if (!imported && !listingId && canReadImportedFacts) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const listBySymbol = "imports:listBySymbol" as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    const matches = await (convexClient as any).query(listBySymbol, {
-      syncToken,
-      symbol,
-      limit: 1,
-    });
+    const matches = await queryImportsListBySymbol({ symbol, limit: 1 });
     imported = Array.isArray(matches) ? (matches[0] ?? null) : null;
   }
   if (!imported) {
@@ -266,19 +242,11 @@ const readImportedFacts = async (
 };
 
 const persistFacts = async (facts: EdgarFacts): Promise<void> => {
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
+  if (!convexConfigured()) {
     throw new Error("Persistence backend is not configured");
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-  const upsertCompany = "companies:upsertCompany" as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-  const upsertBatch = "companyStatements:upsertBatch" as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-  await (convexClient as any).mutation(upsertCompany, {
-    syncToken,
+  await mutationCompaniesUpsertCompany({
     symbol: facts.symbol,
     name: facts.name ?? undefined,
     cik: facts.cik,
@@ -303,9 +271,7 @@ const persistFacts = async (facts: EdgarFacts): Promise<void> => {
     updatedAt: facts.updated_at,
   }));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-  await (convexClient as any).mutation(upsertBatch, {
-    syncToken,
+  await mutationCompanyStatementsUpsertBatch({
     symbol: facts.symbol,
     statements,
   });
@@ -358,9 +324,9 @@ export async function GET(request: Request) {
     const facts = await fetchFacts(symbol);
     return noStoreJson(facts);
   } catch (error) {
-    logFactsFetchFailure(error);
+    console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse("EDGAR_ERROR", formatFactsFetchError(error), status);
+    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
   }
 }
 
@@ -391,9 +357,9 @@ export async function POST(request: Request) {
   try {
     facts = await fetchFacts(symbol);
   } catch (error) {
-    logFactsFetchFailure(error);
+    console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;
-    return errorResponse("EDGAR_ERROR", formatFactsFetchError(error), status);
+    return errorResponse("EDGAR_ERROR", "EDGAR facts failed", status);
   }
 
   try {

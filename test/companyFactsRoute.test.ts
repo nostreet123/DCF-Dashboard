@@ -7,6 +7,7 @@ import { GET as GET_BROWSER } from "../app/api/company/facts/browser/route";
 import { createInternalPersistenceHeaders } from "../app/api/_lib/internalAuth";
 import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
+import { createMockFetch } from "./helpers/fetchMock";
 
 const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalConvexUrl = process.env.CONVEX_URL;
@@ -89,25 +90,6 @@ describe("company facts route auth boundaries", () => {
     expect(response.status).toBe(400);
   });
 
-  test("GET returns development guidance when the DCF engine is unavailable", async () => {
-    process.env.DCF_RATE_LIMIT_ALLOW_LOCALHOST = "1";
-    globalThis.fetch = async () => {
-      throw Object.assign(new TypeError("fetch failed"), {
-        cause: { code: "ECONNREFUSED" },
-      });
-    };
-
-    const response = await GET(
-      new Request("http://localhost/api/company/facts?symbol=AAPL"),
-    );
-    const payload = await response.json();
-
-    expect(response.status).toBe(502);
-    expect(payload.code).toBe("EDGAR_ERROR");
-    expect(payload.message).toContain("npm run dev:engine");
-    expect(payload.message).toContain("NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo");
-  });
-
   test("POST rejects unauthorized persistence requests", async () => {
     process.env.INTERNAL_PERSISTENCE_KEY = "secret";
     const response = await POST(
@@ -147,7 +129,7 @@ describe("company facts route auth boundaries", () => {
       queryCalls.push({ name, args });
       return null;
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(
         JSON.stringify({
           symbol: "AAPL",
@@ -163,7 +145,8 @@ describe("company facts route auth boundaries", () => {
           ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      ),
+    );
 
     const response = await GET(
       new Request(
@@ -188,7 +171,7 @@ describe("company facts route auth boundaries", () => {
       queryCalls.push({ name, args });
       return null;
     };
-    globalThis.fetch = async () =>
+    globalThis.fetch = createMockFetch(async () =>
       new Response(
         JSON.stringify({
           symbol: "IBM",
@@ -204,7 +187,8 @@ describe("company facts route auth boundaries", () => {
           ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      ),
+    );
 
     const response = await GET(
       new Request(
@@ -259,9 +243,9 @@ describe("company facts route auth boundaries", () => {
         },
       };
     };
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error("EDGAR should not be called for imported facts");
-    };
+    });
 
     const response = await GET(
       new Request(url, {
@@ -299,11 +283,11 @@ describe("company facts route auth boundaries", () => {
         },
       };
     };
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error(
         "EDGAR should not be called for a non-SEC selected listing",
       );
-    };
+    });
 
     const response = await GET(
       new Request(
@@ -350,11 +334,11 @@ describe("company facts route auth boundaries", () => {
         },
       };
     };
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error(
         "EDGAR should not be called for a non-SEC selected listing",
       );
-    };
+    });
 
     const response = await GET(
       new Request(url, {
@@ -411,11 +395,11 @@ describe("company facts route auth boundaries", () => {
         },
       ];
     };
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error(
         "EDGAR should not be called when approved imported facts exist",
       );
-    };
+    });
 
     const response = await GET(
       new Request(url, {
@@ -459,9 +443,9 @@ describe("company facts route auth boundaries", () => {
         },
       };
     };
-    globalThis.fetch = async () => {
+    globalThis.fetch = createMockFetch(async () => {
       throw new Error("EDGAR should not be called for browser imported facts");
-    };
+    });
 
     const response = await GET_BROWSER(
       new Request("http://localhost/api/company/facts/browser?symbol=VOD&listingId=XLON:VOD", {

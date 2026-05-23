@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "crypto";
 
 import { DEFAULT_JSON_BODY_LIMIT_BYTES } from "@/app/api/_lib/body";
-import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
+import { mutationSecurityAuth } from "@/app/api/_lib/convexServer";
 
 const INTERNAL_PERSISTENCE_SIGNATURE_HEADER = "x-dcf-internal-signature";
 const INTERNAL_PERSISTENCE_TIMESTAMP_HEADER = "x-dcf-internal-ts";
@@ -66,20 +66,7 @@ const isFreshTimestamp = (timestampMs: number, now: number): boolean => {
 const callSecurityAuthMutation = async <T>(
   name: SecurityAuthMutationName,
   args: Record<string, unknown>,
-): Promise<T | null> => {
-  const convexClient = getConvexClient();
-  const syncToken = getSyncTokenOptional();
-  if (!convexClient || !syncToken) {
-    return null;
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- avoids deep Convex type instantiation
-    return await (convexClient as any).mutation(name as any, { syncToken, ...args });
-  } catch (error) {
-    console.warn("Internal auth mutation failed", error);
-    return null;
-  }
-};
+): Promise<T | null> => mutationSecurityAuth<T>(name, args);
 
 const reserveNonce = async (nonce: string, now: number) => {
   const result = await callSecurityAuthMutation<ReserveNonceResult>(

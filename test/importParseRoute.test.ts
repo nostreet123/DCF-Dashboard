@@ -52,7 +52,7 @@ describe("company import parse route", () => {
   test("does not persist accepted artifacts from unsigned browser uploads", async () => {
     const securityMock = installSecurityMutationsMock();
     restoreSecurityMock = securityMock.restore;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       expect(String(url)).toBe("http://engine.example/company/import/parse");
       return new Response(
         JSON.stringify({
@@ -68,7 +68,7 @@ describe("company import parse route", () => {
         }),
         { headers: { "Content-Type": "application/json" } },
       );
-    };
+    }) as unknown as typeof fetch;
     const formData = new FormData();
     formData.append("files", new File(["Revenue,10"], "income.csv", { type: "text/csv" }));
 
@@ -89,12 +89,12 @@ describe("company import parse route", () => {
     const securityMock = installSecurityMutationsMock();
     restoreSecurityMock = securityMock.restore;
     let engineCalled = false;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       engineCalled = true;
       return new Response(JSON.stringify({ artifacts: [] }), {
         headers: { "Content-Type": "application/json" },
       });
-    };
+    }) as unknown as typeof fetch;
 
     const response = await POST(
       new Request("http://localhost/api/company/import/parse?listingId=XTSE:SHOP", {
@@ -115,12 +115,12 @@ describe("company import parse route", () => {
     const securityMock = installSecurityMutationsMock();
     restoreSecurityMock = securityMock.restore;
     let engineCalled = false;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       engineCalled = true;
       return new Response(JSON.stringify({ artifacts: [] }), {
         headers: { "Content-Type": "application/json" },
       });
-    };
+    }) as unknown as typeof fetch;
     const chunk = new Uint8Array(1024 * 1024);
     let emitted = 0;
     const body = new ReadableStream<Uint8Array>({
@@ -150,13 +150,13 @@ describe("company import parse route", () => {
   test("does not upload artifacts before parser acceptance", async () => {
     const securityMock = installSecurityMutationsMock();
     restoreSecurityMock = securityMock.restore;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       expect(String(url)).toBe("http://engine.example/company/import/parse");
       return new Response(JSON.stringify({ detail: "unsupported file" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
-    };
+    }) as unknown as typeof fetch;
     const formData = new FormData();
     formData.append("files", new File(["bad"], "bad.unsupported"));
 
