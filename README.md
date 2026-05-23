@@ -160,7 +160,7 @@ npm run smoke:alive
 npm run harness:verify
 ```
 
-This runs repository invariant checks, Bun tests, pytest, Convex typecheck, a production build, and lint. For a targeted browser smoke check, run `npm run harness:e2e:smoke`.
+This runs repository invariant checks, Bun tests, pytest, production and test TypeScript typecheck, Convex typecheck, lint, and a production build. For a targeted browser smoke check, run `npm run harness:e2e:smoke`.
 
 ## Optional Services And Environment
 
@@ -215,6 +215,7 @@ Security defaults:
 - `npm run harness:verify`
 - `npm run harness:e2e:smoke`
 - `npm test`
+- `npm run typecheck:test`
 - `npm run lint`
 - `npm run build`
 - `cd python && pytest`
