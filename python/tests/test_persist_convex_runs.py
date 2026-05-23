@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dcf_engine import convex_transport
 from dcf_engine.persist import convex_runs
 from dcf_engine.schema import (
     BridgeTable,
@@ -125,7 +126,7 @@ def _build_result() -> ValuationResult:
 
 
 def test_convex_run_persister_inline(monkeypatch):
-    monkeypatch.setattr(convex_runs, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     monkeypatch.setattr(convex_runs, "MAX_TRACE_BYTES", 10_000)
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
@@ -152,7 +153,7 @@ def test_convex_run_persister_inline(monkeypatch):
 
 
 def test_convex_run_persister_external(monkeypatch):
-    monkeypatch.setattr(convex_runs, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     monkeypatch.setattr(convex_runs, "MAX_TRACE_BYTES", 1)
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
@@ -176,7 +177,7 @@ def test_convex_run_persister_external(monkeypatch):
 
 
 def test_convex_run_persister_without_trace(monkeypatch):
-    monkeypatch.setattr(convex_runs, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
     persister = convex_runs.ConvexRunPersister(convex_url="http://example")

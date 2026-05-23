@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from dcf_engine import convex_transport
 from dcf_engine.service import convex_security
 
 
@@ -67,7 +68,7 @@ def test_convex_security_client_requires_sync_token(
 def test_convex_security_client_wraps_initialization_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(convex_security, "ConvexClient", ExplodingConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", ExplodingConvexClient)
     monkeypatch.setenv("CONVEX_URL", "http://example")
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
@@ -78,7 +79,7 @@ def test_convex_security_client_wraps_initialization_errors(
 def test_convex_security_client_uses_expected_convex_mutations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(convex_security, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     monkeypatch.setenv("CONVEX_URL", "http://example")
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
@@ -106,7 +107,7 @@ def test_convex_security_client_uses_expected_convex_mutations(
 def test_convex_security_client_keeps_class_sync_token_over_args(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(convex_security, "ConvexClient", DummyConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", DummyConvexClient)
     monkeypatch.setenv("CONVEX_URL", "http://example")
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
@@ -144,7 +145,7 @@ def test_convex_security_client_does_not_retry_mutations(
     method_args: tuple[object, ...],
     operation_name: str,
 ) -> None:
-    monkeypatch.setattr(convex_security, "ConvexClient", FailingConvexClient)
+    monkeypatch.setattr(convex_transport, "ConvexClient", FailingConvexClient)
     monkeypatch.setenv("CONVEX_URL", "http://example")
     monkeypatch.setenv("DAMODARAN_SYNC_TOKEN", "test-token")
 
