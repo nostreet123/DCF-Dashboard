@@ -9,6 +9,8 @@ import {
   resolveDisplayedValuationData,
   shouldComputeLiveValuation,
 } from "../lib/hooks/useDashboardController";
+import type { DcfResult } from "../lib/hooks/useDcfCompute";
+import type { ValuationReplaySnapshot } from "../lib/hooks/useValuationHistory";
 
 describe("dashboard historical replay display state", () => {
   const originalDashboardMode = process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE;
@@ -70,7 +72,7 @@ describe("dashboard historical replay display state", () => {
           range: [130, 170],
           histogram: { binCenters: [140], density: [1] },
           sensitivityMatrix: [],
-        },
+        } as unknown as DcfResult,
         replaySnapshot: {
           runId: "run-1",
           createdAt: 1700000000000,
@@ -81,7 +83,7 @@ describe("dashboard historical replay display state", () => {
           },
           range: [118, 171],
           histogram: { binCenters: [120, 130], density: [0.5, 1] },
-        },
+        } as ValuationReplaySnapshot,
       }),
     ).toEqual({
       currentValue: 182,
@@ -105,7 +107,7 @@ describe("dashboard historical replay display state", () => {
             bull: { fairValue: 182 },
             bear: { fairValue: 110 },
           },
-        },
+        } as ValuationReplaySnapshot,
       }),
     ).toMatchObject({ currentValue: 182, displayScenario: "bull" });
   });
@@ -123,7 +125,10 @@ describe("dashboard historical replay display state", () => {
             bull: { fairValue: 150 },
             bear: { fairValue: 95 },
           },
-        },
+          projections: [],
+          kpis: [],
+          statementHistory: [],
+        } as ValuationReplaySnapshot,
       }),
     ).toEqual({
       currentValue: 130,
@@ -142,6 +147,11 @@ describe("dashboard historical replay display state", () => {
           range: [140, 164],
           histogram: { binCenters: [150], density: [1] },
           sensitivityMatrix: [],
+          scenarios: { base: 151, bull: 151, bear: 151 },
+          projections: [],
+          kpis: [],
+          statementHistory: [],
+          provenance: { symbol: "AAPL" },
         },
         replaySnapshot: null,
       }),
