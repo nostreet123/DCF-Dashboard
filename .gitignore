@@ -44,7 +44,19 @@ blob-report/
 .agents/
 ASSISTANT_LOG.md
 AGENTS.md
+**/AGENTS.md
 AGENT_INDEX.md
+
+# Private keys and credential material
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+service-account*.json
+**/secrets/
 documentation/
 docs/agent-context-policy.md
 docs/assistant-log-archive.md

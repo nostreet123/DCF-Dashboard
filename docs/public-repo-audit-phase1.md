@@ -1,50 +1,53 @@
 # Public Repo Audit - Phase 1
 
-Date: 2026-03-14
+Date: 2026-05-31 (Gate 0 re-verification)
 
-Status: PASS locally; force-push rewritten history before public release
+Status: PASS on current `main` tree and `main` lineage; complete GitHub settings preflight before public switch
 
 ## Executive Summary
 
-Current-tree audit found no committed secrets, no tracked `.env` or `.env.local` files, and no leaked sync tokens or internal HMAC keys. The one confirmed historical exposure was a real Convex deployment identifier and subdomain copied into the old `security_best_practices_report.md`. That file has been removed from the working tree and from local git history. Before making the GitHub repository public, force-push the rewritten refs so the hosted remote matches this cleaned local history.
+Gate 0 re-verified the publishable tree and the `main` / `origin/main` ref lineage. No committed secrets, tracked `.env` files, or live deployment metadata were found. Historical Convex deployment metadata existed only in a removed report on **non-`main` refs**; it is not reachable from current `main`. See [public-release-safety-gate0.md](./public-release-safety-gate0.md) for the redacted scan summary (tool, scope, ref coverage, zero-finding status, evidence hash). Raw scanner output is never committed.
 
 ## Secret Scan Summary
 
-Reviewed:
+Reviewed (2026-05-31):
+
 - `.env*` files and committed config
 - Next.js, Convex, and FastAPI entry points
 - GitHub Actions workflows
-- tests, fixtures, and sample data
-- git history for tokens, API keys, private keys, real Convex URLs, and internal-only hostnames
+- Tests, fixtures, and sample data
+- `main` and `origin/main` history for tokens, API keys, private keys, and real Convex deployment identifiers
 
 Confirmed findings:
-- No committed values found for `DAMODARAN_SYNC_TOKEN`, `CONVEX_DEPLOY_KEY`, `DCF_ENGINE_INTERNAL_KEY`, or `INTERNAL_PERSISTENCE_KEY`
-- No tracked `.env` or `.env.local` files found in history
-- No private key material or common API key formats found in repo history
-- One historical metadata leak was found in the removed `security_best_practices_report.md`
-  - Included a real `CONVEX_DEPLOYMENT` identifier
-  - Included a real `CONVEX_URL` Convex subdomain
-  - Did not include active secrets alongside it
-  - Local git history has now been rewritten to remove it
+
+- No committed values for `DAMODARAN_SYNC_TOKEN`, `CONVEX_DEPLOY_KEY`, `DCF_ENGINE_INTERNAL_KEY`, or `INTERNAL_PERSISTENCE_KEY`
+- No tracked `.env` or `.env.local` files
+- No private key material or common live API key formats on the `main` lineage
+- Prior `security_best_practices_report.md` metadata leak is absent from `main` / `origin/main` (stale `pull/*` refs may still exist on the host — see Gate 0 follow-ups)
+
+Redacted evidence: [public-release-safety-gate0.md](./public-release-safety-gate0.md)
 
 ## Safe Public Defaults Pass
 
 Implemented:
-- FastAPI internal auth is now fail-closed by default
-- Unsigned FastAPI access now requires explicit local-only opt-in via `DCF_ENGINE_ALLOW_UNSIGNED=1`
+
+- FastAPI internal auth is fail-closed by default
+- Unsigned FastAPI access requires explicit local-only opt-in via `DCF_ENGINE_ALLOW_UNSIGNED=1`
 - Next.js refuses unsigned FastAPI calls unless that same local-only opt-in is set
-- Next.js rate-limit failures no longer reveal the exact trusted-header assumption in client-facing API responses
-- `.env.example` is regrouped into public-safe, private, and never-expose sections
-- The old checked-in security report with real deployment metadata was removed from the working tree
-- Local git history was rewritten to remove the old report artifact entirely
+- FastAPI `/docs`, `/redoc`, and `/openapi.json` are **disabled unless** `DCF_ENGINE_EXPOSE_DOCS=1` (local/dev only)
+- `.env.example` groups public-safe, private operational, server-only secret, and local-only unsafe sections
+- Tracked `AGENTS.md` files removed from the publishable tree; public contributor guidance lives in [contributor-module-guides.md](./contributor-module-guides.md)
 
 Residual deployment note:
-- FastAPI nonce replay protection is still process-local. That is acceptable for local/dev and a private single-instance engine, but a public multi-worker FastAPI deployment should use shared nonce storage or stay behind a private network boundary.
 
-## Variables Safe For Public Use
+- Signed FastAPI routes fail closed with `503` when Convex-backed shared nonce storage is not configured (`CONVEX_URL` + `DAMODARAN_SYNC_TOKEN`). Process-local nonces are available only with explicit `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1` (local/dev). Hosted multi-worker deployments must use the shared Convex nonce store.
 
-These are safe to publish in docs, examples, or browser-exposed config when needed:
+## Variables Safe For Public Documentation
+
+Safe to mention in docs or browser-exposed config when appropriate:
+
 - `NEXT_PUBLIC_CONVEX_URL`
+- `NEXT_PUBLIC_DCF_DASHBOARD_MODE`
 - `TABLEDATA_INSERT_MAX_ROWS`
 - `DAMODARAN_INSERT_BATCH_MAX_ROWS`
 - `DAMODARAN_INSERT_BATCH_MAX_BYTES`
@@ -56,10 +59,19 @@ These are safe to publish in docs, examples, or browser-exposed config when need
 - `DAMODARAN_CONDITIONAL_GET`
 - `RATE_LIMIT_IDENTITY_SOURCE`
 - `RATE_LIMIT_IDENTITY_MODE`
-- `DCF_ENGINE_EXPOSE_DOCS`
 - `DCF_TRUSTED_PROXY_MODE`
 - `MONTE_CARLO_DEPENDENCE`
 - `MONTE_CARLO_ONE_FACTOR_LOADING`
+
+## Local-Only Flags (Never Hosted/Public Defaults)
+
+Do **not** document these as safe defaults for public or shared deployments:
+
+- `DCF_ENGINE_ALLOW_UNSIGNED`
+- `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES`
+- `DCF_RATE_LIMIT_ALLOW_LOCALHOST`
+- `DCF_ENGINE_EXPOSE_DOCS`
+- `IMPORT_APPROVAL_BROWSER_WRITES`
 
 ## Variables Never To Expose
 
@@ -67,29 +79,33 @@ These are safe to publish in docs, examples, or browser-exposed config when need
 - `DAMODARAN_SYNC_TOKEN`
 - `DCF_ENGINE_INTERNAL_KEY`
 - `INTERNAL_PERSISTENCE_KEY`
+- `HUGGING_FACE_API_KEY`
 
 ## Sensitive But Not Secret
 
-Do not treat these as public examples even though they are not secret credentials:
+Do not use real deployment values in public examples:
+
 - `CONVEX_URL`
 - `CONVEX_DEPLOYMENT`
 - `DCF_ENGINE_URL`
 - `DCF_TRUSTED_PROXY_CIDRS`
 - `SEC_USER_AGENT`
 
-## Release Step
+## Release Steps (Maintainer)
 
-Before making the GitHub repo public, push the rewritten local history to the hosted remote:
+Before making the repository public:
 
-```bash
-git push --force --all
-git push --force --tags
-```
+1. Complete GitHub settings preflight in [public-release-safety-gate0.md](./public-release-safety-gate0.md)
+2. Merge OSS readiness PRs 1–8 in order
+3. Run final secret/history scan (PR 8 checklist)
+4. Switch visibility to public
 
 ## Pass Condition
 
-This phase passes only when all of the following are true:
-- current tree contains no secrets or sensitive deployment metadata
-- git history no longer contains the removed report leak
-- public deployments keep `DCF_ENGINE_ALLOW_UNSIGNED` unset
-- operational secrets remain in environment stores only
+This phase passes when all of the following are true:
+
+- Current tree contains no secrets or sensitive deployment metadata
+- `main` lineage no longer contains the removed report leak
+- Public deployments keep local-only bypass flags unset
+- Operational secrets remain in environment stores only
+- Redacted Gate 0 evidence is recorded and raw scanner output is not published
