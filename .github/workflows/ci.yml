@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   dependency-review:
+    # dependency-review-action only auto-derives refs for pull_request events.
+    if: github.event_name == 'pull_request'
     # GitHub's dependency-review action requires extra repository features on private repos.
     # Keep the check green on private repos where the feature is unavailable.
     runs-on: ubuntu-latest
