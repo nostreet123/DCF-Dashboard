@@ -228,6 +228,7 @@ E2E support is available through Playwright:
 - Showcase: [`docs/showcase.md`](docs/showcase.md)
 - Examples: [`examples/README.md`](examples/README.md)
 - Contributing guide (incl. maintainer repo settings): [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Support: [`SUPPORT.md`](SUPPORT.md) · Governance: [`GOVERNANCE.md`](GOVERNANCE.md) · Releasing: [`RELEASING.md`](RELEASING.md) · Third-party notices: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)

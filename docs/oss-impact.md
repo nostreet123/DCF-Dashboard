@@ -44,5 +44,5 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 | Onboarding hub | 3 | [ONBOARDING.md](./ONBOARDING.md) |
 | Showcase + architecture | 4 | [showcase.md](./showcase.md), [architecture.md](./architecture.md), [provider-data-flow.md](./provider-data-flow.md) |
 | Clean-clone verification | 5 | [verification.md](./verification.md), [public-repo-audit-phase3.md](./public-repo-audit-phase3.md) |
-| Governance + notices | 6 | _pending_ |
+| Governance + notices | 6 | [GOVERNANCE.md](../GOVERNANCE.md), [SUPPORT.md](../SUPPORT.md), [RELEASING.md](../RELEASING.md), [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
 | Program application pack | 7 | _pending_ |

@@ -11,7 +11,7 @@ This roadmap is intentionally short and public-facing. Each item includes accept
 | Product proof | Showcase images exist in-repo and match current UI (see PR 4) |
 | Clean-clone evidence | [`docs/verification.md`](docs/verification.md) — harness verified on supported environments |
 | Security CI | Secret scan + CodeQL workflows green on `main` (done in PR 2) |
-| Governance pack | GOVERNANCE, SUPPORT, THIRD_PARTY_NOTICES (see PR 6) |
+| Governance pack | [GOVERNANCE.md](GOVERNANCE.md), [SUPPORT.md](SUPPORT.md), [RELEASING.md](RELEASING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 
 ## Next Up
 
