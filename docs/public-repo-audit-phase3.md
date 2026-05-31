@@ -1,8 +1,12 @@
 # Phase 3 Public-Repo Audit: Build, Run, and Reproducibility
 
-Date: 2026-03-14
+Date: 2026-05-31 (refreshed; original audit 2026-03-14)
+
+Git ref: `main` @ `97613aa` (OSS PR 5 verification evidence)
 
 Status: PASS
+
+Reviewer summary: [verification.md](./verification.md)
 
 ## Goal
 
@@ -120,18 +124,22 @@ This runs a fast mixed smoke check:
 
 ## Exact Commands Verified
 
-Verified during this audit:
+Verified on 2026-05-31 (Cursor Cloud agent workspace, clean `main` checkout):
 
 ```bash
 npm ci
-npm run lint
-npm run build
-npm test
+python3 scripts/check_repo_invariants.py
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
 npm run demo:compute
-bash scripts/smoke_alive.sh
-cd python && pytest
+npm run smoke:alive
+npm run harness:verify
 ```
+
+Prior audit (2026-03-14) also recorded: `npm run lint`, `npm run build`, `npm test`, and `cd python && pytest` individually — all are included inside `harness:verify` today.
+
+### Sample output fingerprint
+
+`npm run demo:compute` against `examples/workbench-demo-request.json` produced committed output in `examples/workbench-demo-output.json` (`sensitivity_grid` shape `[9, 9]`, Monte Carlo seed `123`, `base_fair_value_per_share` ≈ `21.01`). Refresh that file when valuation kernel outputs change.

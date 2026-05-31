@@ -57,6 +57,15 @@ curl -s -X POST http://127.0.0.1:8000/dcf/compute \
 
 Signed hosted deployments require internal auth headers — prefer `npm run demo:compute` for local verification.
 
+## Committed sample outputs
+
+| File | Regenerate |
+|------|------------|
+| `workbench-demo-output.json` | `npm run demo:compute > examples/workbench-demo-output.json` |
+| `consumer-staples-demo-output.json` | `python scripts/run_workbench_demo.py examples/consumer-staples-demo-request.json` (redirect stdout to the output path) |
+
+Refresh these when the valuation kernel changes materially. Latest harness evidence: [`docs/verification.md`](../docs/verification.md).
+
 ## See Also
 
 - [docs/showcase.md](../docs/showcase.md) — representative fair values from these payloads

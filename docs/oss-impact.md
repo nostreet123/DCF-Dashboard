@@ -6,7 +6,7 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 
 | Audience | Need | Status |
 |----------|------|--------|
-| Students and self-directed learners | Reproducible DCF workflow with visible assumptions | Claim — prove via onboarding + examples (PR 5) |
+| Students and self-directed learners | Reproducible DCF workflow with visible assumptions | Evidence — [verification.md](./verification.md), [examples/README.md](../examples/README.md) |
 | Indie builders and OSS contributors | Hackable valuation stack (Next.js + Python) | Claim — prove via harness + architecture docs (PR 4) |
 | Maintainers / reviewers | Safe public defaults and verifiable demos | In progress — Gate 0 + PRs 1–2 merged |
 
@@ -14,8 +14,8 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 
 | Claim | Proof needed | Owner PR |
 |-------|--------------|----------|
-| Clone → demo in under five minutes (mock path) | [ONBOARDING.md](./ONBOARDING.md) + passing smoke | PR 3 (this doc), PR 5 (verification) |
-| Clone → compute without private services | `npm run demo:compute` + sample output | PR 5 |
+| Clone → demo in under five minutes (mock path) | [ONBOARDING.md](./ONBOARDING.md) + passing smoke | PR 3, PR 5 — [verification.md](./verification.md) |
+| Clone → compute without private services | `npm run demo:compute` + sample output | PR 5 — [workbench-demo-output.json](../examples/workbench-demo-output.json) |
 | Security posture visible in CI | Secret scan + CodeQL badges on README | PR 2 merged |
 | Product understandable without running | Showcase screenshots + architecture | PR 4 |
 | Honest public-preview boundaries | README + roadmap scope | PR 3 |
@@ -30,7 +30,7 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 
 ## Claims To Prove (Not Yet Evidence)
 
-- [ ] OSS program reviewers can complete mock demo from clean clone in one session
+- [x] OSS program reviewers can complete mock demo from clean clone in one session (see [verification.md](./verification.md))
 - [ ] Showcase media reflects current UI (redaction-reviewed)
 - [ ] Application pack cites only merged verification artifacts
 - [ ] No hosted deployment docs recommend local-only bypass flags
@@ -43,6 +43,6 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 | Security CI workflows | 2 | [.github/workflows/secret-scan.yml](../.github/workflows/secret-scan.yml) |
 | Onboarding hub | 3 | [ONBOARDING.md](./ONBOARDING.md) |
 | Showcase + architecture | 4 | [showcase.md](./showcase.md), [architecture.md](./architecture.md), [provider-data-flow.md](./provider-data-flow.md) |
-| Clean-clone verification | 5 | _pending_ |
+| Clean-clone verification | 5 | [verification.md](./verification.md), [public-repo-audit-phase3.md](./public-repo-audit-phase3.md) |
 | Governance + notices | 6 | _pending_ |
 | Program application pack | 7 | _pending_ |

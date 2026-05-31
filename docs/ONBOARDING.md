@@ -1,6 +1,6 @@
 # Onboarding
 
-This guide is the first-run path for contributors and technical reviewers. For audit-grade command logs, see [public-repo-audit-phase3.md](./public-repo-audit-phase3.md).
+This guide is the first-run path for contributors and technical reviewers. For the latest pass/fail evidence, see [verification.md](./verification.md); for the full command log, see [public-repo-audit-phase3.md](./public-repo-audit-phase3.md).
 
 ## Who This Is For
 
