@@ -62,6 +62,20 @@ ROUTE_CONVEX_ANY_PATTERN = re.compile(
     r"\(\s*convexClient\s+as\s+any\s*\)\.(query|mutation)\("
 )
 
+LOCAL_ONLY_ENV_ASSIGNMENTS = (
+    "DCF_ENGINE_ALLOW_UNSIGNED=1",
+    "DCF_RATE_LIMIT_ALLOW_LOCALHOST=1",
+    "DCF_ENGINE_EXPOSE_DOCS=1",
+    "DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1",
+    "IMPORT_APPROVAL_BROWSER_WRITES=1",
+)
+
+HOSTED_DEPLOYMENT_FILES = (
+    ROOT / "render.yaml",
+)
+
+WORKFLOW_ROOT = ROOT / ".github" / "workflows"
+
 
 def rel(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
@@ -262,6 +276,39 @@ def check_route_convex_any_hatches(errors: list[str]) -> None:
             )
 
 
+def check_workflow_posture(errors: list[str]) -> None:
+    if not WORKFLOW_ROOT.exists():
+        return
+    trigger_pattern = re.compile(r"^\s*pull_request_target\s*:\s*$|^\s*-\s*pull_request_target\s*$")
+    for path in WORKFLOW_ROOT.glob("*.yml"):
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if trigger_pattern.search(line):
+                add_error(
+                    errors,
+                    path,
+                    line_no,
+                    "do not use pull_request_target; use pull_request for untrusted fork PRs",
+                )
+
+
+def check_hosted_local_only_flags(errors: list[str]) -> None:
+    for path in HOSTED_DEPLOYMENT_FILES:
+        if not path.exists():
+            continue
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            for assignment in LOCAL_ONLY_ENV_ASSIGNMENTS:
+                if assignment in stripped:
+                    add_error(
+                        errors,
+                        path,
+                        line_no,
+                        f"hosted deployment file must not set {assignment}; use local/dev docs only",
+                    )
+
+
 def check_tracked_ds_store(errors: list[str]) -> None:
     if not (ROOT / ".git").exists():
         return
@@ -291,6 +338,8 @@ def main() -> int:
     check_convex_query_indexes(errors)
     check_line_counts(errors, warnings)
     check_route_convex_any_hatches(errors)
+    check_workflow_posture(errors)
+    check_hosted_local_only_flags(errors)
 
     if warnings:
         print("Repository invariant warnings:", file=sys.stderr)

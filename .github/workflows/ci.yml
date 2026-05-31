@@ -1,5 +1,10 @@
 name: CI
-on: [pull_request]
+
+# Use pull_request (not pull_request_target) so fork PRs never receive repository secrets.
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
