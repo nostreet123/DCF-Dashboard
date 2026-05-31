@@ -24,7 +24,7 @@ bunx convex deploy      # deploy schema + functions (CI / production)
 
 ## Conventions
 
-- All write mutations require a sync token (`requireSyncToken()`); public queries redact by default and elevate only with `hasValidSyncToken()`.
+- Write mutations require a sync token (`requireSyncToken()`). Many read queries are intentionally unauthenticated (e.g. `catalog.getSidebar`, `companies.get`, `companies.search`); see each module for its auth expectations.
 - Every query reads through an index (`.withIndex(...)`) — no full table scans.
 - Enums are always `v.union(v.literal(...))`, never `v.string()` or TypeScript enums.
 
@@ -34,3 +34,4 @@ bunx convex deploy      # deploy schema + functions (CI / production)
 |----------|---------|
 | `DAMODARAN_SYNC_TOKEN` | Shared secret required for all mutations and signed-request replay protection |
 | `TABLEDATA_INSERT_MAX_ROWS` | Max rows per `insertBatch` (default 100) |
+| `ASSETS_RECORD_MAX_ROWS` | Max rows per `assets.recordBatch` (default 500, max 1000) |
