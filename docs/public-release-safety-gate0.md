@@ -12,7 +12,7 @@ This document records the non-PR safety gate completed before [public-repo-audit
 |-------|-------|
 | Tool | Gitleaks 8.24.2 |
 | Current-tree scan | Working tree (tracked + untracked, excluding `.git/`) |
-| Ref coverage | `main`, `origin/main`, `origin/tags/v0.1.0`, and 113 local/remote refs fetched on 2026-05-31 |
+| Ref coverage | `main`, `origin/main`, tag `v0.1.0` (`refs/tags/v0.1.0`), and 113 local/remote refs fetched on 2026-05-31 |
 | Current-tree result | Zero confirmed secret leaks |
 | History on `main` lineage | No `security_best_practices_report.md`; no matches for the previously leaked Convex deployment identifier on `main` / `origin/main` |
 | Evidence artifact | SHA-256 `f51f9be4c8364643d629d8e4c7f66179cc06edbe1e95691e9f476997b8447fcd` (redacted summary payload below) |

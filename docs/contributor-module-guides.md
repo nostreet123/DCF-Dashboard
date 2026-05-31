@@ -41,7 +41,7 @@ See `README.md` and `package.json` scripts. Common commands:
 - **Valuation decoders**: `lib/valuation/decoders.ts`
 - **AI scenario analysis**: `lib/ai/scenarioAnalysis/*` with thin `app/api/ai/scenario-analysis/route.ts`
 - **Dashboard controller**: `lib/hooks/dashboard/*` + `lib/dashboard/viewModel.ts`
-- **Python valuation/sync**: `python/dcf_engine/valuation_kernel.py`, `convex_transport.py`, `python/damodaran_sync/sync_*.py`
+- **Python valuation/sync**: `python/dcf_engine/valuation_kernel.py`, `python/dcf_engine/convex_transport.py`, `python/damodaran_sync/sync_*.py`
 
 ## Deeper Module Docs
 

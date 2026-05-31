@@ -14,15 +14,15 @@ This report captured the security posture **before** several hardening changes l
 
 | Original finding | Current status (2026-05-31) |
 |------------------|----------------------------|
-| FastAPI `/sec/*` reachable without auth when engine is public | **Open (deployment-dependent)** — keep engine private or add route-level controls before direct exposure |
-| Public Convex valuation history reads | **Open (product decision)** — queries still optional-token; confirm intentional public summaries |
+| FastAPI `/sec/*` reachable without auth when engine is public | **Remediated (2026-03+)** — `/sec/search` and `/sec/facts` use `Depends(require_internal_request)` ([app.py](python/dcf_engine/service/app.py)); unsigned access only with `DCF_ENGINE_ALLOW_UNSIGNED=1` and no `DCF_ENGINE_INTERNAL_KEY` |
+| Public Convex valuation history reads | **Remediated (2026-03+)** — `valuations.ts` read queries call `requireValuationReadAccess()` (requires `DAMODARAN_SYNC_TOKEN`); optional browser routes stay behind explicit `VALUATION_HISTORY_BROWSER_READS` + server token gates |
 | FastAPI docs/OpenAPI enabled by default | **Remediated** — disabled unless `DCF_ENGINE_EXPOSE_DOCS=1` ([app.py](python/dcf_engine/service/app.py)) |
 | `pull_request_target` secret exposure | **Remediated** — workflows use `pull_request` |
 | Hardcoded secrets in reviewed paths | **No finding** — reaffirmed in Gate 0 |
 
 ## Executive Summary (Original)
 
-This audit reviewed the public web/API surface in Next.js, the FastAPI DCF engine service, the Convex backend, and GitHub automation paths. The repo is materially stronger than a typical prototype: PR workflows use `pull_request` instead of `pull_request_target`, Convex write paths consistently gate mutations with `requireSyncToken()`, the internal persistence flow uses HMAC plus nonce replay protection, and the main request handlers sanitize client-facing error responses. The highest-priority remaining issues are around what happens if the FastAPI service is directly reachable and whether persisted valuation history is intended to be public.
+This audit reviewed the public web/API surface in Next.js, the FastAPI DCF engine service, the Convex backend, and GitHub automation paths. The repo is materially stronger than a typical prototype: PR workflows use `pull_request` instead of `pull_request_target`, Convex write paths consistently gate mutations with `requireSyncToken()`, the internal persistence flow uses HMAC plus nonce replay protection, and the main request handlers sanitize client-facing error responses. The highest-priority remaining issues at audit time were around direct FastAPI reachability and unauthenticated valuation history reads; both have since been hardened (see reconciliation table).
 
 ## Scope Reviewed
 
@@ -35,15 +35,15 @@ This audit reviewed the public web/API surface in Next.js, the FastAPI DCF engin
 
 ## Findings
 
-### Medium Severity
+### Medium Severity (original audit; see reconciliation for current status)
 
-1. `python/dcf_engine/service/app.py` — **Medium** (Confidence: Medium)
-   Description: The FastAPI service exposes `/sec/search` and `/sec/facts` with no authentication and no local abuse controls, while only `/dcf/compute` is rate limited. If the service behind `DCF_ENGINE_URL` is reachable outside the Next.js layer, an attacker can bypass the stronger Next.js request controls and hit the SEC-backed endpoints directly.
-   Recommended fix: Keep the FastAPI service on a private network interface if possible. If it may ever be directly reachable, add route-level authentication or equivalent rate limiting to `/sec/search` and `/sec/facts`, not just `/dcf/compute`.
+1. `python/dcf_engine/service/app.py` — **Medium** (original)
+   Description (2026-03-03): The FastAPI service exposed `/sec/search` and `/sec/facts` without authentication while only `/dcf/compute` was rate limited.
+   **Current (2026-05-31): Remediated.** Both routes require `require_internal_request` (HMAC signature + nonce replay protection) unless the local-only unsigned opt-in is active. Residual risk: a publicly reachable engine with a leaked `DCF_ENGINE_INTERNAL_KEY` — keep the engine private and rotate keys on compromise.
 
-2. `convex/valuations.ts` — **Medium** (Confidence: Medium)
-   Description: Persisted valuation summaries are readable through public Convex queries without authentication. The trace is protected, but `resultSummary`, status, symbol, date metadata, and other run metadata remain available to unauthenticated callers when browser/history features are enabled.
-   Recommended fix: Decide whether valuation history is intended to be public. If not, require authenticated access for these queries or split public cache data from private run storage.
+2. `convex/valuations.ts` — **Medium** (original)
+   Description (2026-03-03): Persisted valuation summaries were readable through Convex queries without authentication.
+   **Current (2026-05-31): Remediated.** Read queries use `requireValuationReadAccess()` which calls `requireSyncToken()`. Residual risk: enabling `VALUATION_HISTORY_BROWSER_READS` / browser token routes without understanding data exposure — leave those flags unset in public demos.
 
 ### Low Severity
 
@@ -63,9 +63,10 @@ This audit reviewed the public web/API surface in Next.js, the FastAPI DCF engin
 
 - Host header validation is not visible in the FastAPI app code; verify at the app or proxy layer before a public deployment.
 - Next.js API rate limiting is fail-closed; effectiveness depends on deployment matching the configured identity source.
+- Hosted signed FastAPI mode requires Convex-backed nonce storage; unsigned or process-local modes are local-only escape hatches.
 
 ## Recommended Next Steps
 
-1. Decide whether `python/dcf_engine/service/app.py` is private-only infrastructure or a potentially reachable service, then lock down `/sec/search` and `/sec/facts` accordingly.
-2. Decide whether valuation history is public product data or private run data, then align `convex/valuations.ts` with that decision.
-3. Keep `DCF_ENGINE_EXPOSE_DOCS` unset outside local/dev (already the code default).
+1. Keep the FastAPI engine on a private network or behind Next.js unless operational needs require direct exposure.
+2. Leave `VALUATION_HISTORY_BROWSER_READS` and related browser tokens unset unless saved runs are intentionally public.
+3. Keep `DCF_ENGINE_EXPOSE_DOCS`, `DCF_ENGINE_ALLOW_UNSIGNED`, and `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES` unset outside local/dev (already the documented default).

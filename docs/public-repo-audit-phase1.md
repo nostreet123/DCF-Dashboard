@@ -40,7 +40,7 @@ Implemented:
 
 Residual deployment note:
 
-- FastAPI nonce replay protection is process-local unless Convex-backed shared state is configured. Acceptable for local/dev and single-instance private engines; multi-worker public deployments need shared nonce storage or a private network boundary.
+- Signed FastAPI routes fail closed with `503` when Convex-backed shared nonce storage is not configured (`CONVEX_URL` + `DAMODARAN_SYNC_TOKEN`). Process-local nonces are available only with explicit `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1` (local/dev). Hosted multi-worker deployments must use the shared Convex nonce store.
 
 ## Variables Safe For Public Documentation
 
