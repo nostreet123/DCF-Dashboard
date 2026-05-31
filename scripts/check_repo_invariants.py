@@ -62,13 +62,15 @@ ROUTE_CONVEX_ANY_PATTERN = re.compile(
     r"\(\s*convexClient\s+as\s+any\s*\)\.(query|mutation)\("
 )
 
-LOCAL_ONLY_ENV_ASSIGNMENTS = (
-    "DCF_ENGINE_ALLOW_UNSIGNED=1",
-    "DCF_RATE_LIMIT_ALLOW_LOCALHOST=1",
-    "DCF_ENGINE_EXPOSE_DOCS=1",
-    "DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1",
-    "IMPORT_APPROVAL_BROWSER_WRITES=1",
+LOCAL_ONLY_ENV_KEYS = (
+    "DCF_ENGINE_ALLOW_UNSIGNED",
+    "DCF_RATE_LIMIT_ALLOW_LOCALHOST",
+    "DCF_ENGINE_EXPOSE_DOCS",
+    "DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES",
+    "IMPORT_APPROVAL_BROWSER_WRITES",
 )
+
+LOCAL_ONLY_ENV_ASSIGNMENTS = tuple(f"{key}=1" for key in LOCAL_ONLY_ENV_KEYS)
 
 HOSTED_DEPLOYMENT_FILES = (
     ROOT / "render.yaml",
@@ -279,9 +281,13 @@ def check_route_convex_any_hatches(errors: list[str]) -> None:
 def check_workflow_posture(errors: list[str]) -> None:
     if not WORKFLOW_ROOT.exists():
         return
-    trigger_pattern = re.compile(r"^\s*pull_request_target\s*:\s*$|^\s*-\s*pull_request_target\s*$")
-    for path in WORKFLOW_ROOT.glob("*.yml"):
+    trigger_pattern = re.compile(
+        r"pull_request_target",
+    )
+    for path in sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml")):
         for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.strip().startswith("#"):
+                continue
             if trigger_pattern.search(line):
                 add_error(
                     errors,
@@ -295,7 +301,8 @@ def check_hosted_local_only_flags(errors: list[str]) -> None:
     for path in HOSTED_DEPLOYMENT_FILES:
         if not path.exists():
             continue
-        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for line_no, line in enumerate(lines, start=1):
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
@@ -307,6 +314,19 @@ def check_hosted_local_only_flags(errors: list[str]) -> None:
                         line_no,
                         f"hosted deployment file must not set {assignment}; use local/dev docs only",
                     )
+        for index, line in enumerate(lines):
+            key_match = re.match(r"^\s*-\s*key:\s*([A-Z0-9_]+)\s*$", line)
+            if not key_match or key_match.group(1) not in LOCAL_ONLY_ENV_KEYS:
+                continue
+            value_line = lines[index + 1] if index + 1 < len(lines) else ""
+            value_match = re.match(r'^\s*value:\s*["\']?1["\']?\s*$', value_line.strip())
+            if value_match:
+                add_error(
+                    errors,
+                    path,
+                    index + 2,
+                    f"hosted deployment file must not enable {key_match.group(1)}=1",
+                )
 
 
 def check_tracked_ds_store(errors: list[str]) -> None:
