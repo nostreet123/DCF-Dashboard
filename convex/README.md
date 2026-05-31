@@ -11,7 +11,7 @@ See the repository [`docs/convex-persistence.md`](../docs/convex-persistence.md)
 - `syncAuth.ts` / `securityAuth.ts` — token validation and signed-request replay protection.
 - `_generated/` — auto-generated types; do not edit.
 
-A full file-by-file inventory and the core patterns (auth, indexing, build-id read semantics) live in [`AGENTS.md`](AGENTS.md). The cross-layer data model is documented in [`../DATA_MODEL.md`](../DATA_MODEL.md).
+Module patterns (auth, indexing, build-id read semantics) are summarized in [`../docs/contributor-module-guides.md`](../docs/contributor-module-guides.md); use `schema.ts` and `syncAuth.ts` as the source of truth. The cross-layer data model is documented in [`../DATA_MODEL.md`](../DATA_MODEL.md).
 
 ## Common Commands
 
