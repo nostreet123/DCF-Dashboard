@@ -2,7 +2,7 @@
 
 Date: 2026-05-31 (refreshed; original audit 2026-03-14)
 
-Git ref: `main` @ `97613aa` (OSS PR 5 verification evidence)
+Git ref: `main` @ `3446afc` (OSS PR train complete; harness re-verified 2026-05-31T20:49Z)
 
 Status: PASS
 
@@ -124,7 +124,7 @@ This runs a fast mixed smoke check:
 
 ## Exact Commands Verified
 
-Verified on 2026-05-31 (Cursor Cloud agent workspace, clean `main` checkout):
+Verified on 2026-05-31T20:49Z (Cursor Cloud agent workspace, `main` @ `3446afc`):
 
 ```bash
 npm ci

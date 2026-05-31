@@ -6,8 +6,8 @@ This page is the short evidence index for clean-clone reproducibility. For step-
 
 | Field | Value |
 |-------|--------|
-| Date (UTC) | 2026-05-31 |
-| Git ref | `main` @ `97613aa` (post PR 4 #110) |
+| Date (UTC) | 2026-05-31T20:49Z |
+| Git ref | `main` @ `3446afc` (OSS PRs 1–8 + Codex fixes #115) |
 | Environment | Cursor Cloud Ubuntu, Node 22, Python 3.12, `.venv` at repo root |
 | Full harness | `npm run harness:verify` — **PASS** |
 
