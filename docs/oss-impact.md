@@ -42,7 +42,7 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 | Redacted secret scan summary | 1 | [public-release-safety-gate0.md](./public-release-safety-gate0.md) |
 | Security CI workflows | 2 | [.github/workflows/secret-scan.yml](../.github/workflows/secret-scan.yml) |
 | Onboarding hub | 3 | [ONBOARDING.md](./ONBOARDING.md) |
-| Showcase + architecture | 4 | _pending_ |
+| Showcase + architecture | 4 | [showcase.md](./showcase.md), [architecture.md](./architecture.md), [provider-data-flow.md](./provider-data-flow.md) |
 | Clean-clone verification | 5 | _pending_ |
 | Governance + notices | 6 | _pending_ |
 | Program application pack | 7 | _pending_ |
