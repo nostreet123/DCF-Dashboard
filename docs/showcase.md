@@ -1,8 +1,12 @@
 # Showcase
 
-DCF Dashboard should be legible as a product, not only as source code. This page collects the first public-proof artifacts.
+DCF Dashboard should be legible as a product, not only as source code. This page collects public-proof artifacts for OSS reviewers.
+
+> **Disclaimer:** Screenshots and sample outputs illustrate financial **modeling and education only**. They are not investment advice, recommendations, or live market prices.
 
 ## Screenshots
+
+Captured from **mock demo mode** (`NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo`) using fictional/sample company data. Redaction review: no API keys, deployment URLs, or maintainer contact details appear in the images.
 
 ### Homepage
 
@@ -59,3 +63,13 @@ Representative values:
 - Monte Carlo p10 / p90: `$9.18 / $12.70`
 
 The two cases together illustrate how growth rate, margin profile, capital intensity, and leverage interact to produce very different absolute values and scenario spreads — even when the same engine and the same DCF mechanics are applied.
+
+## Regenerating Screenshots (Maintainers)
+
+```bash
+NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
+# separate terminal:
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 node scripts/capture_showcase_screenshots.mjs
+```
+
+Requires `npm exec playwright install chromium` once per machine. Re-run after major UI changes and repeat the redaction checklist in [provider-data-flow.md](./provider-data-flow.md).

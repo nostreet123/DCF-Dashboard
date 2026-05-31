@@ -15,7 +15,10 @@ Start here for contributor onboarding, product context, and public-release evide
 
 | Doc | Purpose |
 |-----|---------|
+| [architecture.md](./architecture.md) | System diagram and layer overview |
+| [provider-data-flow.md](./provider-data-flow.md) | SEC, Damodaran, Convex, Hugging Face boundaries |
 | [showcase.md](./showcase.md) | Screenshots and reviewer-facing product proof |
+| [../examples/README.md](../examples/README.md) | Sample request/output payloads |
 | [monte-carlo.md](./monte-carlo.md) | Monte Carlo modes and output interpretation |
 | [ai-scenario-analysis.md](./ai-scenario-analysis.md) | Server-only AI scenario flow |
 | [convex-persistence.md](./convex-persistence.md) | Optional Convex setup and data flow |
