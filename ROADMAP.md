@@ -9,7 +9,7 @@ This roadmap is intentionally short and public-facing. Each item includes accept
 | Onboarding hub | [`docs/ONBOARDING.md`](docs/ONBOARDING.md) is the default first-run link from README and CONTRIBUTING |
 | Docs hub | [`docs/README.md`](docs/README.md) links resolve; no orphan audit-only paths for golden paths |
 | Product proof | Showcase images exist in-repo and match current UI (see PR 4) |
-| Clean-clone evidence | Documented harness commands pass on supported environments (see PR 5) |
+| Clean-clone evidence | [`docs/verification.md`](docs/verification.md) — harness verified on supported environments |
 | Security CI | Secret scan + CodeQL workflows green on `main` (done in PR 2) |
 | Governance pack | GOVERNANCE, SUPPORT, THIRD_PARTY_NOTICES (see PR 6) |
 

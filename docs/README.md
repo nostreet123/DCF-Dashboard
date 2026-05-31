@@ -34,6 +34,7 @@ Start here for contributor onboarding, product context, and public-release evide
 | [public-release-safety-gate0.md](./public-release-safety-gate0.md) | Redacted secret/history verification |
 | [public-repo-audit-phase1.md](./public-repo-audit-phase1.md) | Public-safe vs local-only environment model |
 | [public-repo-audit-phase2.md](./public-repo-audit-phase2.md) | Supply-chain and CI posture |
+| [verification.md](./verification.md) | Reviewer summary: latest harness pass and three golden-path commands |
 | [public-repo-audit-phase3.md](./public-repo-audit-phase3.md) | Detailed clean-clone verification log |
 
 ## Roadmap And Impact

@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ### Added
 
+- [`docs/verification.md`](docs/verification.md) — reviewer-facing clean-clone evidence index (refreshed phase-3 audit on `main`)
 - [`docs/architecture.md`](docs/architecture.md), [`docs/provider-data-flow.md`](docs/provider-data-flow.md), and [`examples/README.md`](examples/README.md)
 - Refreshed showcase screenshots in [`docs/assets/`](docs/assets/) and maintainer capture script [`scripts/capture_showcase_screenshots.mjs`](scripts/capture_showcase_screenshots.mjs)
 - Public documentation hub ([`docs/README.md`](docs/README.md)), onboarding guide ([`docs/ONBOARDING.md`](docs/ONBOARDING.md)), and OSS impact claim ledger skeleton ([`docs/oss-impact.md`](docs/oss-impact.md))
