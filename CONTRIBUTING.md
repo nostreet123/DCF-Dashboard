@@ -2,7 +2,7 @@
 
 Thanks for taking a look at DCF Dashboard.
 
-**Start here:** [docs/ONBOARDING.md](docs/ONBOARDING.md) for install and golden paths. **Doc index:** [docs/README.md](docs/README.md).
+**Start here:** [docs/ONBOARDING.md](docs/ONBOARDING.md) for install and golden paths. **Doc index:** [docs/README.md](docs/README.md). **Help:** [SUPPORT.md](SUPPORT.md). **Releases:** [RELEASING.md](RELEASING.md).
 
 ## Before You Start
 

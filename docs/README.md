@@ -10,6 +10,10 @@ Start here for contributor onboarding, product context, and public-release evide
 | [contributor-module-guides.md](./contributor-module-guides.md) | Service ports, canonical code boundaries |
 | [../README.md](../README.md) | Project overview, quickstart, and demo paths |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Pull requests, issues, and maintainer settings |
+| [../SUPPORT.md](../SUPPORT.md) | How to get help (issues, expectations) |
+| [../GOVERNANCE.md](../GOVERNANCE.md) | Maintainer roles and decision process |
+| [../RELEASING.md](../RELEASING.md) | Versioning and release checklist |
+| [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) | Dependency licenses and attribution |
 
 ## Product And Modeling
 
