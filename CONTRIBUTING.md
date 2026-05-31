@@ -40,7 +40,7 @@ See [docs/ONBOARDING.md](docs/ONBOARDING.md#install-once) for the full install b
 | App / API | `npm run harness:verify` |
 | UI routes | Add `npm run harness:e2e:smoke` |
 | Python engine | `cd python && pytest` (or full harness) |
-| Convex | `npx convex typecheck` |
+| Convex | `npm run convex:typecheck` |
 
 ```bash
 . .venv/bin/activate
