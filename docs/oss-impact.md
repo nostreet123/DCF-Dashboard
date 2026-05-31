@@ -1,14 +1,14 @@
 # OSS Impact Claim Ledger
 
-Status: **skeleton** — claims below are hypotheses to prove during the public-readiness PR train (PRs 4–7). Do not cite as outcomes until linked evidence merges.
+Status: **active** — evidence links below are maintained on `main`. Update when UI or harness outputs change.
 
 ## Target Users
 
 | Audience | Need | Status |
 |----------|------|--------|
 | Students and self-directed learners | Reproducible DCF workflow with visible assumptions | Evidence — [verification.md](./verification.md), [examples/README.md](../examples/README.md) |
-| Indie builders and OSS contributors | Hackable valuation stack (Next.js + Python) | Claim — prove via harness + architecture docs (PR 4) |
-| Maintainers / reviewers | Safe public defaults and verifiable demos | In progress — Gate 0 + PRs 1–2 merged |
+| Indie builders and OSS contributors | Hackable valuation stack (Next.js + Python) | Evidence — [architecture.md](./architecture.md), [verification.md](./verification.md) |
+| Maintainers / reviewers | Safe public defaults and verifiable demos | Evidence — Gate 0, PRs 1–2 CI |
 
 ## Reviewer-Facing Value
 
@@ -31,9 +31,9 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 ## Claims To Prove (Not Yet Evidence)
 
 - [x] OSS program reviewers can complete mock demo from clean clone in one session (see [verification.md](./verification.md))
-- [ ] Showcase media reflects current UI (redaction-reviewed)
-- [ ] Application pack cites only merged verification artifacts
-- [ ] No hosted deployment docs recommend local-only bypass flags
+- [x] Showcase media reflects current UI (redaction-reviewed) — [showcase.md](./showcase.md), PR 4
+- [x] Application pack cites only merged verification artifacts — [oss-program-application.md](./oss-program-application.md)
+- [x] No hosted deployment docs recommend local-only bypass flags — audited in [public-repo-audit-phase1.md](./public-repo-audit-phase1.md), [DEPLOY_SECURITY_RUNBOOK.md](../DEPLOY_SECURITY_RUNBOOK.md)
 
 ## Evidence Index (fill as PRs merge)
 
@@ -45,4 +45,5 @@ Status: **skeleton** — claims below are hypotheses to prove during the public-
 | Showcase + architecture | 4 | [showcase.md](./showcase.md), [architecture.md](./architecture.md), [provider-data-flow.md](./provider-data-flow.md) |
 | Clean-clone verification | 5 | [verification.md](./verification.md), [public-repo-audit-phase3.md](./public-repo-audit-phase3.md) |
 | Governance + notices | 6 | [GOVERNANCE.md](../GOVERNANCE.md), [SUPPORT.md](../SUPPORT.md), [RELEASING.md](../RELEASING.md), [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
-| Program application pack | 7 | _pending_ |
+| Program application pack | 7 | [oss-program-application.md](./oss-program-application.md) |
+| Public release checklist | 8 | _pending_ |

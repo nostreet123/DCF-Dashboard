@@ -223,6 +223,7 @@ E2E support is available through Playwright:
 - **Docs hub:** [`docs/README.md`](docs/README.md)
 - Onboarding: [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 - OSS impact ledger: [`docs/oss-impact.md`](docs/oss-impact.md)
+- OSS program application pack: [`docs/oss-program-application.md`](docs/oss-program-application.md)
 - Architecture: [`docs/architecture.md`](docs/architecture.md)
 - Provider/data flow: [`docs/provider-data-flow.md`](docs/provider-data-flow.md)
 - Showcase: [`docs/showcase.md`](docs/showcase.md)
