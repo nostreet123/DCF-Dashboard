@@ -109,7 +109,7 @@ export const myMutation = mutation({
 - All write operations require `syncToken`
 - Token checks are synchronous and timing-resistant (`TextEncoder` + XOR compare)
 - `requireSyncToken()` throws `UNAUTHORIZED` on missing/mismatch config or token
-- For public queries with optional elevated access, use `hasValidSyncToken()` and redact by default
+- Read-query auth varies by module. Some queries are intentionally public (for example `catalog.getSidebar`, `companies.get`, and `companies.search`); check the module contract before adding auth or redaction behavior.
 
 ### 4. Build ID Read Semantics
 

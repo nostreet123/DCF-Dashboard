@@ -442,7 +442,8 @@ erDiagram
 
 CSV/XLSX/PDF imports are parsed into `importArtifacts` (pending review), and on approval the
 reviewed statement facts are written to `importedFacts`. Both are keyed by `listingId`.
-`importedFacts.artifactIds` lists the `importArtifacts.artifactId` values that produced the facts.
+`importedFacts.artifactIds` lists the `importArtifacts.artifactId` values that produced the facts;
+this is a logical string reference, not a Convex `v.id(...)` foreign key.
 
 ```mermaid
 erDiagram
@@ -485,7 +486,6 @@ erDiagram
         number updatedAt
     }
 
-    importedFacts ||--o{ importArtifacts : "groups by listingId"
 ```
 
 ---
