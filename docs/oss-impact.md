@@ -8,7 +8,7 @@ Status: **active** — evidence links below are maintained on `main`. Update whe
 |----------|------|--------|
 | Students and self-directed learners | Reproducible DCF workflow with visible assumptions | Evidence — [verification.md](./verification.md), [examples/README.md](../examples/README.md) |
 | Indie builders and OSS contributors | Hackable valuation stack (Next.js + Python) | Evidence — [architecture.md](./architecture.md), [verification.md](./verification.md) |
-| Maintainers / reviewers | Safe public defaults and verifiable demos | Evidence — Gate 0, PRs 1–2 CI |
+| Maintainers / reviewers | Safe public defaults and verifiable demos | Evidence — Gate 0, PRs 1–2 CI, [public-release-checklist.md](./public-release-checklist.md) |
 
 ## Reviewer-Facing Value
 
@@ -46,4 +46,4 @@ Status: **active** — evidence links below are maintained on `main`. Update whe
 | Clean-clone verification | 5 | [verification.md](./verification.md), [public-repo-audit-phase3.md](./public-repo-audit-phase3.md) |
 | Governance + notices | 6 | [GOVERNANCE.md](../GOVERNANCE.md), [SUPPORT.md](../SUPPORT.md), [RELEASING.md](../RELEASING.md), [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
 | Program application pack | 7 | [oss-program-application.md](./oss-program-application.md) |
-| Public release checklist | 8 | _pending_ |
+| Public release checklist | 8 | [public-release-checklist.md](./public-release-checklist.md) |

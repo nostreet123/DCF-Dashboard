@@ -4,6 +4,8 @@ This roadmap is intentionally short and public-facing. Each item includes accept
 
 ## Current Milestone: Public Preview Follow-Up
 
+OSS readiness PR train (1–8) is complete on `main`. Before switching visibility to public, run [docs/public-release-checklist.md](docs/public-release-checklist.md).
+
 | Item | Acceptance criteria |
 |------|---------------------|
 | Onboarding hub | [`docs/ONBOARDING.md`](docs/ONBOARDING.md) is the default first-run link from README and CONTRIBUTING |
