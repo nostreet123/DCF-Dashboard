@@ -156,7 +156,7 @@ This runs repository invariant checks, Bun tests, pytest, production and test Ty
 
 Explicit UI-only demo mode works with `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` and no external services or secrets. The default dashboard path is live and expects the Python service plus EDGAR configuration; optional services become relevant when you want persistence, replay history, or production-like service-to-service auth.
 
-Every environment variable — public-safe client values, operationally private values, and server-only secrets — is grouped and documented in [`.env.example`](.env.example). Convex setup specifically is covered in [`docs/convex-persistence.md`](docs/convex-persistence.md).
+The most common environment variables — public-safe client values, operationally private values, and server-only secrets — are grouped in [`.env.example`](.env.example). Additional runtime knobs (e.g. API rate-limit caps) may be read from the environment without being listed there. Convex setup specifically is covered in [`docs/convex-persistence.md`](docs/convex-persistence.md).
 
 ## API Notes
 
