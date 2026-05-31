@@ -12,21 +12,37 @@ DCF Dashboard is an open-source valuation workbench that pairs a Next.js UI with
 
 ## 15-minute reviewer script
 
+Shared setup (run once):
+
 ```bash
 git clone https://github.com/nostreet123/DCF-Dashboard.git
 cd DCF-Dashboard
 npm ci
 python3 -m venv .venv && . .venv/bin/activate
 python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
+```
 
-# Path A — mock UI (fastest)
+Pick **one** path below. Paths are independent — do not run `npm run dev` in the same terminal if you plan to run Path B or C next.
+
+### Path A — mock UI (fastest)
+
+Terminal 1 (blocks until you stop the server):
+
+```bash
 NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
-# open http://127.0.0.1:3000
+```
 
-# Path B — compute only (no UI)
+Open http://127.0.0.1:3000 in a browser. Expect mock tickers and valuation cards without Convex or EDGAR.
+
+### Path B — compute only (no UI)
+
+```bash
 npm run demo:compute
+```
 
-# Path C — repo health
+### Path C — repo health
+
+```bash
 npm run smoke:alive
 ```
 
