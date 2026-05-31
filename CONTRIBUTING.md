@@ -2,7 +2,7 @@
 
 Thanks for taking a look at DCF Dashboard.
 
-The fastest way to get oriented is the [full onboarding walkthrough](docs/public-repo-audit-phase3.md), which covers golden paths, env configuration, and demo mode in one place. This file covers the mechanics of contributing once you are set up.
+**Start here:** [docs/ONBOARDING.md](docs/ONBOARDING.md) for install and golden paths. **Doc index:** [docs/README.md](docs/README.md).
 
 ## Before You Start
 
@@ -10,65 +10,75 @@ The fastest way to get oriented is the [full onboarding walkthrough](docs/public
 - Python `3.12+` is the tested backend/runtime toolchain
 - `npm` is the canonical JavaScript package manager
 - Bun is used only as the test runner behind the npm scripts. If it is missing, the repo harness installs the pinned version into ignored `.bun-home/`.
+- `package.json` `"private": true` means the app is not published to npm; the repo is still MIT-licensed open source.
 
 ## Local Setup
 
-```bash
-nvm use
-npm ci
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
-```
+See [docs/ONBOARDING.md](docs/ONBOARDING.md#install-once) for the full install block.
 
-## Golden Paths
+## Your First Pull Request
 
-- UI demo: `npm run dev`
-- Direct compute demo: `npm run demo:compute`
-- Repo alive smoke check: `npm run smoke:alive`
-- Agent/PR verification: `npm run harness:verify`
+1. Fork and branch from `main` (use a focused name, for example `docs/onboarding-clarity`).
+2. Run verification that matches your change (below).
+3. Open a **draft** PR early if you want feedback; mark **ready for review** only when CI-relevant checks pass locally.
+4. Pick the PR template that fits:
+   - [bug-fix](.github/PULL_REQUEST_TEMPLATE/bug-fix.md)
+   - [security-fix](.github/PULL_REQUEST_TEMPLATE/security-fix.md)
+   - [feature](.github/PULL_REQUEST_TEMPLATE/feature.md)
+   - [refactor](.github/PULL_REQUEST_TEMPLATE/refactor.md)
+   - [docs-only](.github/PULL_REQUEST_TEMPLATE/docs-only.md)
+   - [ci-tooling](.github/PULL_REQUEST_TEMPLATE/ci-tooling.md)
+   - Default: [.github/pull_request_template.md](.github/pull_request_template.md)
+5. Tag PR size honestly (`size/S` … `size/L`) and follow the review strategy in the template.
+6. Link issues with `Fixes #123` when applicable.
 
 ## Verification
 
-Run the checks that match your change scope before opening a pull request.
+| Change type | Minimum checks |
+|-------------|----------------|
+| Docs only | `npm run lint` if you touched TS-adjacent config; otherwise proofread links |
+| App / API | `npm run harness:verify` |
+| UI routes | Add `npm run harness:e2e:smoke` |
+| Python engine | `cd python && pytest` (or full harness) |
+| Convex | `npm run convex:typecheck` |
 
 ```bash
+. .venv/bin/activate
 npm run harness:verify
-npm run harness:e2e:smoke
+npm run harness:e2e:smoke   # when UI behavior changes
 ```
-
-## Pull Requests
-
-- Keep changes focused and explain the user-visible impact
-- Prefer small, reviewable PRs over bundling unrelated work together
-- Open a draft PR early if you want feedback, but switch to ready-for-review only after validation and docs are in shape
-- Link the relevant issue, incident, audit note, or design doc in the PR body
-- Add or update tests when behavior changes
-- Include screenshots, recordings, or request/response examples when they help reviewers verify the change quickly
-- Call out risk, rollback notes, env/config changes, and reviewer focus explicitly
-- Use the specialized PR templates when they fit the change best (`bug-fix`, `security-fix`, `feature`, `refactor`, `docs-only`, `ci-tooling`)
-- Tag the PR size honestly and follow the suggested review strategy for that size
-- Before opening the PR, do a final self-review from code, security, and functionality perspectives
-- Document new env vars, setup steps, or security assumptions
-- Use conventional commit prefixes when possible, such as `feat:`, `fix:`, or `docs:`
 
 ## Issues
 
-- Use the provided issue templates when possible
-- For security-sensitive reports, follow [`SECURITY.md`](SECURITY.md) instead of opening a public bug
-- If you are unsure whether a change belongs, start with a small issue or draft PR
+Use the issue templates when possible:
+
+| Template | Use for |
+|----------|---------|
+| [bug_report.yml](.github/ISSUE_TEMPLATE/bug_report.yml) | Defects and regressions |
+| [feature_request.yml](.github/ISSUE_TEMPLATE/feature_request.yml) | New capability |
+| [documentation.yml](.github/ISSUE_TEMPLATE/documentation.yml) | Docs gaps and onboarding friction |
+
+Suggested labels (apply in GitHub when triaging): `bug`, `documentation`, `enhancement`, `good first issue`, `help wanted`, `security`.
+
+For security-sensitive reports, follow [`SECURITY.md`](SECURITY.md) instead of opening a public issue.
+
+## Pull Request Expectations
+
+- Keep changes focused; split unrelated work
+- Explain user-visible impact and reviewer focus
+- Add or update tests when behavior changes
+- Document new env vars in `.env.example` and onboarding docs
+- Never commit secrets, `.env.local`, or raw scanner output
+- Use conventional commits when possible (`feat:`, `fix:`, `docs:`, `ci:`)
 
 ## Project Scope
 
-This repository is in public preview. Contributions that improve setup clarity, demo quality, valuation reproducibility, documentation, and safe defaults are especially helpful right now.
+This repository is in **public preview**. Contributions that improve setup clarity, demo quality, valuation reproducibility, documentation, and safe defaults are especially welcome.
 
 ## Repository Settings (Maintainers)
 
-These GitHub settings keep untrusted PR code from running with elevated access. Keep them in place:
-
-- Require approval for workflow runs from public forks before untrusted PR code executes in Actions.
-- Protect `main` with required checks and code owner review.
-- Keep GitHub Actions default workflow permissions read-only unless a workflow needs more.
-- Do not use `pull_request_target` to run untrusted PR code.
-- Keep `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` out of PR workflows.
+- Require approval for workflow runs from public forks before untrusted PR code executes in Actions
+- Protect `main` with required checks (CI, Codespell, Secret Scan, CodeQL)
+- Keep GitHub Actions default workflow permissions read-only unless a workflow needs more
+- Do not use `pull_request_target` to run untrusted PR code
+- Keep repository secrets out of fork PR workflows

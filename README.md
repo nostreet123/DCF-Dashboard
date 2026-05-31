@@ -8,6 +8,24 @@
 
 DCF Dashboard is an open-source valuation workbench for exploring discounted cash flow assumptions in a browser. It pairs a Next.js interface with a Python DCF engine, optional Monte Carlo distribution analysis, and optional Convex-backed persistence for saved runs and company facts.
 
+**Documentation hub:** [`docs/README.md`](docs/README.md) · **First run:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
+
+## Who It Is For
+
+- Learners and builders who want a reproducible DCF workflow instead of a one-off spreadsheet
+- Contributors who care about transparent assumptions, tests, and safe public defaults
+- Reviewers evaluating OSS readiness — not investors seeking trading signals
+
+## Disclaimer
+
+Outputs are for **financial modeling and education only**. They are not investment advice, recommendations, or guarantees of accuracy. Validate assumptions and data before relying on any estimate.
+
+## Public Preview Boundary
+
+This repository is **public-source ready**, not a hosted SaaS product. You can clone, demo, test, and deploy it yourself, but multi-tenant billing, org management, and production operations are out of scope unless you build them downstream.
+
+What is in scope today: local/mock demos, direct compute, documented security defaults, and contributor verification (`npm run harness:verify`).
+
 ## What Problem It Solves
 
 Most DCF workflows live in spreadsheets, scattered notes, and one-off scenario tabs. This project puts the core workflow into a reproducible app so you can:
@@ -104,7 +122,7 @@ Fastest paths after install:
 - Repo alive smoke check: `npm run smoke:alive`
 - Agent/PR verification: `npm run harness:verify`
 
-Full onboarding and golden paths live in [`docs/public-repo-audit-phase3.md`](docs/public-repo-audit-phase3.md).
+Full onboarding and golden paths: [`docs/ONBOARDING.md`](docs/ONBOARDING.md). Audit-grade verification logs: [`docs/public-repo-audit-phase3.md`](docs/public-repo-audit-phase3.md).
 
 ## Demo Paths
 
@@ -196,8 +214,15 @@ E2E support is available through Playwright:
 - run mobile emulation: `npm run test:e2e:mobile`
 - run local interactive UI mode: `npm run test:e2e:ui` (serves Playwright UI on loopback only at `http://127.0.0.1:9323`)
 
+## Package Note
+
+`package.json` sets `"private": true` so this app is **not published to npm**. The repository is still open source under the MIT license.
+
 ## Docs And Audit Trail
 
+- **Docs hub:** [`docs/README.md`](docs/README.md)
+- Onboarding: [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
+- OSS impact ledger: [`docs/oss-impact.md`](docs/oss-impact.md)
 - Showcase: [`docs/showcase.md`](docs/showcase.md)
 - Contributing guide (incl. maintainer repo settings): [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
