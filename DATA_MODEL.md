@@ -17,6 +17,7 @@
    - [1b: Company Fundamentals & Valuation Runs](#1b-company-fundamentals--valuation-runs)
    - [1c: Sync Operations](#1c-sync-operations)
    - [1d: Maintenance & Security](#1d-maintenance--security)
+   - [1e: User-Reviewed Imports](#1e-user-reviewed-imports)
 3. [Section 2: Service Layer (Python)](#section-2-service-layer-python)
    - [2a: DCF Engine — Core Models](#2a-dcf-engine--core-models)
    - [2b: Workbench API — Request & Response](#2b-workbench-api--request--response)
@@ -45,6 +46,9 @@ All enums are defined in `convex/schema.ts` using `v.union(v.literal(...))`.
 | `SyncStage` | `discover`, `download`, `parse`, `transform`, `upload` | `syncErrors` |
 | `RunStatus` | `success`, `error` | `valuationRuns` |
 | `TraceStorage` | `none`, `inline`, `external` | `valuationRuns` |
+| `CoverageState` | `valuation_ready`, `import_required`, `detail_only` | `importedFacts` |
+| `ImportedArtifactKind` | `incomeStatement`, `balanceSheet`, `cashFlow`, `sharesMeta` | `importArtifacts` |
+| `ImportedArtifactStatus` | `pending`, `approved` | `importArtifacts` |
 | `DuplicateScanStatus` | `idle`, `running`, `complete`, `stopped`, `error` | `duplicateScanState` |
 | `DuplicateScanPhase` | `snapshots`, `assets` | `duplicateScanState`, `duplicateCleanupState` |
 | `DuplicateCleanupStatus` | `idle`, `running`, `complete`, `stopped`, `error` | `duplicateCleanupState` |
@@ -184,6 +188,8 @@ erDiagram
         string? filingDate
         string? currency
         number? revenue
+        number? operatingIncome
+        number? operatingMargin
         number? cash
         number? debt
         number? sharesOutstanding
@@ -430,6 +436,56 @@ erDiagram
     duplicateScanState ||--o| duplicateCleanupState : "cleaned by"
     duplicateCleanupState }o--|| duplicateSnapshotGroups : "processes"
     duplicateCleanupState }o--|| duplicateAssetGroups : "processes"
+```
+
+### 1e: User-Reviewed Imports
+
+CSV/XLSX/PDF imports are parsed into `importArtifacts` (pending review), and on approval the
+reviewed statement facts are written to `importedFacts`. Both are keyed by `listingId`.
+`importedFacts.artifactIds` lists the `importArtifacts.artifactId` values that produced the facts;
+this is a logical string reference, not a Convex `v.id(...)` foreign key.
+
+```mermaid
+erDiagram
+    importArtifacts {
+        string _id PK
+        number _creationTime
+        string listingId
+        string artifactId
+        ImportedArtifactKind kind
+        ImportedArtifactStatus status
+        string originalFilename
+        string parserName
+        string fileFormat
+        string? contentType
+        number byteSize
+        string? storageId FK
+        record? parseResult
+        number createdAt
+        number? approvedAt
+    }
+
+    importedFacts {
+        string _id PK
+        number _creationTime
+        string listingId
+        string symbol
+        string name
+        string? exchangeMic
+        string? market
+        string? country
+        string? currency
+        CoverageState coverageState
+        string? filingCurrency
+        record facts
+        record review
+        record provenance
+        object[] sourceLinks
+        string[] artifactIds
+        number approvedAt
+        number updatedAt
+    }
+
 ```
 
 ---
@@ -1152,6 +1208,13 @@ All indexes defined in `convex/schema.ts`. One search index is also defined on `
 | `securityNonces` | `by_expiresAt` | `expiresAt` |
 | `securityRateBuckets` | `by_bucketKey` | `bucketKey` |
 | `securityRateBuckets` | `by_resetAt` | `resetAt` |
+| `importArtifacts` | `by_artifactId` | `artifactId` |
+| `importArtifacts` | `by_listingId_status` | `listingId, status` |
+| `importArtifacts` | `by_listingId_createdAt` | `listingId, createdAt` |
+| `importedFacts` | `by_listingId` | `listingId` |
+| `importedFacts` | `by_listingId_updatedAt` | `listingId, updatedAt` |
+| `importedFacts` | `by_symbol_updatedAt` | `symbol, updatedAt` |
+| `importedFacts` | `by_country_updatedAt` | `country, updatedAt` |
 | `valuationRuns` | `by_createdAt` | `createdAt` |
 | `valuationRuns` | `by_primaryKeyNorm_createdAt` | `primaryKeyNorm, createdAt` |
 | `valuationRuns` | `by_primaryKeyNorm_region_createdAt` | `primaryKeyNorm, regionCode, createdAt` |
@@ -1173,6 +1236,8 @@ Conceptual entities and which layer(s) they appear in.
 | Snapshot (file version) | `snapshots` | `SnapshotRef` | — |
 | Row data | `tableData` | `NormalizedRow`, `RowRef` | — |
 | Company fundamentals | `companies`, `companyStatements` | — | `Company` |
+| Reviewed import artifacts | `importArtifacts` | — | — |
+| Imported company facts | `importedFacts` | — | — |
 | DCF inputs | `valuationRuns.inputs` | `InputAssumptions`, `ScenarioAssumptions`, `WorkbenchRequest` | `DcfInputs`, `Assumptions` |
 | DCF normalized inputs | `valuationRuns.normalizedInputs` | `NormalizedAssumptions` | — |
 | DCF result summary | `valuationRuns.resultSummary` | `ValuationResult`, `WorkbenchResponse` | `ValuationResult` (UI), `DcfResult` |

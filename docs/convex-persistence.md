@@ -10,8 +10,8 @@ Convex is **optional**. The UI demo and the direct compute demo both work withou
 | `valuationRunTraces` | Full engine traces stored separately when trace storage is external |
 | `importedFacts` | Company facts imported from CSV/XLSX/PDF or synced from Damodaran — survives browser refreshes |
 | `companies` / `companyStatements` | Catalog entries and period-level financial statements |
-| `tableData` | Raw import-review artifacts held until approved or discarded |
-| `importArtifacts` | Parsed import payloads waiting for approval |
+| `tableData` | Damodaran snapshot dataset rows, tagged by snapshot id + build id |
+| `importArtifacts` | Parsed import payloads (CSV/XLSX/PDF) held for review until approved |
 | `securityNonces` | Short-lived tokens used for FastAPI signed-request replay protection |
 
 ## Environment Variables

@@ -19,24 +19,38 @@ syncAuth.ts (authentication middleware)
 | File | Purpose |
 |------|---------|
 | `schema.ts` | Table definitions, indexes, enum types |
+| `seed.ts` | Initial reference data seeding |
+| `reference.ts` | Reference snapshot/row queries: `getLatestSnapshot`, `getSnapshotAtOrBefore`, `getRow` |
+| `catalog.ts` | Composed catalog sidebar query: `getSidebar` (categories + datasets) |
+| `industries.ts` | Industry metric lookups from active snapshots |
 | `snapshots.ts` | Snapshot CRUD: upsert, finalize, getByIdentity |
+| `snapshots_helpers.ts` | Shared snapshot helpers: identity lookup, limits, best-snapshot pick |
 | `tableData.ts` | Row storage: insertBatch, delete, pagination |
+| `normalization.ts` | Shared symbol/limit normalization helpers |
+| `companies.ts` | Company fundamentals cache: `get`, `search`, `upsertCompany`, backfill |
+| `companyStatements.ts` | Period-level statement storage: `listBySymbol`, `upsertBatch` |
+| `imports.ts` | Import artifacts + imported facts: parse/approve mutations and queries |
+| `valuations.ts` | DCF valuation run + trace storage: `create`, `get`, `listBySymbol`, `listByTicker` |
+| `requestIdDedupe.ts` | Request-id dedupe helper for idempotent writes |
 | `syncLogs.ts` | Sync operation logs: create, increment, finish |
 | `syncErrors.ts` | Error tracking per sync operation |
 | `syncManifests.ts` | Manifest hash tracking for fast-exit |
-| `syncAuth.ts` | Token validation: `requireSyncToken()` |
-| `assets.ts` | Discovered asset records |
-| `reference.ts` | Reference data queries (datasets, regions) |
-| `seed.ts` | Initial data seeding |
-| `metrics.ts` | Usage metrics tracking |
-| `valuations.ts` | DCF valuation run storage |
+| `assets.ts` | Discovered asset records: `record`, `recordBatch` |
+| `metrics.ts` | Usage metrics: `getCounts` |
+| `syncAuth.ts` | Sync token validation: `requireSyncToken()` |
+| `securityAuth.ts` | Signed-request nonce/replay-protection state |
+| `securityRateLimit.ts` | Security rate-bucket counters: `hitBucket` |
+| `rateLimits.ts` | Shared API rate-limit counters |
+| `maintenance.ts` | Re-exports maintenance entry points |
+| `maintenance/` | Duplicate scan/cleanup, pruning, and backfill logic |
+| `http.ts` | Convex HTTP router (`/health`) |
 | `_generated/` | Auto-generated types (do not edit) |
 
 ## Core Patterns
 
 ### 1. Enum Types with v.union()
 
-See `schema.ts:4-46`:
+See `schema.ts:4-84`:
 ```bash
 rg "const.*= v.union" schema.ts
 ```
@@ -55,7 +69,7 @@ const DataType = v.union(
 
 ### 2. Index Design for Queries
 
-See `schema.ts:48-162`:
+See `schema.ts:95-562`:
 ```bash
 rg "\.index\(" schema.ts
 ```
@@ -95,11 +109,11 @@ export const myMutation = mutation({
 - All write operations require `syncToken`
 - Token checks are synchronous and timing-resistant (`TextEncoder` + XOR compare)
 - `requireSyncToken()` throws `UNAUTHORIZED` on missing/mismatch config or token
-- For public queries with optional elevated access, use `hasValidSyncToken()` and redact by default
+- Read-query auth varies by module. Some queries are intentionally public (for example `catalog.getSidebar`, `companies.get`, and `companies.search`); check the module contract before adding auth or redaction behavior.
 
 ### 4. Build ID Read Semantics
 
-See `tableData.ts:105-135`:
+See `tableData.ts:368` (`listBySnapshot`):
 ```bash
 rg "listBySnapshot" tableData.ts -A 30
 ```

@@ -1,90 +1,37 @@
-# Welcome to your Convex functions directory!
+# Convex Backend
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This directory holds the optional Convex persistence layer for DCF Dashboard. Convex is **not required** for the UI demo or direct compute flow — it adds saved valuation runs, replay history, imported company facts, and the Damodaran sync data store.
 
-A query function that takes two arguments looks like:
+See the repository [`docs/convex-persistence.md`](../docs/convex-persistence.md) for the end-to-end request flow, environment variables, and local setup.
 
-```ts
-// convex/myFunctions.ts
-import { query } from "./_generated/server";
-import { v } from "convex/values";
+## Layout
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
+- `schema.ts` — all tables, indexes, and `v.union(v.literal(...))` enums (the source of truth for the data model).
+- Query/mutation modules grouped by domain: snapshots and `tableData` (Damodaran datasets), `companies`/`companyStatements` (fundamentals cache), `imports` (reviewed imports), `valuations` (DCF runs), sync logs/errors/manifests, and `maintenance/` (duplicate scan/cleanup, pruning, backfill).
+- `syncAuth.ts` / `securityAuth.ts` — token validation and signed-request replay protection.
+- `_generated/` — auto-generated types; do not edit.
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query("tablename").collect();
+A full file-by-file inventory and the core patterns (auth, indexing, build-id read semantics) live in [`AGENTS.md`](AGENTS.md). The cross-layer data model is documented in [`../DATA_MODEL.md`](../DATA_MODEL.md).
 
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
+## Common Commands
 
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
+```bash
+bunx convex dev         # local dev server, watches convex/
+bunx convex typecheck   # type-check Convex functions
+bunx convex dev --once  # validate the schema without watching
+bunx convex deploy      # deploy schema + functions (CI / production)
 ```
 
-Using this query function in a React component looks like:
+## Conventions
 
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: "hello",
-});
-```
+- Write mutations require a sync token (`requireSyncToken()`). Many read queries are intentionally unauthenticated (e.g. `catalog.getSidebar`, `companies.get`, `companies.search`); see each module for its auth expectations.
+- Every query reads through an index (`.withIndex(...)`) — no full table scans.
+- Enums are always `v.union(v.literal(...))`, never `v.string()` or TypeScript enums.
 
-A mutation function looks like:
+## Environment Variables (Convex Dashboard)
 
-```ts
-// convex/myFunctions.ts
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert("messages", message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get("messages", id);
-  },
-});
-```
-
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: "Hello!", second: "me" });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: "Hello!", second: "me" }).then((result) =>
-    console.log(result),
-  );
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.
+| Variable | Purpose |
+|----------|---------|
+| `DAMODARAN_SYNC_TOKEN` | Shared secret required for all mutations and signed-request replay protection |
+| `TABLEDATA_INSERT_MAX_ROWS` | Max rows per `insertBatch` (default 100) |
+| `ASSETS_RECORD_MAX_ROWS` | Max rows per `assets.recordBatch` (default 500, max 1000) |
