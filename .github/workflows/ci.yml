@@ -1,11 +1,18 @@
 name: CI
-on: [pull_request]
+
+# Use pull_request (not pull_request_target) so fork PRs never receive repository secrets.
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
   dependency-review:
+    # dependency-review-action only auto-derives refs for pull_request events.
+    if: github.event_name == 'pull_request'
     # GitHub's dependency-review action requires extra repository features on private repos.
     # Keep the check green on private repos where the feature is unavailable.
     runs-on: ubuntu-latest

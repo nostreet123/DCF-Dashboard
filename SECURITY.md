@@ -36,6 +36,23 @@ Out of scope: investment outcomes, model accuracy disputes, and optional third-p
 - Secrets belong in environment stores only; see `.env.example` for the public vs server-only split.
 - Publish safety evidence: [docs/public-release-safety-gate0.md](docs/public-release-safety-gate0.md) and [docs/public-repo-audit-phase1.md](docs/public-repo-audit-phase1.md).
 
+## Automated Security Checks
+
+Repository CI includes:
+
+- [Secret Scan](.github/workflows/secret-scan.yml) — Gitleaks on pull requests and `main`
+- [CodeQL](.github/workflows/codeql.yml) — JavaScript/TypeScript and Python static analysis
+- [CI](.github/workflows/ci.yml) — dependency review, npm signature audit, harness verification
+
+Workflows use `pull_request` (not `pull_request_target`) so fork contributions do not receive repository secrets.
+
 ## What To Expect
 
-The maintainer will acknowledge triage as quickly as possible, confirm whether the issue is in scope, and communicate remediation or disclosure timing once the problem is understood. Critical issues affecting published releases receive priority over feature work.
+| Stage | Target |
+|-------|--------|
+| Acknowledgement | Within 3 business days |
+| Severity confirmation | Within 7 business days for valid reports |
+| Fix or mitigation plan | Communicated after triage; critical issues prioritized |
+| Coordinated disclosure | After a fix or documented mitigation is available |
+
+Critical issues affecting published releases receive priority over feature work.

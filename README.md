@@ -1,5 +1,11 @@
 # DCF Dashboard
 
+[![CI](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/ci.yml)
+[![Codespell](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codespell.yml/badge.svg)](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codespell.yml)
+[![Secret Scan](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/secret-scan.yml)
+[![CodeQL](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codeql.yml/badge.svg)](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 DCF Dashboard is an open-source valuation workbench for exploring discounted cash flow assumptions in a browser. It pairs a Next.js interface with a Python DCF engine, optional Monte Carlo distribution analysis, and optional Convex-backed persistence for saved runs and company facts.
 
 ## What Problem It Solves

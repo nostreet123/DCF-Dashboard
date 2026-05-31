@@ -182,16 +182,17 @@ Current posture:
 
 ## Rollback
 
-### Fast rollback
+### Fast rollback (emergency only)
 
 If production traffic is broken because FastAPI auth enforcement is rejecting signed requests unexpectedly:
 
-1. Unset `DCF_ENGINE_INTERNAL_KEY` in FastAPI.
-2. Redeploy FastAPI.
+1. Prefer fixing the signing configuration (`DCF_ENGINE_INTERNAL_KEY`, `CONVEX_URL`, `DAMODARAN_SYNC_TOKEN`) and redeploying with auth intact.
+2. If traffic must be restored immediately, roll back the FastAPI deployment to the last known-good revision instead of weakening auth in place.
+3. Do **not** enable `DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES`, or `DCF_ENGINE_EXPOSE_DOCS` on staging/production as a rollback tactic.
 
-This returns FastAPI to non-enforcing mode while preserving the rest of the release.
+Unsetting `DCF_ENGINE_INTERNAL_KEY` in FastAPI disables signature enforcement and is equivalent to leaving the engine callable without internal auth. Treat that only as a last-resort break-glass step on a **private** network, then restore signed mode as soon as possible.
 
-Do not use this as a normal operating mode in public or shared environments.
+Do not use unsigned or docs-exposed modes as a normal operating posture in public or shared environments.
 
 ### Full rollback
 
