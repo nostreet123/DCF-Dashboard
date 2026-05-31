@@ -13,13 +13,17 @@ Use this immediately **before** switching the repository to public visibility or
 
 ## Security scan (maintainer workstation)
 
-Run on a fresh clone at the release tag or `main` tip:
+Run on a fresh clone at the release tag or `main` tip. For a **pre-public visibility switch**, fetch remote refs first so stale `pull/*` refs are included, then scan all reachable git history:
 
 ```bash
+git fetch --all --prune
+
 # Example: gitleaks 8.24.2
 gitleaks detect --source . --no-git -v
-gitleaks detect --source . -v   # include history on main lineage
+gitleaks detect --source . -v --log-opts="--all"
 ```
+
+The second command uses `git log` across **all refs** (not only the current branch). If you intentionally exclude stale PR refs, document that decision in Gate 0 instead of treating a single-branch scan as complete.
 
 Record a **redacted** summary in [public-release-safety-gate0.md](./public-release-safety-gate0.md) (never commit raw findings with secrets).
 

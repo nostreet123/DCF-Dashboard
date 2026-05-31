@@ -32,14 +32,18 @@ async function main() {
   await page.getByText('BULL CASE').waitFor();
   await page.screenshot({ path: path.join(outDir, 'valuation-flow.png') });
 
-  const distribution = page.getByText(/Distribution|Monte Carlo|p10/i).first();
-  if (await distribution.isVisible().catch(() => false)) {
-    await distribution.scrollIntoViewIfNeeded();
+  const monteCarloPanel = page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: 'Monte Carlo', exact: true }) })
+    .first();
+  if (await monteCarloPanel.isVisible().catch(() => false)) {
+    await monteCarloPanel.scrollIntoViewIfNeeded();
+    await monteCarloPanel.screenshot({ path: path.join(outDir, 'monte-carlo-output.png') });
   } else {
-    await page.getByRole('main').locator('svg').last().scrollIntoViewIfNeeded();
+    const histogramPanel = page.getByText('Histogram min/max').locator('xpath=ancestor::div[1]');
+    await histogramPanel.scrollIntoViewIfNeeded();
+    await histogramPanel.screenshot({ path: path.join(outDir, 'monte-carlo-output.png') });
   }
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(outDir, 'monte-carlo-output.png') });
 
   await browser.close();
   console.log(`Wrote screenshots to ${outDir}`);

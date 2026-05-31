@@ -19,7 +19,8 @@ For the full dependency graph and exact versions, use:
 |---------|---------|------|
 | [Next.js](https://www.npmjs.com/package/next) | MIT | Web framework and API routes |
 | [React](https://www.npmjs.com/package/react) | MIT | UI |
-| [Convex](https://www.npmjs.com/package/convex) | MIT | Optional persistence client |
+| [react-dom](https://www.npmjs.com/package/react-dom) | MIT | UI rendering |
+| [Convex](https://www.npmjs.com/package/convex) | Apache-2.0 | Optional persistence client |
 | [clsx](https://www.npmjs.com/package/clsx) | MIT | CSS class utilities |
 | [@radix-ui/react-icons](https://www.npmjs.com/package/@radix-ui/react-icons) | MIT | Icons |
 

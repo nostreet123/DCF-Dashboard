@@ -19,6 +19,10 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ### Changed
 
+- Showcase Monte Carlo screenshot capture targets the `Monte Carlo` details panel (not the value-card P10 label)
+- OSS reviewer script splits mock UI dev server from headless verification paths
+- Public release checklist documents `gitleaks` with `--log-opts="--all"` after `git fetch --all`
+- `THIRD_PARTY_NOTICES.md`: add `react-dom`, correct npm `convex` license to Apache-2.0
 - Golden-path onboarding links now point at `docs/ONBOARDING.md` instead of audit-only docs
 - Roadmap items include acceptance criteria for contributor-friendly follow-up work
 
