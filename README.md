@@ -53,24 +53,14 @@ Persistence via Convex is optional. If you only want to demo the UI or run the c
 
 ## Monte Carlo
 
-Monte Carlo is optional and is exposed as a scenario-expansion layer on top of the base DCF run. The engine can return percentile summaries and histogram data so the UI can show a range of plausible outcomes rather than only a single fair value estimate.
-
-Supported query modes for the API routes:
+Monte Carlo is an optional scenario-expansion layer on top of the base DCF run. It returns percentile summaries and histogram data so the UI can show a range of outcomes rather than a single point estimate. Modes are selected with the `mc` query parameter:
 
 - `mc=fast`: 5,000 simulations
 - `mc=default`: 25,000 simulations
 - `mc=high`: 100,000 simulations
 - `mc=off`: no Monte Carlo output
 
-### Reading the output
-
-The engine randomises each assumption (revenue growth, margin, WACC, terminal growth) within a range derived from the spread between the base and bull/bear scenarios, then runs the full DCF for each simulated draw. The result is a distribution of fair values rather than a single point estimate.
-
-**Percentile summary** — `p10` and `p90` bound the central 80 % of outcomes. If the base fair value sits near the median, the base case is consistent with the simulation. A large gap between the base value and the median often means the distribution is skewed by an asymmetric bull or bear scenario.
-
-**Histogram** — the UI plots simulated fair values as a density histogram. A narrow, symmetric histogram signals stable value across assumptions; a wide or right-skewed histogram signals high sensitivity to upside assumptions.
-
-**Versus base/bull/bear** — the three named scenarios are manually specified discrete cases. Monte Carlo fills in the continuous probability mass between them. The p10 is not the bear case — it is the 10th percentile of the full simulated distribution, which will differ from the hand-crafted bear inputs.
+See [`docs/monte-carlo.md`](docs/monte-carlo.md) for how the simulation works and how to read the percentile summary and histogram.
 
 ## Web Feature Parity
 
@@ -79,7 +69,7 @@ The web app implements the Mac prototype parity surface as web-native routes and
 - Search uses `CoverageState` to branch listings into immediate valuation, import review, or source-detail views.
 - Approved imports persist reviewed facts and artifact references in Convex, then compute from those facts immediately.
 - Rich run output includes scenario values, KPIs, statement history, projections, sensitivity offsets, Monte Carlo summaries, and provenance.
-- AI scenario analysis uses server-side `HUGGING_FACE_API_KEY` and `HUGGING_FACE_MODEL`; secrets never go to the browser. For maximum-reasoning DeepSeek demos, set `HUGGING_FACE_MODEL=deepseek-ai/DeepSeek-V4-Pro:fastest`, `HUGGING_FACE_REASONING_EFFORT=xhigh`, `HUGGING_FACE_RESPONSE_FORMAT=json_object`, `HUGGING_FACE_MAX_INPUT_BYTES=4000000`, `HUGGING_FACE_MAX_OUTPUT_TOKENS=8192`, and `HUGGING_FACE_PROVIDER_TIMEOUT_MS=90000` so the app can pass a 384K-token-scale context budget while bounding slow provider attempts. The `:fastest` suffix is a Hugging Face router provider-selection policy on the model id, not part of the JSON schema. Public demos can set per-IP/daily AI caps and an optional admin bypass via `DCF_DEMO_ADMIN_TOKEN_SHA256`, which stores only a SHA-256 digest of your admin token.
+- AI scenario analysis is server-only; provider secrets never go to the browser. Configuration, the maximum-reasoning DeepSeek demo recipe, and public-demo cost controls are documented in [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md).
 - Settings status reports SEC user-agent, AI, Convex/history/import readiness, and active data mode.
 
 The parity checklist lives in [`docs/web-feature-parity-checklist.md`](docs/web-feature-parity-checklist.md).
@@ -166,28 +156,7 @@ This runs repository invariant checks, Bun tests, pytest, production and test Ty
 
 Explicit UI-only demo mode works with `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` and no external services or secrets. The default dashboard path is live and expects the Python service plus EDGAR configuration; optional services become relevant when you want persistence, replay history, or production-like service-to-service auth.
 
-Public-safe client/runtime values:
-
-- `NEXT_PUBLIC_CONVEX_URL`
-- `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` for explicit mock-backed dashboard mode
-- `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1` only when browser-readable saved-run history is enabled server-side
-- non-secret tuning flags described in [`.env.example`](.env.example)
-
-Never expose:
-
-- `CONVEX_DEPLOY_KEY`
-- `DAMODARAN_SYNC_TOKEN`
-- `DCF_ENGINE_INTERNAL_KEY`
-- `INTERNAL_PERSISTENCE_KEY`
-
-Operational values that should stay private even if they are not credentials:
-
-- `CONVEX_URL`
-- `CONVEX_DEPLOYMENT`
-- `DCF_ENGINE_URL`
-- `DCF_TRUSTED_PROXY_CIDRS`
-- `SEC_USER_AGENT`
-- `VALUATION_HISTORY_BROWSER_READS`
+Every environment variable — public-safe client values, operationally private values, and server-only secrets — is grouped and documented in [`.env.example`](.env.example). Convex setup specifically is covered in [`docs/convex-persistence.md`](docs/convex-persistence.md).
 
 ## API Notes
 
@@ -201,14 +170,7 @@ DCF compute routes:
 - `POST /api/ai/scenario-analysis`: strict server-only AI assumptions and rationale
 - `GET /api/settings/status`: data and integration readiness summary
 
-Security defaults:
-
-- Next.js signs FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured.
-- FastAPI rejects unsigned requests by default.
-- Signed FastAPI requests use Convex-backed nonce replay protection when `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` are configured.
-- Set `DCF_ENGINE_ALLOW_UNSIGNED=1` only for trusted local development.
-- Set `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1` only for single-process private/dev FastAPI runs without Convex-backed replay protection.
-- FastAPI docs are disabled by default and can be enabled locally with `DCF_ENGINE_EXPOSE_DOCS=1`.
+Security defaults: Next.js signs FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured, FastAPI rejects unsigned requests by default, and signed requests use Convex-backed nonce replay protection. Local-only opt-outs (`DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES`, `DCF_ENGINE_EXPOSE_DOCS`) and the full rollout procedure are documented in [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md).
 
 ## Tests
 
@@ -228,26 +190,18 @@ E2E support is available through Playwright:
 - run mobile emulation: `npm run test:e2e:mobile`
 - run local interactive UI mode: `npm run test:e2e:ui` (serves Playwright UI on loopback only at `http://127.0.0.1:9323`)
 
-## Public Docs Pack
+## Docs And Audit Trail
 
 - Showcase: [`docs/showcase.md`](docs/showcase.md)
-- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Contributing guide (incl. maintainer repo settings): [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
 - Application narrative: [`docs/application-readiness.md`](docs/application-readiness.md)
-
-## Audit Trail
-
-- Phase 1: [`docs/public-repo-audit-phase1.md`](docs/public-repo-audit-phase1.md)
-- Phase 2: [`docs/public-repo-audit-phase2.md`](docs/public-repo-audit-phase2.md)
-- Phase 3: [`docs/public-repo-audit-phase3.md`](docs/public-repo-audit-phase3.md)
-- Phases 4-7: [`docs/public-repo-audit-phase4-7.md`](docs/public-repo-audit-phase4-7.md)
-
-## GitHub Settings To Keep
-
-- Require approval for workflow runs from public forks before untrusted PR code executes in Actions.
-- Protect `main` with required checks and code owner review.
-- Keep GitHub Actions default workflow permissions read-only unless a workflow needs more.
-- Do not use `pull_request_target` to run untrusted PR code.
-- Keep `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` out of PR workflows.
+- Monte Carlo: [`docs/monte-carlo.md`](docs/monte-carlo.md)
+- AI scenario analysis: [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md)
+- Convex persistence: [`docs/convex-persistence.md`](docs/convex-persistence.md)
+- Data model: [`DATA_MODEL.md`](DATA_MODEL.md)
+- Web feature parity: [`docs/web-feature-parity-checklist.md`](docs/web-feature-parity-checklist.md)
+- Deploy/security runbook: [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md)
+- Public-repo audit trail: [phase 1](docs/public-repo-audit-phase1.md), [phase 2](docs/public-repo-audit-phase2.md), [phase 3](docs/public-repo-audit-phase3.md), [phases 4-7](docs/public-repo-audit-phase4-7.md)

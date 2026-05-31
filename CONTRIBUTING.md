@@ -62,3 +62,13 @@ npm run harness:e2e:smoke
 ## Project Scope
 
 This repository is in public preview. Contributions that improve setup clarity, demo quality, valuation reproducibility, documentation, and safe defaults are especially helpful right now.
+
+## Repository Settings (Maintainers)
+
+These GitHub settings keep untrusted PR code from running with elevated access. Keep them in place:
+
+- Require approval for workflow runs from public forks before untrusted PR code executes in Actions.
+- Protect `main` with required checks and code owner review.
+- Keep GitHub Actions default workflow permissions read-only unless a workflow needs more.
+- Do not use `pull_request_target` to run untrusted PR code.
+- Keep `CONVEX_URL` and `DAMODARAN_SYNC_TOKEN` out of PR workflows.
