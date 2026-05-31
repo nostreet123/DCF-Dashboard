@@ -71,4 +71,4 @@ See [application-readiness.md](./application-readiness.md) for why this repo is 
 
 ## Pre-public switch (maintainer only)
 
-GitHub repository settings and a final all-ref scan are listed in [public-release-safety-gate0.md](./public-release-safety-gate0.md); the consolidated pre-launch checklist ships in PR 8.
+GitHub repository settings and a final all-ref scan: [public-release-checklist.md](./public-release-checklist.md) and [public-release-safety-gate0.md](./public-release-safety-gate0.md).

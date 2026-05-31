@@ -69,5 +69,5 @@ These cannot be enforced through a normal PR. Confirm on the repository before P
 ## Accepted Follow-Ups
 
 - PR 2: mandatory secret-scan and CodeQL workflows in CI
-- PR 8: final all-ref scan immediately before visibility switch
+- PR 8: [public-release-checklist.md](./public-release-checklist.md) — final all-ref scan and GitHub settings immediately before visibility switch
 - Maintainer: delete or accept risk from stale closed-PR refs that predate history cleanup

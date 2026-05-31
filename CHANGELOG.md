@@ -9,6 +9,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Added
 
 - [`docs/oss-program-application.md`](docs/oss-program-application.md) — consolidated reviewer pack (PR 7)
+- [`docs/public-release-checklist.md`](docs/public-release-checklist.md) — pre-launch maintainer checklist (PR 8)
 - Root governance pack: [`GOVERNANCE.md`](GOVERNANCE.md), [`SUPPORT.md`](SUPPORT.md), [`RELEASING.md`](RELEASING.md), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 - [`docs/verification.md`](docs/verification.md) — reviewer-facing clean-clone evidence index (refreshed phase-3 audit on `main`)
 - [`docs/architecture.md`](docs/architecture.md), [`docs/provider-data-flow.md`](docs/provider-data-flow.md), and [`examples/README.md`](examples/README.md)
