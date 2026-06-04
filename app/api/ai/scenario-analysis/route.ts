@@ -48,8 +48,8 @@ const getMaxPayloadBytes = (): number =>
 
 const getDailyLimit = (): number => {
   const raw = process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY;
-  const parsed = raw ? Number(raw) : 25;
-  return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : 25;
+  const parsed = raw ? Number(raw) : 10;
+  return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
 };
 
 export async function POST(request: Request) {

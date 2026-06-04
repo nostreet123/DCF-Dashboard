@@ -15,6 +15,8 @@ const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDebugEscape = process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
 const originalContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
 const originalFetch = globalThis.fetch;
 const originalQuery = ConvexHttpClient.prototype.query;
@@ -77,6 +79,16 @@ afterEach(() => {
     delete process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
   } else {
     process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = originalContextTokenHash;
+  }
+  if (originalNodeEnv === undefined) {
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
+  } else {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
+  }
+  if (originalDebugEscape === undefined) {
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+  } else {
+    process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = originalDebugEscape;
   }
 });
 
@@ -417,6 +429,24 @@ describe("company facts route auth boundaries", () => {
     ]);
     expect(payload.source).toBe("import");
     expect(payload.statements[0].period_end).toBe("2025-03-31");
+  });
+
+  test("blocks browser facts wrapper in production even with token hash configured", async () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/facts/browser?symbol=VOD&listingId=XLON:VOD", {
+        headers: {
+          "x-import-context-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.51",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(404);
   });
 
   test("browser GET signs imported facts reads for approved non-SEC listings", async () => {

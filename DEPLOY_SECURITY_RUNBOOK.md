@@ -110,6 +110,19 @@ Run these after deployment.
 - `GET /redoc` -> `404`
 - `GET /openapi.json` -> `404`
 
+## Public Preview Preflight (Browser Debug Routes)
+
+Before any hosted public preview deployment, confirm these stay **unset**:
+
+- `VALUATION_HISTORY_BROWSER_READS`
+- `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS`
+- `IMPORT_APPROVAL_BROWSER_WRITES`
+- `IMPORT_CONTEXT_BROWSER_TOKEN_SHA256`
+- `IMPORT_APPROVAL_BROWSER_TOKEN_SHA256`
+- `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES`
+
+In `NODE_ENV=production`, browser history/import-context/facts/approval routes return `404` unless `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES=1`. That escape hatch is for trusted local reproduction only — never enable it on public preview.
+
 ## Production Rollout Checklist
 
 - [ ] `DCF_ENGINE_INTERNAL_KEY` is set in both Next.js and FastAPI
@@ -125,6 +138,8 @@ Run these after deployment.
 - [ ] Browser traffic reaches FastAPI only through Next.js routes
 - [ ] Direct unsigned FastAPI requests return `401`
 - [ ] FastAPI docs endpoints are unavailable
+- [ ] Public preview browser debug flags listed above are unset
+- [ ] `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES` is unset on hosted environments
 
 ## Failure Modes and Triage
 

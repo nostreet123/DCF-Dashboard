@@ -65,6 +65,10 @@ Still prototype / evolving:
 - broader data-source coverage beyond the current demo and sync flows
 - long-term contributor workflows and triage volume
 
+## Public Preview Security
+
+Hosted public preview should leave browser debug flags unset: `VALUATION_HISTORY_BROWSER_READS`, `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS`, `IMPORT_APPROVAL_BROWSER_WRITES`, and browser import token hashes. Production hard-stops those routes even if flags are mis-set. `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES` is a local/test-only escape hatch — never enable it on public preview. See [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md) and [`.env.example`](.env.example).
+
 ## Architecture At A Glance
 
 - `app/`: Next.js workbench UI and API routes

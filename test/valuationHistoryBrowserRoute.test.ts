@@ -8,6 +8,8 @@ import { resetRateLimitStateForTests } from "../app/api/_lib/rateLimit";
 import { installSecurityMutationsMock } from "./helpers/securityMutationsMock";
 
 const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDebugEscape = process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalQuery = ConvexHttpClient.prototype.query;
@@ -44,6 +46,16 @@ afterEach(() => {
   } else {
     process.env.DAMODARAN_SYNC_TOKEN = originalSyncToken;
   }
+  if (originalNodeEnv === undefined) {
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
+  } else {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
+  }
+  if (originalDebugEscape === undefined) {
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+  } else {
+    process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = originalDebugEscape;
+  }
 });
 
 describe("browser valuation history routes", () => {
@@ -55,6 +67,23 @@ describe("browser valuation history routes", () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  test("returns not found in production even when browser reads flag is set", async () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+
+    const listResponse = await listHistory(
+      new Request("http://localhost/api/dcf/history/browser?symbol=AAPL"),
+    );
+    const detailResponse = await getHistoryRun(
+      new Request("http://localhost/api/dcf/history/browser/run-123"),
+      { params: Promise.resolve({ runId: "run-123" }) },
+    );
+
+    expect(listResponse.status).toBe(404);
+    expect(detailResponse.status).toBe(404);
   });
 
   test("lists ticker history without internal persistence headers when enabled", async () => {

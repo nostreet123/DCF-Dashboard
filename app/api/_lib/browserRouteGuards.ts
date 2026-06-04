@@ -4,8 +4,16 @@ export const RATE_LIMIT_IDENTITY_HEADERS = [
   "x-real-ip",
 ] as const;
 
+export const isProductionRuntime = (): boolean =>
+  process.env.NODE_ENV === "production";
+
+export const publicPreviewUnsafeBrowserModesAllowed = (): boolean =>
+  !isProductionRuntime() ||
+  process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES === "1";
+
 export const browserHistoryReadsEnabled = (): boolean =>
-  process.env.VALUATION_HISTORY_BROWSER_READS === "1";
+  process.env.VALUATION_HISTORY_BROWSER_READS === "1" &&
+  publicPreviewUnsafeBrowserModesAllowed();
 
 export const browserImportContextReadsEnabled = (): boolean =>
   browserHistoryReadsEnabled();
@@ -14,7 +22,8 @@ export const browserCompanyFactsReadsEnabled = (): boolean =>
   browserHistoryReadsEnabled();
 
 export const browserImportApprovalWritesEnabled = (): boolean =>
-  process.env.IMPORT_APPROVAL_BROWSER_WRITES === "1";
+  process.env.IMPORT_APPROVAL_BROWSER_WRITES === "1" &&
+  publicPreviewUnsafeBrowserModesAllowed();
 
 export const copyRateLimitIdentityHeaders = (
   source: Request,

@@ -13,6 +13,7 @@ const originalInternalPersistenceKey = process.env.INTERNAL_PERSISTENCE_KEY;
 const originalConvexUrl = process.env.CONVEX_URL;
 const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalDebugEscape = process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
 const originalQuery = ConvexHttpClient.prototype.query;
 const originalBrowserReads = process.env.VALUATION_HISTORY_BROWSER_READS;
 const originalContextTokenHash = process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256;
@@ -53,6 +54,11 @@ afterEach(() => {
   } else {
     (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
   }
+  if (originalDebugEscape === undefined) {
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+  } else {
+    process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = originalDebugEscape;
+  }
 });
 
 describe("company import context route", () => {
@@ -72,6 +78,24 @@ describe("company import context route", () => {
     const response = await GET_BROWSER(
       new Request("http://localhost/api/company/import/context/browser?symbol=AAPL", {
         headers: { "x-vercel-forwarded-for": "203.0.113.172" },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test("blocks browser context reads in production even with token hash configured", async () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await GET_BROWSER(
+      new Request("http://localhost/api/company/import/context/browser?symbol=AAPL", {
+        headers: {
+          "x-import-context-token": "correct-token",
+          "x-vercel-forwarded-for": "203.0.113.176",
+        },
       }),
     );
 

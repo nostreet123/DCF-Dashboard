@@ -42,6 +42,10 @@ Persistence only happens when the Next.js route receives valid internal auth hea
 
 ## Request Flow — Replay History
 
+Browser-readable saved history and import context are **local/test only** today. Hosted public preview runs with these flags unset; production also hard-stops the browser routes even if the flags are mis-set unless `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES=1` (local repro only — never on public preview).
+
+When enabled for local development:
+
 ```
 Browser (NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1, server: VALUATION_HISTORY_BROWSER_READS=1)
   → GET /api/dcf/history/browser?symbol=AAPL
@@ -56,7 +60,9 @@ Browser selects a run
   ← { replay: {...} }
 ```
 
-The browser-facing history route (`/api/dcf/history/browser`) requires **both** `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1` (Next.js browser bundle gate) and `VALUATION_HISTORY_BROWSER_READS=1` (server-side route gate). It strips traces and inputs before returning data to the browser. The internal route (`/api/dcf/history`) requires the `x-dcf-internal-signature` / `x-dcf-internal-ts` / `x-dcf-internal-nonce` signed headers and returns the full record.
+The browser-facing history route (`/api/dcf/history/browser`) requires **both** `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS=1` (Next.js browser bundle gate) and `VALUATION_HISTORY_BROWSER_READS=1` (server-side route gate, non-production or explicit debug escape hatch). It strips traces and inputs before returning data to the browser. The internal route (`/api/dcf/history`) requires the `x-dcf-internal-signature` / `x-dcf-internal-ts` / `x-dcf-internal-nonce` signed headers and returns the full record.
+
+Saved-run browser reads with tenant-scoped auth are planned for the later private-beta SaaS work, not public preview.
 
 ## Local Setup
 

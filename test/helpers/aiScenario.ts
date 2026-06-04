@@ -73,6 +73,8 @@ export type AiScenarioEnvSnapshot = {
   topP?: string;
   browserReads?: string;
   importContextTokenHash?: string;
+  nodeEnv?: string;
+  debugEscape?: string;
 };
 
 export const defaultConvexQueryMock = async (name: unknown, args: unknown) => {
@@ -110,6 +112,8 @@ export const installAiScenarioTestEnv = (options?: {
     topP: process.env.HUGGING_FACE_TOP_P,
     browserReads: process.env.VALUATION_HISTORY_BROWSER_READS,
     importContextTokenHash: process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256,
+    nodeEnv: process.env.NODE_ENV,
+    debugEscape: process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES,
   };
 
   resetRateLimitStateForTests();
@@ -160,6 +164,8 @@ export const installAiScenarioTestEnv = (options?: {
       restoreEnv("topP", "HUGGING_FACE_TOP_P");
       restoreEnv("browserReads", "VALUATION_HISTORY_BROWSER_READS");
       restoreEnv("importContextTokenHash", "IMPORT_CONTEXT_BROWSER_TOKEN_SHA256");
+      restoreEnv("nodeEnv", "NODE_ENV");
+      restoreEnv("debugEscape", "DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES");
     },
   };
 };

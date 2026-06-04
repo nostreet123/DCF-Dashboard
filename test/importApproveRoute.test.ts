@@ -17,6 +17,8 @@ const originalSyncToken = process.env.DAMODARAN_SYNC_TOKEN;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalAllowUnsigned = process.env.DCF_ENGINE_ALLOW_UNSIGNED;
 const originalBrowserWrites = process.env.IMPORT_APPROVAL_BROWSER_WRITES;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDebugEscape = process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
 const originalBrowserApprovalTokenHash = process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256;
 const originalBrowserApproveLimit = process.env.API_RATE_LIMIT_IMPORT_APPROVE_BROWSER_PER_MINUTE;
 const originalImportApproveLimit = process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE;
@@ -92,6 +94,16 @@ afterEach(() => {
     delete process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE;
   } else {
     process.env.API_RATE_LIMIT_IMPORT_APPROVE_PER_MINUTE = originalImportApproveLimit;
+  }
+  if (originalNodeEnv === undefined) {
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
+  } else {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
+  }
+  if (originalDebugEscape === undefined) {
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+  } else {
+    process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = originalDebugEscape;
   }
   globalThis.fetch = originalFetch;
 });
@@ -491,6 +503,27 @@ describe("company import approval route", () => {
       new Request("http://localhost/api/company/import/approve/browser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  test("blocks browser approval writes in production even when explicitly enabled", async () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.INTERNAL_PERSISTENCE_KEY = "secret";
+    process.env.IMPORT_APPROVAL_BROWSER_WRITES = "1";
+    process.env.IMPORT_APPROVAL_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");
+
+    const response = await browserApprovePost(
+      new Request("http://localhost/api/company/import/approve/browser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-approval-token": "correct-token",
+        },
         body: "{}",
       }),
     );
