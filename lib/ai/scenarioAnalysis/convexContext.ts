@@ -1,3 +1,4 @@
+import { browserHistoryReadsEnabled } from "@/app/api/_lib/browserRouteGuards";
 import { getConvexClient, getSyncTokenOptional } from "@/app/api/_lib/convex";
 import {
   queryCompaniesGet,
@@ -125,7 +126,7 @@ export const extractConvexLookup = (payload: unknown): ConvexLookup => {
 };
 
 export const browserPrivateConvexContextEnabled = (): boolean =>
-  process.env.VALUATION_HISTORY_BROWSER_READS === "1";
+  browserHistoryReadsEnabled();
 
 export const loadConvexAiContext = async (
   payload: unknown,

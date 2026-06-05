@@ -171,4 +171,48 @@ describe("company import parse route", () => {
     expect(response.status).toBe(400);
     expect(securityMock.calls).not.toContain("imports:generateUploadUrl");
   });
+
+  test("rejects more than four files per request", async () => {
+    const securityMock = installSecurityMutationsMock();
+    restoreSecurityMock = securityMock.restore;
+    const formData = new FormData();
+    for (let index = 0; index < 5; index += 1) {
+      formData.append(
+        "files",
+        new File([`Revenue,${index}`], `income-${index}.csv`, { type: "text/csv" }),
+      );
+    }
+
+    const response = await POST(
+      new Request("http://localhost/api/company/import/parse?listingId=XTSE:SHOP", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.56" },
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const payload = await response.json();
+    expect(payload.message).toContain("maximum 4");
+  });
+
+  test("rejects individual files larger than 5MB", async () => {
+    const securityMock = installSecurityMutationsMock();
+    restoreSecurityMock = securityMock.restore;
+    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+    const formData = new FormData();
+    formData.append("files", new File([oversized], "large.csv", { type: "text/csv" }));
+
+    const response = await POST(
+      new Request("http://localhost/api/company/import/parse?listingId=XTSE:SHOP", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.57" },
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    const payload = await response.json();
+    expect(payload.message).toContain("large.csv");
+  });
 });

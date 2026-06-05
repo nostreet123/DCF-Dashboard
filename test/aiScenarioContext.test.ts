@@ -33,11 +33,19 @@ describe("AI scenario Convex context", () => {
     });
   });
 
-  test("browserPrivateConvexContextEnabled reflects env flag", () => {
+  test("browserPrivateConvexContextEnabled reflects env flag outside production", () => {
     delete process.env.VALUATION_HISTORY_BROWSER_READS;
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
     expect(browserPrivateConvexContextEnabled()).toBe(false);
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
     expect(browserPrivateConvexContextEnabled()).toBe(true);
+  });
+
+  test("browserPrivateConvexContextEnabled stays off in production even when flag is set", () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    expect(browserPrivateConvexContextEnabled()).toBe(false);
   });
 
   test("loadConvexAiContext returns disabled reason when browser reads are off", async () => {

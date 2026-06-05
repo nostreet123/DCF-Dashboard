@@ -46,11 +46,8 @@ const parsePositiveIntegerEnv = (key: string, defaultValue: number): number => {
 const getMaxPayloadBytes = (): number =>
   parsePositiveIntegerEnv("HUGGING_FACE_MAX_INPUT_BYTES", DEFAULT_MAX_AI_PAYLOAD_BYTES);
 
-const getDailyLimit = (): number => {
-  const raw = process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY;
-  const parsed = raw ? Number(raw) : 25;
-  return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : 25;
-};
+const getDailyLimit = (): number =>
+  parsePositiveIntegerEnv("API_RATE_LIMIT_AI_SCENARIO_DAILY", 10);
 
 export async function POST(request: Request) {
   const isAdmin = isAdminModeRequest(request);

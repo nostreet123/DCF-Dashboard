@@ -16,10 +16,10 @@ import {
 } from "@/app/api/_lib/rateLimit";
 import type { ImportedArtifactKind } from "@/lib/contracts/company";
 
-const MAX_FILES = 8;
+const MAX_FILES = 4;
 const MAX_ENGINE_PARSE_BODY_BYTES = (65 * 1024 * 1024);
 const MAX_MULTIPART_BODY_BYTES = Math.floor((MAX_ENGINE_PARSE_BODY_BYTES - (1024 * 1024)) * 3 / 4);
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_PARSE_AUTH_BODY_BYTES = MAX_ENGINE_PARSE_BODY_BYTES;
 
 class MultipartBodyLimitError extends Error {
@@ -120,7 +120,7 @@ const readMultipartBodyWithLimit = async (
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:company:import:parse",
-    limit: getRateLimitPerMinute("API_RATE_LIMIT_IMPORT_PARSE_PER_MINUTE", 12),
+    limit: getRateLimitPerMinute("API_RATE_LIMIT_IMPORT_PARSE_PER_MINUTE", 6),
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {

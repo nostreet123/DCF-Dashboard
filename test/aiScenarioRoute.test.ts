@@ -387,6 +387,43 @@ describe("AI scenario analysis route", () => {
     expect(prompt).toContain("\"reason\":\"BROWSER_READS_DISABLED\"");
   });
 
+  test("keeps private Convex context out of public AI requests in production even when browser reads flag is set", async () => {
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+    delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    let queryCount = 0;
+    ConvexHttpClient.prototype.query = async () => {
+      queryCount += 1;
+      throw new Error("Convex should not be queried for public AI context in production");
+    };
+
+    let prompt = "";
+    globalThis.fetch = createMockFetch(async (_url, init) => {
+      const providerBody = JSON.parse(String(init?.body)) as {
+        messages?: Array<{ role: string; content: string }>;
+      };
+      prompt = providerBody.messages?.find((message) => message.role === "user")?.content ?? "";
+      return new Response(validProviderResponse("No private Convex context."), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.137" },
+        body: JSON.stringify({
+          company: { id: "sec:0000000099:PRODBLOCK", symbol: "PRODBLOCK" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(queryCount).toBe(0);
+    expect(prompt).toContain("\"reason\":\"BROWSER_READS_DISABLED\"");
+  });
+
   test("keeps imported facts out of public AI context without the import context token", async () => {
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
     process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("correct-token");

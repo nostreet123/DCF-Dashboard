@@ -35,5 +35,5 @@ This lets the app pass a 384K-token-scale context budget while bounding slow pro
 
 Public demos can cap AI usage and allow an authenticated bypass:
 
-- `API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE` and `API_RATE_LIMIT_AI_SCENARIO_DAILY` set per-IP/daily caps.
-- `DCF_DEMO_ADMIN_TOKEN_SHA256` enables an optional admin bypass. It stores only a SHA-256 digest of your admin token, never the raw token.
+- `API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE` and `API_RATE_LIMIT_AI_SCENARIO_DAILY` set per-IP/daily caps (default daily cap is 10 when unset).
+- `DCF_DEMO_ADMIN_TOKEN_SHA256` enables an optional admin bypass. It stores only a SHA-256 digest of your admin token, never the raw token. The digest itself is rejected as an admin token.
