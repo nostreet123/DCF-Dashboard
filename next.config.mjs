@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // Security headers (CSP, Referrer-Policy, etc.) are applied by middleware.ts
 // for all page routes. This config remains for any static-file paths that
 // middleware does not cover.
@@ -7,11 +10,13 @@
 // typecheck and lint as explicit earlier steps, then opts into skipping Next's
 // duplicate build-time checks via this environment flag.
 const assumePrecheckedBuild = process.env.NEXT_BUILD_ASSUME_PRECHECKS === 'true';
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig = {
   reactStrictMode: true,
   eslint: { ignoreDuringBuilds: assumePrecheckedBuild },
   typescript: { ignoreBuildErrors: assumePrecheckedBuild },
+  outputFileTracingRoot: repoRoot,
   images: {
     remotePatterns: [
       {

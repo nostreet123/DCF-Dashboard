@@ -15,6 +15,7 @@ convex-export*.zip
 Gemini_Generated_Image_*.png
 
 .gemini/
+.cursor/
 gha-creds-*.json
 .codex/*
 !.codex/skills/

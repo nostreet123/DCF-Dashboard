@@ -13,17 +13,19 @@ OSS readiness PR train (1–8) is complete on `main`. Before switching visibilit
 | Product proof | Showcase images exist in-repo and match current UI (see PR 4) |
 | Clean-clone evidence | [`docs/verification.md`](docs/verification.md) — harness verified on supported environments |
 | Security CI | Secret scan + CodeQL workflows green on `main` (done in PR 2) |
+| Python dependency audit | CI or documented gate covers Python vulnerability status; see issue #118 |
 | Governance pack | [GOVERNANCE.md](GOVERNANCE.md), [SUPPORT.md](SUPPORT.md), [RELEASING.md](RELEASING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 
 ## Next Up
 
 | Item | Acceptance criteria |
 |------|---------------------|
-| More sample valuations | At least two additional documented payloads with expected output shapes |
+| More sample valuations | At least two additional documented payloads with expected output shapes; see issue #119 |
 | Convex onboarding | Single doc path from zero → `bunx convex dev` → persisted run visible in UI |
 | DCF caveats explainers | Short doc section on model limits linked from README disclaimer |
 | Integration test coverage | Tests for signed Next.js → FastAPI path documented in CONTRIBUTING |
-| Hosted deployment guide | Optional deploy doc that never sets local-only bypass flags |
+| Hosted deployment guide | Optional deploy doc that never sets local-only bypass flags; see issue #123 |
+| Valuation regression fixtures | Additional industry fixtures with expected output shapes; see issue #122 |
 
 ## Not In Scope Right Now
 
