@@ -12,9 +12,9 @@ const loadGuardsModule = async () => {
 
 afterEach(() => {
   if (originalNodeEnv === undefined) {
-    delete process.env.NODE_ENV;
+    delete (process.env as { NODE_ENV?: string }).NODE_ENV;
   } else {
-    process.env.NODE_ENV = originalNodeEnv;
+    (process.env as { NODE_ENV?: string }).NODE_ENV = originalNodeEnv;
   }
   if (originalDebugRoutes === undefined) {
     delete process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES;
@@ -40,7 +40,7 @@ afterEach(() => {
 
 describe("browserRouteGuards production warnings", () => {
   test("warnUnsafeBrowserDebugInProduction logs when debug flags are enabled", async () => {
-    process.env.NODE_ENV = "production";
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
     process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = "1";
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
     delete process.env.IMPORT_APPROVAL_BROWSER_WRITES;
@@ -61,7 +61,7 @@ describe("browserRouteGuards production warnings", () => {
   });
 
   test("warnUnsafeBrowserDebugInProduction stays quiet outside production", async () => {
-    process.env.NODE_ENV = "development";
+    (process.env as { NODE_ENV?: string }).NODE_ENV = "development";
     process.env.DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES = "1";
     process.env.VALUATION_HISTORY_BROWSER_READS = "1";
 
