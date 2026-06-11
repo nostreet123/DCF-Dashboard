@@ -29,6 +29,20 @@ Security reports are especially useful for:
 
 Out of scope: investment outcomes, model accuracy disputes, and optional third-party service availability (SEC EDGAR, Convex, Hugging Face).
 
+## Trust Model
+
+This application does **not** implement end-user authentication. Privilege is enforced with shared service secrets:
+
+- `DAMODARAN_SYNC_TOKEN` — root credential for Convex mutations and sensitive reads. **Never expose to browsers, client bundles, or public docs.**
+- `INTERNAL_PERSISTENCE_KEY` — HMAC secret for Next.js persistence routes.
+- `DCF_ENGINE_INTERNAL_KEY` — HMAC secret for Next.js → FastAPI requests.
+
+Anyone who learns `DAMODARAN_SYNC_TOKEN` plus your Convex deployment URL can call protected Convex functions directly, bypassing Next.js middleware. Treat sync-token rotation and Convex dashboard access as production security controls.
+
+## Public Data Boundary
+
+Several Convex queries are intentionally callable without authentication when `NEXT_PUBLIC_CONVEX_URL` is set (for example `companies:search`, `companyStatements:listBySymbol`, `reference:getRow`, catalog/sidebar reads). This reflects public SEC and Damodaran reference data, not private user records. Do not store sensitive tenant data in these tables unless you add your own auth layer.
+
 ## Safe Defaults (Public Source)
 
 - FastAPI rejects unsigned protected requests unless `DCF_ENGINE_ALLOW_UNSIGNED=1` (local/dev only).

@@ -1480,6 +1480,46 @@ describe("AI scenario analysis route", () => {
     expect(adminPayload.admin).toBe(true);
   });
 
+  test("enforces per-ip daily cap before the global daily cap", async () => {
+    process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = "100";
+    process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY = "1";
+    process.env.API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE = "100";
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      return new Response(validProviderResponse(`Per-ip ${providerCalls}.`), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    const first = await POST(
+      new Request("http://preview.example/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.120" },
+        body: JSON.stringify({ symbol: "AAPL", run: 1 }),
+      }),
+    );
+    const second = await POST(
+      new Request("http://preview.example/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.120" },
+        body: JSON.stringify({ symbol: "AAPL", run: 2 }),
+      }),
+    );
+    const otherIp = await POST(
+      new Request("http://preview.example/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.121" },
+        body: JSON.stringify({ symbol: "AAPL", run: 3 }),
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+    expect(otherIp.status).toBe(200);
+  });
+
   test("does not accept the configured SHA-256 digest as the admin token", async () => {
     process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = "1";
     let providerCalls = 0;

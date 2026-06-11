@@ -49,6 +49,9 @@ const getMaxPayloadBytes = (): number =>
 const getDailyLimit = (): number =>
   parsePositiveIntegerEnv("API_RATE_LIMIT_AI_SCENARIO_DAILY", 10);
 
+const getPerIpDailyLimit = (): number =>
+  parsePositiveIntegerEnv("API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY", 5);
+
 export async function POST(request: Request) {
   const isAdmin = isAdminModeRequest(request);
   if (!isAdmin) {
@@ -59,6 +62,15 @@ export async function POST(request: Request) {
     });
     if (!rateLimit.allowed) {
       return rateLimitErrorResponse(rateLimit);
+    }
+
+    const perIpDailyLimit = await enforceRateLimit(request, {
+      key: "api:ai:scenario-analysis:per-ip:daily",
+      limit: getPerIpDailyLimit(),
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (!perIpDailyLimit.allowed) {
+      return rateLimitErrorResponse(perIpDailyLimit);
     }
   }
 

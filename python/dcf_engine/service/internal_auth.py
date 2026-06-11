@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 import hashlib
 import hmac
+import logging
 import os
 import threading
 import time
@@ -32,6 +33,7 @@ INTERNAL_AUTH_PATHS = {
 
 _nonce_lock = threading.Lock()
 _seen_nonces: dict[str, int] = {}
+_logger = logging.getLogger(__name__)
 
 
 def internal_key() -> str | None:
@@ -50,6 +52,31 @@ def allow_unsigned_requests() -> bool:
 
 def allow_process_local_nonces() -> bool:
     return os.getenv("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES") == "1"
+
+
+def is_hosted_runtime() -> bool:
+    return bool(os.getenv("RENDER"))
+
+
+def assert_safe_hosted_startup() -> None:
+    unsafe_flags: list[str] = []
+    if allow_unsigned_requests():
+        unsafe_flags.append("DCF_ENGINE_ALLOW_UNSIGNED=1 without DCF_ENGINE_INTERNAL_KEY")
+    if allow_process_local_nonces():
+        unsafe_flags.append("DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES=1")
+
+    if not unsafe_flags:
+        return
+
+    message = (
+        "Unsafe DCF engine configuration: "
+        + "; ".join(unsafe_flags)
+        + ". These flags are local/dev escape hatches only."
+    )
+    if is_hosted_runtime():
+        raise RuntimeError(message)
+
+    _logger.warning(message)
 
 
 def shared_nonce_store_configured() -> bool:

@@ -28,6 +28,8 @@ This repository is **public-source ready**, not a hosted SaaS product. You can c
 
 What is in scope today: local/mock demos, direct compute, documented security defaults, and contributor verification (`npm run harness:verify`).
 
+See [SECURITY.md](SECURITY.md) for the trust model (service-token auth, no end-user sessions) and the public Convex read boundary.
+
 ## Try It In Five Minutes
 
 ```bash

@@ -4,6 +4,7 @@ import { BodyLimitError, parseJsonWithLimit } from "@/app/api/_lib/body";
 import { DcfEngineHttpError, fetchDcfEngine } from "@/app/api/_lib/dcfEngine";
 import { errorResponse } from "@/app/api/_lib/errors";
 import {
+  enforceGlobalRateLimit,
   enforceRateLimit,
   getRateLimitPerMinute,
   rateLimitErrorResponse,
@@ -22,6 +23,9 @@ const noStoreJson = (payload: unknown, init?: ResponseInit) =>
     },
   });
 
+const getPreviewDailyLimit = (): number =>
+  getRateLimitPerMinute("API_RATE_LIMIT_DCF_PREVIEW_DAILY", 500);
+
 export async function POST(request: Request) {
   const rateLimit = await enforceRateLimit(request, {
     key: "api:dcf:preview",
@@ -30,6 +34,15 @@ export async function POST(request: Request) {
   });
   if (!rateLimit.allowed) {
     return rateLimitErrorResponse(rateLimit);
+  }
+
+  const dailyLimit = await enforceGlobalRateLimit({
+    key: "api:dcf:preview:daily",
+    limit: getPreviewDailyLimit(),
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+  if (!dailyLimit.allowed) {
+    return rateLimitErrorResponse(dailyLimit);
   }
 
   let payload: Record<string, unknown>;

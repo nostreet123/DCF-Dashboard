@@ -13,6 +13,8 @@ node_modules/
 
 convex-export*.zip
 Gemini_Generated_Image_*.png
+redesign-screenshot.png
+*-screenshot.png
 
 .gemini/
 .cursor/

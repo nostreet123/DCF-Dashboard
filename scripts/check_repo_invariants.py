@@ -412,6 +412,34 @@ def check_local_only_flags_in_markdown(errors: list[str]) -> None:
                     )
 
 
+def check_route_auth_classification(errors: list[str]) -> None:
+    route_auth_markers = (
+        "enforceRateLimit",
+        "enforceGlobalRateLimit",
+        "isInternalPersistenceRequest",
+        "isAuthorizedBrowserTokenRequest",
+        "isAdminModeRequest",
+    )
+    route_allowlist: set[str] = set()
+
+    for path in sorted((ROOT / "app" / "api").rglob("route.ts")):
+        rel_path = rel(path)
+        if rel_path in route_allowlist:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if not any(marker in text for marker in route_auth_markers):
+            add_error(
+                errors,
+                path,
+                1,
+                (
+                    "route must classify auth via enforceRateLimit, "
+                    "enforceGlobalRateLimit, isInternalPersistenceRequest, "
+                    "isAuthorizedBrowserTokenRequest, or isAdminModeRequest"
+                ),
+            )
+
+
 def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
@@ -426,6 +454,7 @@ def main() -> int:
     check_route_convex_any_hatches(errors)
     check_workflow_posture(errors)
     check_hosted_local_only_flags(errors)
+    check_route_auth_classification(errors)
 
     if warnings:
         print("Repository invariant warnings:", file=sys.stderr)
