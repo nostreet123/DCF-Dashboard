@@ -241,7 +241,7 @@ E2E support is available through Playwright:
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
-- Application narrative: [`docs/application-readiness.md`](docs/application-readiness.md)
+- OSS program reviewer pack: [`docs/oss-program-application.md`](docs/oss-program-application.md)
 - Monte Carlo: [`docs/monte-carlo.md`](docs/monte-carlo.md)
 - AI scenario analysis: [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md)
 - Convex persistence: [`docs/convex-persistence.md`](docs/convex-persistence.md)

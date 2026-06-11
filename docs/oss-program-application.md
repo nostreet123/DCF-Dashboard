@@ -66,7 +66,7 @@ Expected results are documented in [verification.md](./verification.md).
 
 ## Maintainer narrative
 
-See [application-readiness.md](./application-readiness.md) for why this repo is actively maintained (cross-stack docs, tests, security, releases) and how sustained review capacity helps.
+DCF Dashboard is actively maintained across a Next.js UI, Python valuation engine, and optional Convex persistence. The public tree includes harness verification, security runbooks, contributor onboarding, and a public-preview roadmap so reviewers and contributors can reproduce demos without private services.
 
 ## Boundaries (honest scope)
 

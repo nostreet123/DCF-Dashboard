@@ -72,6 +72,21 @@ LOCAL_ONLY_ENV_KEYS = (
 
 LOCAL_ONLY_ENV_ASSIGNMENTS = tuple(f"{key}=1" for key in LOCAL_ONLY_ENV_KEYS)
 
+LOCAL_ONLY_FLAG_DOC_ALLOWLIST = frozenset(
+    {
+        "docs/ONBOARDING.md",
+        "docs/contributor-module-guides.md",
+        "docs/public-repo-audit-phase3.md",
+        "DEPLOY_SECURITY_RUNBOOK.md",
+        "SECURITY.md",
+        "RELEASING.md",
+        "docs/convex-persistence.md",
+        "docs/provider-data-flow.md",
+        "docs/public-repo-audit-phase1.md",
+        "security_review_report.md",
+    }
+)
+
 HOSTED_DEPLOYMENT_FILES = (
     ROOT / "render.yaml",
 )
@@ -348,11 +363,62 @@ def check_tracked_ds_store(errors: list[str]) -> None:
         add_error(errors, ROOT / line, 1, "remove tracked .DS_Store")
 
 
+def list_tracked_git_files(*pathspecs: str) -> list[str]:
+    if not (ROOT / ".git").exists():
+        return []
+
+    result = subprocess.run(
+        ["git", "ls-files", *pathspecs],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def check_tracked_agents_md(errors: list[str]) -> None:
+    for tracked in list_tracked_git_files("AGENTS.md", "**/AGENTS.md"):
+        add_error(
+            errors,
+            ROOT / tracked,
+            1,
+            "remove tracked AGENTS.md; keep agent guidance local per .gitignore",
+        )
+
+
+def check_local_only_flags_in_markdown(errors: list[str]) -> None:
+    for tracked in list_tracked_git_files("*.md"):
+        if tracked in LOCAL_ONLY_FLAG_DOC_ALLOWLIST:
+            continue
+        path = ROOT / tracked
+        if not path.exists():
+            continue
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for assignment in LOCAL_ONLY_ENV_ASSIGNMENTS:
+                if assignment in line:
+                    add_error(
+                        errors,
+                        path,
+                        line_no,
+                        (
+                            f"local-only assignment {assignment} is not allowed in public "
+                            f"markdown; add to LOCAL_ONLY_FLAG_DOC_ALLOWLIST only with a "
+                            "documented local-dev warning"
+                        ),
+                    )
+
+
 def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     check_ds_store(errors)
     check_tracked_ds_store(errors)
+    check_tracked_agents_md(errors)
+    check_local_only_flags_in_markdown(errors)
     check_python_prints(errors)
     check_convex_mutation_auth(errors)
     check_convex_query_indexes(errors)

@@ -47,7 +47,6 @@ Start here for contributor onboarding, product context, and public-release evide
 |-----|---------|
 | [../ROADMAP.md](../ROADMAP.md) | Near-term contribution-friendly work |
 | [oss-impact.md](./oss-impact.md) | OSS program impact claim ledger (skeleton) |
-| [application-readiness.md](./application-readiness.md) | Application narrative for reviewers |
 | [oss-program-application.md](./oss-program-application.md) | Consolidated OSS program reviewer pack |
 | [public-release-checklist.md](./public-release-checklist.md) | Pre-launch maintainer checklist (visibility switch) |
 | [releases/v0.1.0.md](./releases/v0.1.0.md) | `v0.1.0` release notes |

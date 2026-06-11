@@ -60,5 +60,6 @@ service-account*.json
 **/secrets/
 documentation/
 docs/agent-context-policy.md
+docs/application-readiness.md
 docs/assistant-log-archive.md
 docs/plans/
