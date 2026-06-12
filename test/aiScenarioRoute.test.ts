@@ -1453,7 +1453,7 @@ describe("AI scenario analysis route", () => {
       new Request("http://preview.example/api/ai/scenario-analysis", {
         method: "POST",
         headers: { "x-vercel-forwarded-for": "203.0.113.130" },
-        body: JSON.stringify({ symbol: "MSFT", filingPeriod: "2025" }),
+        body: JSON.stringify({ symbol: "PERIPCAP", filingPeriod: "2025" }),
       });
 
     const first = await POST(request());
@@ -1462,7 +1462,7 @@ describe("AI scenario analysis route", () => {
       new Request("http://preview.example/api/ai/scenario-analysis", {
         method: "POST",
         headers: { "x-vercel-forwarded-for": "203.0.113.130" },
-        body: JSON.stringify({ symbol: "MSFT", filingPeriod: "2026" }),
+        body: JSON.stringify({ symbol: "PERIPCAP", filingPeriod: "2026" }),
       }),
     );
 
