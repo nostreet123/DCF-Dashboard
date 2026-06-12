@@ -36,15 +36,6 @@ export async function POST(request: Request) {
     return rateLimitErrorResponse(rateLimit);
   }
 
-  const dailyLimit = await enforceGlobalRateLimit({
-    key: "api:dcf:preview:daily",
-    limit: getPreviewDailyLimit(),
-    windowMs: 24 * 60 * 60 * 1000,
-  });
-  if (!dailyLimit.allowed) {
-    return rateLimitErrorResponse(dailyLimit);
-  }
-
   let payload: Record<string, unknown>;
   try {
     payload = await parseJsonWithLimit<Record<string, unknown>>(request);
@@ -71,6 +62,15 @@ export async function POST(request: Request) {
     includeTrace: true,
     ...(monteCarlo ? { monteCarlo } : {}),
   };
+
+  const dailyLimit = await enforceGlobalRateLimit({
+    key: "api:dcf:preview:daily",
+    limit: getPreviewDailyLimit(),
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+  if (!dailyLimit.allowed) {
+    return rateLimitErrorResponse(dailyLimit);
+  }
 
   try {
     const result = await fetchDcfEngine<Record<string, unknown>>("/dcf/compute", {

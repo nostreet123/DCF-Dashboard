@@ -189,6 +189,46 @@ describe("route rate limiting", () => {
     expect(second.status).toBe(429);
   });
 
+  test("invalid dcf preview payloads do not consume the global daily budget", async () => {
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "100";
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY = "1";
+    const headers = {
+      "Content-Type": "application/json",
+      "x-vercel-forwarded-for": "203.0.113.22",
+    };
+    const invalid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers,
+        body: "{not-json",
+      }),
+    );
+    const firstValid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.23",
+        },
+        body: JSON.stringify({}),
+      }),
+    );
+    const secondValid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.24",
+        },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(invalid.status).toBe(400);
+    expect(firstValid.status).toBe(200);
+    expect(secondValid.status).toBe(429);
+  });
+
   test("limits company search requests per trusted client ip", async () => {
     const headers = { "x-vercel-forwarded-for": "203.0.113.11" };
     const first = await companySearchGet(

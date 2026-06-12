@@ -63,15 +63,6 @@ export async function POST(request: Request) {
     if (!rateLimit.allowed) {
       return rateLimitErrorResponse(rateLimit);
     }
-
-    const perIpDailyLimit = await enforceRateLimit(request, {
-      key: "api:ai:scenario-analysis:per-ip:daily",
-      limit: getPerIpDailyLimit(),
-      windowMs: 24 * 60 * 60 * 1000,
-    });
-    if (!perIpDailyLimit.allowed) {
-      return rateLimitErrorResponse(perIpDailyLimit);
-    }
   }
 
   const apiKey = process.env.HUGGING_FACE_API_KEY;
@@ -123,6 +114,15 @@ export async function POST(request: Request) {
   }
 
   if (!isAdmin) {
+    const perIpDailyLimit = await enforceRateLimit(request, {
+      key: "api:ai:scenario-analysis:per-ip:daily",
+      limit: getPerIpDailyLimit(),
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (!perIpDailyLimit.allowed) {
+      return rateLimitErrorResponse(perIpDailyLimit);
+    }
+
     const dailyLimit = await enforceGlobalRateLimit({
       key: "api:ai:scenario-analysis:daily",
       limit: getDailyLimit(),

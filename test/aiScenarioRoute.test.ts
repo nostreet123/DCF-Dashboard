@@ -1437,6 +1437,41 @@ describe("AI scenario analysis route", () => {
     expect(providerCalls).toBe(1);
   });
 
+  test("cached scenario analysis responses do not consume the per-ip daily cap", async () => {
+    process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY = "1";
+    process.env.API_RATE_LIMIT_AI_SCENARIO_PER_MINUTE = "100";
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      return new Response(validProviderResponse("Cached per-ip cap."), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    const request = () =>
+      new Request("http://preview.example/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.130" },
+        body: JSON.stringify({ symbol: "MSFT", filingPeriod: "2025" }),
+      });
+
+    const first = await POST(request());
+    const cached = await POST(request());
+    const uncached = await POST(
+      new Request("http://preview.example/api/ai/scenario-analysis", {
+        method: "POST",
+        headers: { "x-vercel-forwarded-for": "203.0.113.130" },
+        body: JSON.stringify({ symbol: "MSFT", filingPeriod: "2026" }),
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(cached.status).toBe(200);
+    expect(uncached.status).toBe(429);
+    expect(providerCalls).toBe(1);
+  });
+
   test("enforces public daily cap without blocking admin mode", async () => {
     process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = "1";
     let providerCalls = 0;
