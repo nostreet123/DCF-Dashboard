@@ -6,6 +6,8 @@ Git ref: `main` @ `3446afc` (OSS PR train complete; harness re-verified 2026-05-
 
 Status: PASS
 
+> **Historical verification log.** Commands below record the audit run and may include dev bypass flags (`DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_RATE_LIMIT_ALLOW_LOCALHOST`). These are not hosted defaults. For current setup, use [ONBOARDING.md](./ONBOARDING.md).
+
 Reviewer summary: [verification.md](./verification.md)
 
 ## Goal

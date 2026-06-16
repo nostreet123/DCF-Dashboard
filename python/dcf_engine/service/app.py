@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 import ipaddress
 import math
 import logging
@@ -14,6 +15,7 @@ from dcf_engine.service.internal_auth import (
     INTERNAL_AUTH_PATHS,
     SECURITY_BACKEND_UNAVAILABLE_DETAIL,
     allow_unsigned_requests,
+    assert_safe_hosted_startup,
     require_internal_request,
     shared_security_client,
 )
@@ -36,12 +38,20 @@ logger = logging.getLogger(__name__)
 
 _DOCS_ENABLED = os.getenv("DCF_ENGINE_EXPOSE_DOCS") == "1"
 
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    assert_safe_hosted_startup()
+    yield
+
+
 app = FastAPI(
     title="DCF Engine Service",
     version="0.1.0",
     docs_url="/docs" if _DOCS_ENABLED else None,
     redoc_url="/redoc" if _DOCS_ENABLED else None,
     openapi_url="/openapi.json" if _DOCS_ENABLED else None,
+    lifespan=_lifespan,
 )
 
 @app.get("/healthz", include_in_schema=False)
@@ -60,6 +70,8 @@ SEC_FACTS_NOT_FOUND_DETAIL = "Unknown ticker"
 SEC_FACTS_FAILURE_DETAIL = "SEC facts fetch failed"
 DCF_COMPUTE_BAD_REQUEST_DETAIL = "Invalid DCF input"
 DCF_COMPUTE_FAILURE_DETAIL = "DCF compute failed"
+IMPORT_PARSE_INVALID_FILE_DETAIL = "Invalid import file"
+IMPORT_PARSE_FAILURE_DETAIL = "Import parse failed"
 _MAX_RATE_LIMIT_REQUESTS = 10_000
 _MAX_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 
@@ -275,10 +287,17 @@ def company_import_parse(
     try:
         return parse_import_payload(payload)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("Import parse validation failed: %s", exc)
+        raise HTTPException(
+            status_code=400,
+            detail=IMPORT_PARSE_INVALID_FILE_DETAIL,
+        ) from exc
     except RuntimeError as exc:
         logger.warning("Import parse failed: %s", exc)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=IMPORT_PARSE_FAILURE_DETAIL,
+        ) from exc
 
 
 @app.post(

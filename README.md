@@ -6,9 +6,11 @@
 [![CodeQL](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codeql.yml/badge.svg)](https://github.com/nostreet123/DCF-Dashboard/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-DCF Dashboard is an open-source valuation workbench for exploring discounted cash flow assumptions in a browser. It pairs a Next.js interface with a Python DCF engine, optional Monte Carlo distribution analysis, and optional Convex-backed persistence for saved runs and company facts.
+DCF Dashboard is an open-source valuation workbench that turns spreadsheet-style DCF analysis into reproducible browser workflows. It pairs a Next.js interface with a Python valuation engine, scenario comparison, optional Monte Carlo ranges, and optional Convex-backed persistence for saved runs and company facts.
 
 **Documentation hub:** [`docs/README.md`](docs/README.md) · **First run:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
+
+![DCF Dashboard home](docs/assets/dashboard-home.png)
 
 ## Who It Is For
 
@@ -26,6 +28,21 @@ This repository is **public-source ready**, not a hosted SaaS product. You can c
 
 What is in scope today: local/mock demos, direct compute, documented security defaults, and contributor verification (`npm run harness:verify`).
 
+See [SECURITY.md](SECURITY.md) for the trust model (service-token auth, no end-user sessions) and the public Convex read boundary.
+
+## Try It In Five Minutes
+
+```bash
+# optional if you use nvm
+nvm use
+
+npm ci
+
+NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
+```
+
+The demo mode is intentionally mock-backed: no Python service, Convex setup, SEC credentials, or AI provider key is required to open the workbench. For the direct engine smoke test, complete the full local setup below and run `npm run demo:compute`.
+
 ## What Problem It Solves
 
 Most DCF workflows live in spreadsheets, scattered notes, and one-off scenario tabs. This project puts the core workflow into a reproducible app so you can:
@@ -35,6 +52,22 @@ Most DCF workflows live in spreadsheets, scattered notes, and one-off scenario t
 - stress-test growth and discount-rate assumptions
 - review a Monte Carlo range instead of a single point estimate
 - optionally persist and replay valuation runs through Convex
+
+## Maintainer Signals
+
+- Public-preview release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Roadmap: [`ROADMAP.md`](ROADMAP.md)
+- Deployment security runbook: [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md)
+- Canonical verification gate: `npm run harness:verify`
+- Browser smoke gate: `npm run harness:e2e:smoke`
+
+## Screenshots
+
+![Assumptions panel](docs/assets/assumptions-panel.png)
+
+![Monte Carlo output](docs/assets/monte-carlo-output.png)
 
 ## What Works Today
 
@@ -67,7 +100,7 @@ Still prototype / evolving:
 
 ## Public Preview Security
 
-Hosted public preview should leave browser debug flags unset: `VALUATION_HISTORY_BROWSER_READS`, `NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS`, `IMPORT_APPROVAL_BROWSER_WRITES`, and browser import token hashes. Production hard-stops those routes even if flags are mis-set. `DCF_PUBLIC_PREVIEW_ALLOW_BROWSER_DEBUG_ROUTES` is a local/test-only escape hatch — never enable it on public preview. See [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md) and [`.env.example`](.env.example).
+Hosted public previews should use the documented secure defaults: keep local-only debug routes disabled, keep private service credentials on the server, and run the deployment checklist before exposing optional persistence or import workflows. See [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md) and [`.env.example`](.env.example) for the operator-level details.
 
 ## Architecture At A Glance
 
@@ -77,7 +110,7 @@ Hosted public preview should leave browser debug flags unset: `VALUATION_HISTORY
 - `examples/`: sample request payloads for reproducible demos
 - `docs/`: audit artifacts, roadmap, release notes, and showcase material
 
-Persistence via Convex is optional. If you only want to demo the UI or run the compute engine locally, you do not need Convex configured. When enabled, Convex stores saved valuation runs and related facts so they can be replayed from the UI instead of recomputed ad hoc every time. The full request flow, env vars, and local setup steps are documented in [`docs/convex-persistence.md`](docs/convex-persistence.md).
+Persistence via Convex is optional. If you only want to demo the UI or run the compute engine locally, you do not need Convex configured. When enabled, Convex stores saved valuation runs and related facts so they can be replayed from the UI instead of recomputed ad hoc every time. The full setup path is documented in [`docs/convex-persistence.md`](docs/convex-persistence.md).
 
 ## Monte Carlo
 
@@ -97,12 +130,12 @@ The web app implements the Mac prototype parity surface as web-native routes and
 - Search uses `CoverageState` to branch listings into immediate valuation, import review, or source-detail views.
 - Approved imports persist reviewed facts and artifact references in Convex, then compute from those facts immediately.
 - Rich run output includes scenario values, KPIs, statement history, projections, sensitivity offsets, Monte Carlo summaries, and provenance.
-- AI scenario analysis is server-only; provider secrets never go to the browser. Configuration, the maximum-reasoning DeepSeek demo recipe, and public-demo cost controls are documented in [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md).
-- Settings status reports SEC user-agent, AI, Convex/history/import readiness, and active data mode.
+- AI scenario analysis is server-only; provider credentials never go to the browser. Configuration guidance is documented in [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md).
+- Settings status reports integration readiness and active data mode.
 
 The parity checklist lives in [`docs/web-feature-parity-checklist.md`](docs/web-feature-parity-checklist.md).
 
-## Five-Minute Quickstart
+## Full Local Setup
 
 ```bash
 # optional if you use nvm
@@ -120,7 +153,7 @@ If Bun is not installed globally, the repo harness installs the pinned Bun versi
 
 Fastest paths after install:
 
-- Live EDGAR UI: start the Python engine, then start Next.js with `DCF_ENGINE_URL=http://127.0.0.1:8000`
+- Live EDGAR UI: follow the local engine path in [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 - Mock UI demo: `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev`
 - Compute demo: `npm run demo:compute`
 - Repo alive smoke check: `npm run smoke:alive`
@@ -132,21 +165,7 @@ Full onboarding and golden paths: [`docs/ONBOARDING.md`](docs/ONBOARDING.md). Au
 
 ### Live EDGAR UI
 
-```bash
-# Terminal 1
-. .venv/bin/activate
-SEC_USER_AGENT='Your Name your.email@example.com' \
-DCF_ENGINE_ALLOW_UNSIGNED=1 \
-npm run dev:engine
-
-# Terminal 2
-DCF_ENGINE_URL=http://127.0.0.1:8000 \
-DCF_ENGINE_ALLOW_UNSIGNED=1 \
-DCF_RATE_LIMIT_ALLOW_LOCALHOST=1 \
-npm run dev
-```
-
-This path uses live dashboard API routes by default, matching the Mac prototype’s EDGAR-backed behavior.
+This path starts the Python service and the Next.js app together for live data-backed local development. Use the step-by-step local instructions in [`docs/ONBOARDING.md`](docs/ONBOARDING.md), and keep local-only security overrides out of hosted environments.
 
 For a UI-only mock demo without the Python service, run:
 
@@ -156,13 +175,7 @@ NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
 
 ### Direct Compute Flow
 
-```bash
-. .venv/bin/activate
-DCF_ENGINE_ALLOW_UNSIGNED=1 npm run dev:engine
-curl -s -X POST http://127.0.0.1:8000/dcf/compute \
-  -H 'content-type: application/json' \
-  --data @examples/workbench-demo-request.json
-```
+Run `npm run demo:compute` after the full local setup to send the included sample payload through the Python valuation engine.
 
 ### Repo Alive Check
 
@@ -188,17 +201,9 @@ The most common environment variables — public-safe client values, operational
 
 ## API Notes
 
-DCF compute routes:
+The app exposes server routes for valuation previews, optional persistence, company lookup/import workflows, AI scenario analysis, and settings readiness. Keep optional persistence and import paths behind the documented server-side controls when deploying outside local development.
 
-- `POST /api/dcf/preview`: compute only
-- `POST /api/dcf/run`: compute plus optional persistence to Convex
-- `GET /api/company/detail?id=...`: official listing metadata and source links
-- `POST /api/company/import/parse`: multipart CSV/XLSX/PDF import parsing
-- `POST /api/company/import/approve`: persist reviewed facts and compute imported valuation
-- `POST /api/ai/scenario-analysis`: strict server-only AI assumptions and rationale
-- `GET /api/settings/status`: data and integration readiness summary
-
-Security defaults: Next.js signs FastAPI requests when `DCF_ENGINE_INTERNAL_KEY` is configured, FastAPI rejects unsigned requests by default, and signed requests use Convex-backed nonce replay protection. Local-only opt-outs (`DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES`, `DCF_ENGINE_EXPOSE_DOCS`) and the full rollout procedure are documented in [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md).
+Security defaults are fail-closed for hosted deployments. Local-only escape hatches and the full rollout procedure are documented in [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md).
 
 ## Tests
 
@@ -238,7 +243,7 @@ E2E support is available through Playwright:
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
-- Application narrative: [`docs/application-readiness.md`](docs/application-readiness.md)
+- OSS program reviewer pack: [`docs/oss-program-application.md`](docs/oss-program-application.md)
 - Monte Carlo: [`docs/monte-carlo.md`](docs/monte-carlo.md)
 - AI scenario analysis: [`docs/ai-scenario-analysis.md`](docs/ai-scenario-analysis.md)
 - Convex persistence: [`docs/convex-persistence.md`](docs/convex-persistence.md)

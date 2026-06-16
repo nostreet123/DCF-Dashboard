@@ -13,6 +13,7 @@ const originalFetch = globalThis.fetch;
 const originalDcfEngineUrl = process.env.DCF_ENGINE_URL;
 const originalFactsLimit = process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE;
 const originalPreviewLimit = process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE;
+const originalPreviewDailyLimit = process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY;
 const originalRunLimit = process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE;
 const originalSearchLimit = process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE;
 const originalConvexUrl = process.env.CONVEX_URL;
@@ -38,6 +39,7 @@ beforeEach(() => {
   process.env.DCF_ENGINE_ALLOW_UNSIGNED = "1";
   process.env.API_RATE_LIMIT_COMPANY_FACTS_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "1";
+  delete process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY;
   process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE = "1";
   process.env.API_RATE_LIMIT_COMPANY_SEARCH_PER_MINUTE = "1";
   process.env.CONVEX_URL = "https://example.convex.cloud";
@@ -116,6 +118,11 @@ afterEach(() => {
   } else {
     process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = originalPreviewLimit;
   }
+  if (originalPreviewDailyLimit === undefined) {
+    delete process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY;
+  } else {
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY = originalPreviewDailyLimit;
+  }
   if (originalRunLimit === undefined) {
     delete process.env.API_RATE_LIMIT_DCF_RUN_PER_MINUTE;
   } else {
@@ -151,6 +158,75 @@ describe("route rate limiting", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
+  });
+
+  test("limits dcf preview requests with a global daily budget", async () => {
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "100";
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY = "1";
+    const headers = {
+      "Content-Type": "application/json",
+      "x-vercel-forwarded-for": "203.0.113.20",
+    };
+    const first = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+    );
+    const second = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.21",
+        },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("invalid dcf preview payloads do not consume the global daily budget", async () => {
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_PER_MINUTE = "100";
+    process.env.API_RATE_LIMIT_DCF_PREVIEW_DAILY = "1";
+    const headers = {
+      "Content-Type": "application/json",
+      "x-vercel-forwarded-for": "203.0.113.22",
+    };
+    const invalid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers,
+        body: "{not-json",
+      }),
+    );
+    const firstValid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.23",
+        },
+        body: JSON.stringify({}),
+      }),
+    );
+    const secondValid = await dcfPreviewPost(
+      new Request("http://localhost/api/dcf/preview", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-vercel-forwarded-for": "203.0.113.24",
+        },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(invalid.status).toBe(400);
+    expect(firstValid.status).toBe(200);
+    expect(secondValid.status).toBe(429);
   });
 
   test("limits company search requests per trusted client ip", async () => {

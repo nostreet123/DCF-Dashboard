@@ -106,7 +106,6 @@ export function useDashboardController(): DashboardViewModel {
     setSelectedRunId,
     shouldLoadBrowserHistory: dataSource.shouldLoadBrowserHistory,
     workspaceMode: discovery.workspaceMode,
-    assumptions,
     aiAdminToken,
     aiAdminModeEnabled,
     setAiAdminToken,

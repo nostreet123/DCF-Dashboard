@@ -13,8 +13,11 @@ node_modules/
 
 convex-export*.zip
 Gemini_Generated_Image_*.png
+redesign-screenshot.png
+*-screenshot.png
 
 .gemini/
+.cursor/
 gha-creds-*.json
 .codex/*
 !.codex/skills/
@@ -59,5 +62,6 @@ service-account*.json
 **/secrets/
 documentation/
 docs/agent-context-policy.md
+docs/application-readiness.md
 docs/assistant-log-archive.md
 docs/plans/

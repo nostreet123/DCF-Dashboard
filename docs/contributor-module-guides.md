@@ -11,6 +11,8 @@ These notes replace tracked `AGENTS.md` files for public contributors. Cursor Cl
 
 Convex, Hugging Face, and SEC EDGAR are optional for local dev and tests.
 
+> **Local development only.** Commands below use dev bypass flags (`DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_RATE_LIMIT_ALLOW_LOCALHOST`). Never set these on hosted or public deployments. See [public-repo-audit-phase1.md](./public-repo-audit-phase1.md).
+
 ### Start Order
 
 ```bash

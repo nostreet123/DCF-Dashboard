@@ -57,10 +57,6 @@ Seed issues:
 - `#30` Add a safe local demo mode for persisted-history UI states
 - `#31` Expand Monte Carlo documentation and output interpretation
 
-### Application Readiness
-
-- [`docs/application-readiness.md`](application-readiness.md)
-
 ## Public Readiness Notes
 
 - The README now explains the problem, what works, what is optional, and where the project is still prototype-grade.

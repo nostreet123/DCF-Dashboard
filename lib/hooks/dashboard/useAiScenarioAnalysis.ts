@@ -31,7 +31,6 @@ export function useAiScenarioAnalysis({
   setSelectedRunId,
   shouldLoadBrowserHistory,
   workspaceMode,
-  assumptions,
   aiAdminToken,
   aiAdminModeEnabled,
   setAiAdminToken,
@@ -54,7 +53,6 @@ export function useAiScenarioAnalysis({
   setSelectedRunId: (runId: string | null) => void;
   shouldLoadBrowserHistory: boolean;
   workspaceMode: WorkspaceMode;
-  assumptions: Assumptions;
   aiAdminToken: string | null;
   aiAdminModeEnabled: boolean;
   setAiAdminToken: (token: string | null) => void;
@@ -150,7 +148,7 @@ export function useAiScenarioAnalysis({
       });
       const payload = (await response.json().catch(() => ({}))) as {
         message?: string;
-        analysis?: Record<'base' | 'bull' | 'bear', typeof assumptions & { rationale: string }>;
+        analysis?: Record<'base' | 'bull' | 'bear', Assumptions & { rationale: string }>;
         tokenUsage?: AiTokenUsage;
       };
       if (!response.ok || !payload.analysis) {
@@ -165,7 +163,7 @@ export function useAiScenarioAnalysis({
         return;
       }
       setAiAnalysisStream((current) => [...current, 'Applying assumptions and triggering recompute']);
-      const stripRationale = (values: typeof assumptions & { rationale: string }) => ({
+      const stripRationale = (values: Assumptions & { rationale: string }) => ({
         revenueGrowth: values.revenueGrowth,
         operatingMargin: values.operatingMargin,
         discountRate: values.discountRate,
@@ -200,7 +198,6 @@ export function useAiScenarioAnalysis({
     activeCompanyId,
     activeTicker,
     aiAdminToken,
-    assumptions,
     companyDetail,
     convexImportContext,
     displayCurrency,
@@ -228,7 +225,7 @@ export function useAiScenarioAnalysis({
 
     setAiAdminToken(trimmed);
     setAiAdminModeEnabled(true);
-  }, []);
+  }, [setAiAdminModeEnabled, setAiAdminToken]);
 
   return {
     aiAnalysisStatus,
