@@ -55,7 +55,8 @@
     "convex-test": "0.0.41",
     "eslint": "9.39.4",
     "eslint-config-next": "15.5.18",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vercel": "^54.14.2"
   },
   "overrides": {
     "flat-cache": {
