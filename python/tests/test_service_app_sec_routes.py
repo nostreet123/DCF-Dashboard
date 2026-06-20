@@ -11,8 +11,11 @@ import requests
 from fastapi.testclient import TestClient
 
 from dcf_engine.service import app as service_app
+from dcf_engine.service.internal_auth import INTERNAL_AUTH_PATHS
 
 client = TestClient(service_app.app)
+
+PUBLIC_ENGINE_PATHS = frozenset({"/healthz", "/docs", "/redoc", "/openapi.json"})
 
 
 def _valid_dcf_payload() -> dict[str, object]:
@@ -623,6 +626,25 @@ def test_unsigned_local_mode_skips_shared_rate_limit_backend_when_unavailable(
     response = client.post("/dcf/compute", json=_valid_dcf_payload())
 
     assert response.status_code == 200
+
+
+def test_internal_auth_paths_cover_all_sensitive_routes() -> None:
+    for route in service_app.app.routes:
+        path = getattr(route, "path", None)
+        if not path or path in PUBLIC_ENGINE_PATHS:
+            continue
+        assert path in INTERNAL_AUTH_PATHS, (
+            f"{path} must be listed in INTERNAL_AUTH_PATHS or PUBLIC_ENGINE_PATHS"
+        )
+
+
+def test_healthz_is_public_without_internal_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_INTERNAL_KEY", "engine-secret")
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 def test_fastapi_docs_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
