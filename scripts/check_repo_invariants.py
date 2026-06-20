@@ -62,6 +62,22 @@ ROUTE_CONVEX_ANY_PATTERN = re.compile(
     r"\(\s*convexClient\s+as\s+any\s*\)\.(query|mutation)\("
 )
 
+DCF_ENGINE_FACADE_FILE = ROOT / "app" / "api" / "_lib" / "dcfEngine.ts"
+
+FETCH_DCF_ENGINE_IMPORT_PATTERN = re.compile(
+    r"""from\s+["'][^"']*dcfEngine["']"""
+)
+
+ENGINE_CLIENT_SECRET_MARKERS = (
+    "DCF_ENGINE_INTERNAL_KEY",
+    "DCF_ENGINE_URL",
+    "NEXT_PUBLIC_DCF_ENGINE",
+)
+
+ENGINE_CLIENT_CALL_MARKERS = ("fetchDcfEngine",)
+
+BOUNDARY_IGNORED_PARTS = frozenset({".worktrees", ".git"})
+
 LOCAL_ONLY_ENV_KEYS = (
     "DCF_ENGINE_ALLOW_UNSIGNED",
     "DCF_RATE_LIMIT_ALLOW_LOCALHOST",
@@ -412,6 +428,85 @@ def check_local_only_flags_in_markdown(errors: list[str]) -> None:
                     )
 
 
+def _is_boundary_ignored_path(path: Path) -> bool:
+    return any(part in BOUNDARY_IGNORED_PARTS for part in path.parts)
+
+
+def _is_app_api_path(path: Path) -> bool:
+    try:
+        relative = path.relative_to(ROOT / "app")
+    except ValueError:
+        return False
+    return len(relative.parts) > 0 and relative.parts[0] == "api"
+
+
+def _iter_engine_client_boundary_files() -> list[Path]:
+    files: list[Path] = []
+    for base in (ROOT / "lib", ROOT / "components"):
+        if base.exists():
+            for path in iter_files(base, ".ts") + iter_files(base, ".tsx"):
+                if not _is_boundary_ignored_path(path):
+                    files.append(path)
+    app_root = ROOT / "app"
+    if app_root.exists():
+        for suffix in (".ts", ".tsx"):
+            for path in iter_files(app_root, suffix):
+                if _is_boundary_ignored_path(path):
+                    continue
+                if not _is_app_api_path(path):
+                    files.append(path)
+    return files
+
+
+def check_engine_server_only_boundary(errors: list[str]) -> None:
+    for path in _iter_engine_client_boundary_files():
+        text = path.read_text(encoding="utf-8")
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            for marker in ENGINE_CLIENT_SECRET_MARKERS:
+                if marker in line:
+                    add_error(
+                        errors,
+                        path,
+                        line_no,
+                        (
+                            f"{marker} must stay server-only; browser code must call "
+                            "/api/* routes instead of the DCF engine directly"
+                        ),
+                    )
+            for marker in ENGINE_CLIENT_CALL_MARKERS:
+                if marker in line:
+                    add_error(
+                        errors,
+                        path,
+                        line_no,
+                        (
+                            "fetchDcfEngine is server-only; use /api/* routes from "
+                            "browser-facing code"
+                        ),
+                    )
+
+    for suffix in (".ts", ".tsx"):
+        for path in iter_files(ROOT, suffix):
+            if _is_boundary_ignored_path(path):
+                continue
+            if path == DCF_ENGINE_FACADE_FILE:
+                continue
+            rel_path = rel(path)
+            if rel_path.startswith("app/api/") or rel_path.startswith("test/"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            for match in FETCH_DCF_ENGINE_IMPORT_PATTERN.finditer(text):
+                add_error(
+                    errors,
+                    path,
+                    line_for_offset(text, match.start()),
+                    (
+                        "dcfEngine client may only be imported from app/api routes "
+                        "and tests"
+                    ),
+                )
+
+
 def check_route_auth_classification(errors: list[str]) -> None:
     route_auth_markers = (
         "enforceRateLimit",
@@ -455,6 +550,7 @@ def main() -> int:
     check_workflow_posture(errors)
     check_hosted_local_only_flags(errors)
     check_route_auth_classification(errors)
+    check_engine_server_only_boundary(errors)
 
     if warnings:
         print("Repository invariant warnings:", file=sys.stderr)
