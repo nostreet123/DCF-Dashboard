@@ -82,7 +82,7 @@ npm run dev
 | `node` or npm version rejected | `node --version && npm --version` | Run `nvm use`, then reinstall with `npm ci` |
 | Python imports fail | `which python && python --version` | Run `. .venv/bin/activate`, then reinstall `python/requirements-dev.txt` with `python/constraints.txt` |
 | Bun is missing | `npm run smoke:alive` output | Let `scripts/ensure_bun.sh` install the pinned runner into `.bun-home/`; do not switch package managers |
-| Port 3000 is occupied | `lsof -nP -iTCP:3000 -sTCP:LISTEN` | Stop the stale process or run `npm run dev -- --port 3001` |
+| Port 3000 is occupied | `lsof -nP -iTCP:3000 -sTCP:LISTEN` | Stop the stale process or run `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev -- --port 3001` |
 | Live EDGAR routes fail | Confirm `SEC_USER_AGENT` and the Python service | Return to mock mode first; use the live-service instructions only after the no-secret path passes |
 | Convex or AI features are unavailable | Inspect optional environment values | Expected when optional services are unset; the mock demo and direct compute still work |
 
@@ -101,11 +101,11 @@ Setup details: [convex-persistence.md](./convex-persistence.md), [ai-scenario-an
 
 | Interest | Start here | First verification |
 |---|---|---|
-| Documentation and examples | `docs/`, `examples/` | `python scripts/check_repo_invariants.py` |
+| Documentation and examples | `docs/`, `examples/` | `python scripts/check_repo_invariants.py` and `npm run demo:compute` |
 | Dashboard UI and state | `app/`, `components/`, `lib/` | `npm run test:ui:focused` |
-| API routes and service auth | `app/api/`, `python/dcf_engine/service/` | `npm run test:api:focused` |
-| Valuation engine | `python/dcf_engine/`, `python/tests/` | `npm run test:py:engine` |
-| Convex persistence and sync | `convex/`, `convex_tests/`, `python/damodaran_sync/` | `npm run convex:typecheck` and `npm run test:convex:focused` |
+| API routes and service auth | `app/api/`, `python/dcf_engine/service/` | `npm run test:security:focused` |
+| Valuation engine | `python/dcf_engine/`, `python/tests/` | `npm run test:py:engine` and `bash scripts/run_pytest.sh python/tests/test_workbench_monte_carlo.py python/tests/test_workbench_sensitivity.py` |
+| Convex persistence and sync | `convex/`, `convex_tests/`, `python/damodaran_sync/` | `scripts/ensure_bun.sh bunx convex typecheck`, `npm run test:convex:focused`, and `npm run test:py:sync` for `python/damodaran_sync/` changes |
 
 Read [contributor-module-guides.md](./contributor-module-guides.md) before changing a cross-service boundary.
 
