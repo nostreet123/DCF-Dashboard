@@ -13,4 +13,4 @@ pydantic==2.12.5
 fastapi==0.135.1
 uvicorn[standard]==0.41.0
 pyyaml==6.0.3
-pypdf==6.13.2
+pypdf==6.13.3
