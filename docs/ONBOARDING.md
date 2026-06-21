@@ -1,46 +1,59 @@
 # Onboarding
 
-This guide is the first-run path for contributors and technical reviewers. For the latest pass/fail evidence, see [verification.md](./verification.md); for the full command log, see [public-repo-audit-phase3.md](./public-repo-audit-phase3.md).
-
-## Who This Is For
-
-- Developers evaluating or contributing to the DCF valuation workbench
-- Reviewers who need a reproducible local demo without private services
-- Maintainers preparing public-release evidence
+This is the shortest path from a fresh clone to a useful local result. For current pass/fail evidence, see [verification.md](./verification.md). For service boundaries and ports, see [contributor-module-guides.md](./contributor-module-guides.md).
 
 ## Prerequisites
 
-- Node.js `22.x` and npm `11.x` (see `.nvmrc`)
+- Node.js `22.x` (`.nvmrc`)
+- npm `11.x` (`package.json` pins npm `11.6.2`)
 - Python `3.12+`
-- Optional: Bun is installed automatically by harness scripts if missing
+- Bun `1.3.10` for tests; repository scripts install it into `.bun-home/` when it is not already available
 
-## Install (Once)
+Convex, SEC EDGAR access, and a Hugging Face key are optional. None are required for the first mock demo.
+
+## Install Once
 
 ```bash
-nvm use   # optional
-
+nvm use  # if you use nvm
 npm ci
+
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r python/requirements-dev.txt -c python/constraints.txt
 ```
 
-Copy [`.env.example`](../.env.example) to `.env.local` only when you need optional services. Never commit real secrets.
+Copy [`.env.example`](../.env.example) to `.env.local` only when you need an optional service. Never commit real secrets.
 
-## Five-Minute Golden Paths
-
-Pick **one** path first.
-
-### 1. Mock UI demo (fastest, no Python engine)
+## First Success: No Secrets, No Services
 
 ```bash
 NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo npm run dev
 ```
 
-Open http://127.0.0.1:3000. Expect mock companies (for example `AAPL`) and valuation cards without Convex or EDGAR.
+Open http://127.0.0.1:3000. A successful run shows the dashboard with mock company data and valuation cards. Stop the server with `Ctrl-C`.
 
-### 2. Live EDGAR UI (default product path)
+Then run the smallest repository check:
+
+```bash
+. .venv/bin/activate
+npm run smoke:alive
+```
+
+This path proves the UI and focused JavaScript/Python checks without Convex, SEC credentials, or an AI-provider key.
+
+## Direct Engine Compute
+
+```bash
+. .venv/bin/activate
+npm run demo:compute
+```
+
+Pass criterion: JSON containing base, bull, and bear fair values plus Monte Carlo percentiles. The command uses [`examples/workbench-demo-request.json`](../examples/workbench-demo-request.json).
+
+## Live EDGAR UI
+
+Use this only after the no-secret path works.
 
 Terminal 1:
 
@@ -60,51 +73,47 @@ DCF_RATE_LIMIT_ALLOW_LOCALHOST=1 \
 npm run dev
 ```
 
-`DCF_ENGINE_ALLOW_UNSIGNED` and `DCF_RATE_LIMIT_ALLOW_LOCALHOST` are **local-only** flags. Do not use them on hosted deployments. See [public-repo-audit-phase1.md](./public-repo-audit-phase1.md).
+`DCF_ENGINE_ALLOW_UNSIGNED`, `DCF_RATE_LIMIT_ALLOW_LOCALHOST`, and `DCF_ENGINE_ALLOW_PROCESS_LOCAL_NONCES` are trusted local-development escapes. Never set them on a hosted public preview.
 
-### 3. Direct compute (no browser)
+## Common Setup Failures
 
-```bash
-. .venv/bin/activate
-npm run demo:compute
-```
-
-Uses [`examples/workbench-demo-request.json`](../examples/workbench-demo-request.json). Expect base/bull/bear fair values and Monte Carlo percentiles in JSON.
-
-### 4. Repo alive smoke check
-
-```bash
-. .venv/bin/activate
-npm run smoke:alive
-```
-
-Runs focused JS and Python smoke tests.
-
-## Verification Before A PR
-
-Match checks to your change scope:
-
-```bash
-. .venv/bin/activate
-npm run harness:verify      # invariants, tests, typecheck, lint, build
-npm run harness:e2e:smoke   # Playwright smoke (when UI routes change)
-```
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for PR templates, labels, and review expectations.
+| Symptom | Check | Fix |
+|---|---|---|
+| `node` or npm version rejected | `node --version && npm --version` | Run `nvm use`, then reinstall with `npm ci` |
+| Python imports fail | `which python && python --version` | Run `. .venv/bin/activate`, then reinstall `python/requirements-dev.txt` with `python/constraints.txt` |
+| Bun is missing | `npm run smoke:alive` output | Let `scripts/ensure_bun.sh` install the pinned runner into `.bun-home/`; do not switch package managers |
+| Port 3000 is occupied | `lsof -nP -iTCP:3000 -sTCP:LISTEN` | Stop the stale process or run `npm run dev -- --port 3001` |
+| Live EDGAR routes fail | Confirm `SEC_USER_AGENT` and the Python service | Return to mock mode first; use the live-service instructions only after the no-secret path passes |
+| Convex or AI features are unavailable | Inspect optional environment values | Expected when optional services are unset; the mock demo and direct compute still work |
 
 ## Optional Services
 
 | Service | When you need it |
-|---------|------------------|
+|---|---|
 | Python FastAPI engine | Live EDGAR UI, signed API paths, direct `/dcf/compute` |
 | Convex | Saved runs, import persistence, replay history |
-| Hugging Face | AI scenario analysis API route |
-| SEC EDGAR | Live company search and facts (via engine + `SEC_USER_AGENT`) |
+| Hugging Face | AI scenario analysis |
+| SEC EDGAR | Live company search and facts through the Python engine |
 
-Setup details: [convex-persistence.md](./convex-persistence.md), [ai-scenario-analysis.md](./ai-scenario-analysis.md).
+Setup details: [convex-persistence.md](./convex-persistence.md), [ai-scenario-analysis.md](./ai-scenario-analysis.md), and [DEPLOY_SECURITY_RUNBOOK.md](../DEPLOY_SECURITY_RUNBOOK.md).
 
-## Next Steps
+## Where To Start Contributing
 
-- [Documentation hub](./README.md)
-- [Contributor module guides](./contributor-module-guides.md)
-- [Deploy security runbook](../DEPLOY_SECURITY_RUNBOOK.md) (hosted environments only)
+| Interest | Start here | First verification |
+|---|---|---|
+| Documentation and examples | `docs/`, `examples/` | `python scripts/check_repo_invariants.py` |
+| Dashboard UI and state | `app/`, `components/`, `lib/` | `npm run test:ui:focused` |
+| API routes and service auth | `app/api/`, `python/dcf_engine/service/` | `npm run test:api:focused` |
+| Valuation engine | `python/dcf_engine/`, `python/tests/` | `npm run test:py:engine` |
+| Convex persistence and sync | `convex/`, `convex_tests/`, `python/damodaran_sync/` | `npm run convex:typecheck` and `npm run test:convex:focused` |
+
+Read [contributor-module-guides.md](./contributor-module-guides.md) before changing a cross-service boundary.
+
+## Before Opening A Pull Request
+
+```bash
+. .venv/bin/activate
+npm run harness:verify
+```
+
+Run `npm run harness:e2e:smoke` as well when browser routes or rendered workflows change. See [CONTRIBUTING.md](../CONTRIBUTING.md) for PR templates and review expectations.
