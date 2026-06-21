@@ -23,4 +23,4 @@ jobs:
         run: pip install codespell==2.4.2
       - name: Run codespell
         # Skip binary/generated files and hidden dirs
-        run: codespell --skip="./.git,./.venv,./node_modules,./.cache"
+        run: codespell --skip="./.git,./.venv,./node_modules,./.cache,./package-lock.json"
