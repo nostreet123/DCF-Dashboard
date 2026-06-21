@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createInternalPersistenceHeaders } from "@/app/api/_lib/internalAuth";
 
 export class DcfEngineHttpError extends Error {

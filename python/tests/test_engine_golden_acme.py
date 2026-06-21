@@ -14,6 +14,9 @@ FIXTURES = [
     "acme",
     "acme_high_growth",
     "acme_distressed",
+    "consumer_staples_eur",
+    "industrial_jpy",
+    "software_usd",
 ]
 
 
