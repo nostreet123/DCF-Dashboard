@@ -1,0 +1,22 @@
+base_year: 2025
+currency: USD
+periods: 6
+
+revenue_t0: 240.0
+revenue_growth: [0.24, 0.20, 0.16, 0.12, 0.09, 0.07]
+ebit_margin: [0.08, 0.12, 0.16, 0.20, 0.23, 0.25]
+tax_rate: [0.21, 0.21, 0.21, 0.21, 0.21, 0.21]
+sales_to_capital: [3.8, 3.6, 3.4, 3.2, 3.0, 2.8]
+reinvestment_lag_years: 0
+
+wacc: [0.105, 0.102, 0.099, 0.096, 0.093, 0.09]
+g_stable: 0.025
+wacc_stable: 0.082
+
+cash: 55.0
+debt: 8.0
+other_non_operating_assets: 0.0
+shares_outstanding: 32.0
+
+failure_probability: null
+distress_recovery_fraction: null
