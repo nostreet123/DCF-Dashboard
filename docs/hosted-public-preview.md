@@ -7,9 +7,9 @@ This guide describes a public demonstration deployment of DCF Dashboard. It does
 | Mode | Public browser | Server requirements | Recommended use |
 |---|---|---|---|
 | Mock demo | Next.js UI with `NEXT_PUBLIC_DCF_DASHBOARD_MODE=demo` | No Python, Convex, SEC, or AI secrets | Lowest-risk public showcase |
-| Live EDGAR | Next.js plus private FastAPI service | Signed engine traffic, `SEC_USER_AGENT`, shared replay state | Public preview with live company facts |
+| Live EDGAR | Next.js plus private FastAPI service | Signed engine traffic, `SEC_USER_AGENT`, `CONVEX_URL`, `DAMODARAN_SYNC_TOKEN`, and shared replay state | Public preview with live company facts |
 | Convex persistence | Live mode plus Convex | Server-side Convex credentials and private persistence routes | Maintainer-controlled previews only |
-| AI scenario analysis | UI plus server-side provider route | `HUGGING_FACE_API_KEY` and public-demo rate limits | Optional capped demonstration |
+| AI scenario analysis | UI plus server-side provider route | `HUGGING_FACE_API_KEY`, `HUGGING_FACE_MODEL`, `CONVEX_URL`, `DAMODARAN_SYNC_TOKEN`, and public-demo rate limits | Optional capped demonstration |
 
 Start with mock mode. Add one optional service at a time and rerun the smoke checks after each change.
 
@@ -88,7 +88,8 @@ Use [DEPLOY_SECURITY_RUNBOOK.md](../DEPLOY_SECURITY_RUNBOOK.md) for key matching
 
 ### Live EDGAR Mode
 
-- Next.js company search, facts, preview, and run routes succeed.
+- Next.js company search, facts, and preview routes succeed.
+- `POST /api/dcf/run` stays unavailable unless Convex persistence and internal signing are intentionally enabled.
 - Direct unsigned FastAPI compute and SEC routes return `401`.
 - FastAPI `/docs`, `/redoc`, and `/openapi.json` return `404`.
 - Signed mode without shared replay state fails closed with `503`.
