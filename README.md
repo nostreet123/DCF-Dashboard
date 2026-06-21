@@ -100,7 +100,7 @@ Still prototype / evolving:
 
 ## Public Preview Security
 
-Hosted public previews should use the documented secure defaults: keep local-only debug routes disabled, keep private service credentials on the server, and run the deployment checklist before exposing optional persistence or import workflows. See [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md) and [`.env.example`](.env.example) for the operator-level details.
+Hosted public previews should use the documented secure defaults: keep local-only debug routes disabled, keep private service credentials on the server, and validate only the integrations you intentionally enable. Start with [`docs/hosted-public-preview.md`](docs/hosted-public-preview.md), then use [`DEPLOY_SECURITY_RUNBOOK.md`](DEPLOY_SECURITY_RUNBOOK.md) for operator-level rollout and rollback details.
 
 ## Architecture At A Glance
 

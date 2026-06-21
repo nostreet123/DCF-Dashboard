@@ -34,6 +34,7 @@ Start here for contributor onboarding, product context, and public-release evide
 | Doc | Purpose |
 |-----|---------|
 | [../SECURITY.md](../SECURITY.md) | Vulnerability reporting and safe defaults |
+| [hosted-public-preview.md](./hosted-public-preview.md) | Public demo modes, secret boundaries, prohibited flags, and smoke checks |
 | [../DEPLOY_SECURITY_RUNBOOK.md](../DEPLOY_SECURITY_RUNBOOK.md) | Hosted rollout and rollback |
 | [public-release-safety-gate0.md](./public-release-safety-gate0.md) | Redacted secret/history verification |
 | [public-repo-audit-phase1.md](./public-repo-audit-phase1.md) | Public-safe vs local-only environment model |

@@ -2,6 +2,8 @@
 
 This runbook covers the security-sensitive rollout steps for the internal Next.js -> FastAPI auth boundary and the private-by-default valuation history changes.
 
+For mode selection and a reviewer-facing public-preview checklist, start with [`docs/hosted-public-preview.md`](docs/hosted-public-preview.md). This runbook remains the source of truth for operational rollout, key matching, rollback, and failure triage.
+
 ## Purpose
 
 Use this checklist when deploying changes that depend on:
