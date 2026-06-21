@@ -31,6 +31,8 @@ jobs:
             --output-file=/tmp/requirements.lock.txt \
             --quiet \
             python/requirements.txt
-          diff -u python/requirements.lock.txt /tmp/requirements.lock.txt
+          grep -v '^#' python/requirements.lock.txt > /tmp/committed.lock
+          grep -v '^#' /tmp/requirements.lock.txt > /tmp/generated.lock
+          diff -u /tmp/committed.lock /tmp/generated.lock
       - name: Audit locked Python dependencies
         run: python -m pip_audit --requirement python/requirements.lock.txt --no-deps --disable-pip
