@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# Export Vercel-ready env vars for production/preview. Writes .env.vercel (gitignored).
+# Export Vercel-ready env vars for production. Writes .env.vercel (gitignored).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/.env.vercel"
 RENDER_OUT="$ROOT/.env.render"
-
-load_env_file() {
-  local file="$1"
-  [[ -f "$file" ]] || return 0
-  set -a
-  # shellcheck disable=SC1090
-  source "$file"
-  set +a
-}
+# shellcheck source=lib/env_file.sh
+source "$ROOT/scripts/lib/env_file.sh"
 
 write_env_line() {
   local key="$1" value="$2"
