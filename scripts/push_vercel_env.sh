@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Push .env.vercel keys to linked Vercel project.
+# Uses `npx vercel` (official CLI, not a pinned npm dependency).
 # Production engine/sync secrets stay on production only — never preview/development.
 set -euo pipefail
 
