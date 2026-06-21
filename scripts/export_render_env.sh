@@ -5,15 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/.env.render"
-
-load_env_file() {
-  local file="$1"
-  [[ -f "$file" ]] || return 0
-  set -a
-  # shellcheck disable=SC1090
-  source "$file"
-  set +a
-}
+# shellcheck source=lib/env_file.sh
+source "$ROOT/scripts/lib/env_file.sh"
 
 write_env_line() {
   local key="$1" value="$2"
@@ -31,13 +24,15 @@ load_env_file "$ROOT/.env.local"
 
 # Keep a stable engine key across re-exports when it only lives in .env.render.
 if [[ -z "${DCF_ENGINE_INTERNAL_KEY:-}" && -f "$OUT" ]]; then
-  # shellcheck disable=SC1090
-  source "$OUT"
+  saved_key="$(read_env_key_from_file "$OUT" DCF_ENGINE_INTERNAL_KEY || true)"
+  if [[ -n "$saved_key" ]]; then
+    DCF_ENGINE_INTERNAL_KEY="$saved_key"
+  fi
 fi
 
 detect_convex_prod_url() {
   local dash slug
-  dash="$(npx convex dashboard --no-open --prod 2>/dev/null | tail -1 || true)"
+  dash="$(run_convex_prod_cli npx convex dashboard --no-open --prod 2>/dev/null | tail -1 || true)"
   if [[ "$dash" =~ /d/([^[:space:]/]+) ]]; then
     slug="${BASH_REMATCH[1]}"
     echo "https://${slug}.convex.cloud"
@@ -46,7 +41,7 @@ detect_convex_prod_url() {
 
 detect_convex_prod_sync_token() {
   local line token
-  line="$(npx convex env list --prod 2>/dev/null | grep '^DAMODARAN_SYNC_TOKEN=' | head -1 || true)"
+  line="$(run_convex_prod_cli npx convex env list --prod 2>/dev/null | grep '^DAMODARAN_SYNC_TOKEN=' | head -1 || true)"
   if [[ "$line" =~ ^DAMODARAN_SYNC_TOKEN=(.+)$ ]]; then
     token="${BASH_REMATCH[1]}"
     echo "$token"
@@ -59,23 +54,23 @@ if [[ -z "${DCF_ENGINE_INTERNAL_KEY:-}" ]]; then
 fi
 
 if [[ -z "${SEC_USER_AGENT:-}" ]]; then
-  echo "WARN: SEC_USER_AGENT missing in .env / .env.local" >&2
+  echo "ERROR: SEC_USER_AGENT is required for live EDGAR on Render." >&2
+  echo "Set in .env or .env.local (see .env.example)." >&2
+  exit 1
 fi
 
-if [[ -z "${CONVEX_URL:-}" ]] || [[ "$CONVEX_URL" == http://127.0.0.1:* ]] || [[ "$CONVEX_URL" == http://localhost:* ]]; then
-  if [[ -n "${CONVEX_PROD_URL:-}" ]]; then
-    echo "Using CONVEX_PROD_URL from env files: $CONVEX_PROD_URL" >&2
-    CONVEX_URL="$CONVEX_PROD_URL"
+if [[ -n "${CONVEX_PROD_URL:-}" ]]; then
+  echo "Using CONVEX_PROD_URL from env files: $CONVEX_PROD_URL" >&2
+  CONVEX_URL="$CONVEX_PROD_URL"
+elif [[ -z "${CONVEX_URL:-}" ]] || [[ "$CONVEX_URL" == http://127.0.0.1:* ]] || [[ "$CONVEX_URL" == http://localhost:* ]]; then
+  prod_url="$(detect_convex_prod_url || true)"
+  if [[ -n "$prod_url" ]]; then
+    echo "Using Convex prod URL from CLI: $prod_url" >&2
+    CONVEX_URL="$prod_url"
   else
-    prod_url="$(detect_convex_prod_url || true)"
-    if [[ -n "$prod_url" ]]; then
-      echo "Using Convex prod URL from CLI: $prod_url" >&2
-      CONVEX_URL="$prod_url"
-    else
-      echo "ERROR: CONVEX_URL is local or empty and prod URL could not be detected." >&2
-      echo "Set CONVEX_PROD_URL or log in with: npx convex dev" >&2
-      exit 1
-    fi
+    echo "ERROR: CONVEX_URL is local or empty and prod URL could not be detected." >&2
+    echo "Set CONVEX_PROD_URL or log in with: npx convex dev" >&2
+    exit 1
   fi
 fi
 
@@ -106,7 +101,7 @@ fi
 
 {
   write_env_line PYTHONPATH python
-  write_env_line SEC_USER_AGENT "${SEC_USER_AGENT:-}"
+  write_env_line SEC_USER_AGENT "$SEC_USER_AGENT"
   write_env_line DCF_ENGINE_INTERNAL_KEY "$DCF_ENGINE_INTERNAL_KEY"
   write_env_line CONVEX_URL "$CONVEX_URL"
   write_env_line DAMODARAN_SYNC_TOKEN "${DAMODARAN_SYNC_TOKEN:-}"

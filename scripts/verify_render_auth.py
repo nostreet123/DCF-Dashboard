@@ -52,6 +52,8 @@ def signed_get(url: str, path: str, secret: str) -> tuple[int, str]:
             return response.status, response.read(200).decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read(200).decode("utf-8", "replace")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return 0, f"network error: {exc}"
 
 
 def main() -> int:
@@ -78,12 +80,19 @@ def main() -> int:
     except urllib.error.HTTPError as exc:
         print(f"GET /healthz -> {exc.code}")
         return 1
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print(f"GET /healthz -> network error: {exc}")
+        return 1
 
     path = "/sec/facts?symbol=AAPL"
     status, body = signed_get(f"{base}{path}", path, secret)
-    print(f"Signed GET {path} -> {status}")
+    print(f"Signed GET {path} -> {status if status else 'network error'}")
     if body:
         print(f"  body: {body[:160]}")
+
+    if status == 0:
+        print("\nFAIL: Could not reach Render engine (network error).")
+        return 1
 
     if status == 200:
         print("\nOK: Render accepts the key from .env.render.")
