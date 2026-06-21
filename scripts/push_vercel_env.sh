@@ -14,6 +14,7 @@ fi
 
 NON_SENSITIVE_KEYS="DCF_ENGINE_URL CONVEX_URL NEXT_PUBLIC_CONVEX_URL SEC_USER_AGENT"
 PRODUCTION_ONLY_KEYS="DCF_ENGINE_INTERNAL_KEY DAMODARAN_SYNC_TOKEN"
+REQUIRED_KEYS="DCF_ENGINE_URL DCF_ENGINE_INTERNAL_KEY CONVEX_URL NEXT_PUBLIC_CONVEX_URL"
 
 is_non_sensitive() {
   local key="$1"
@@ -27,6 +28,14 @@ is_production_only() {
   local key="$1"
   for restricted in $PRODUCTION_ONLY_KEYS; do
     [[ "$key" == "$restricted" ]] && return 0
+  done
+  return 1
+}
+
+is_required() {
+  local key="$1"
+  for required in $REQUIRED_KEYS; do
+    [[ "$key" == "$required" ]] && return 0
   done
   return 1
 }
@@ -52,19 +61,37 @@ flags_for() {
   fi
 }
 
+parse_env_value() {
+  local raw="$1"
+  if [[ "$raw" == \"*\" ]]; then
+    raw="${raw:1:${#raw}-2}"
+    raw="${raw//\\\"/\"}"
+    raw="${raw//\\\\/\\}"
+  fi
+  printf '%s' "$raw"
+}
+
 add_for_env() {
   local key="$1" value="$2" target="$3" flags="$4"
+  # stdin is the supported path for secret values (avoids --value CLI regressions)
   # shellcheck disable=SC2086
-  npx vercel env add "$key" "$target" --value "$value" --yes --force $flags
+  printf '%s' "$value" | npx vercel env add "$key" "$target" --yes --force $flags
 }
 
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
   key="${line%%=*}"
-  value="${line#*=}"
-  value="${value%\"}"
-  value="${value#\"}"
-  [[ -z "$key" || -z "$value" ]] && continue
+  value="$(parse_env_value "${line#*=}")"
+  [[ -z "$key" ]] && continue
+
+  if [[ -z "$value" ]]; then
+    if is_required "$key"; then
+      echo "ERROR: $key is empty in $ENV_FILE." >&2
+      exit 1
+    fi
+    echo "WARN: Skipping $key (empty) — existing Vercel value unchanged." >&2
+    continue
+  fi
 
   echo "Setting $key ..."
   for target in $(targets_for_key "$key"); do

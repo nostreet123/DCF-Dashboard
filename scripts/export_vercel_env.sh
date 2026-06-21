@@ -15,6 +15,17 @@ load_env_file() {
   set +a
 }
 
+write_env_line() {
+  local key="$1" value="$2"
+  if [[ -z "$value" ]]; then
+    printf '%s=\n' "$key"
+    return
+  fi
+  local escaped="${value//\\/\\\\}"
+  escaped="${escaped//\"/\\\"}"
+  printf '%s="%s"\n' "$key" "$escaped"
+}
+
 load_env_file "$ROOT/.env"
 load_env_file "$ROOT/.env.local"
 
@@ -29,18 +40,18 @@ fi
 
 if [[ -n "${CONVEX_PROD_URL:-}" ]]; then
   CONVEX_URL="$CONVEX_PROD_URL"
-elif [[ "$CONVEX_URL" == http://127.0.0.1:* ]] || [[ "$CONVEX_URL" == http://localhost:* ]]; then
+elif [[ -z "${CONVEX_URL:-}" ]] || [[ "${CONVEX_URL:-}" == http://127.0.0.1:* ]] || [[ "${CONVEX_URL:-}" == http://localhost:* ]]; then
   echo "ERROR: Set CONVEX_PROD_URL or CONVEX_URL for cloud deployment." >&2
   exit 1
 fi
 
-cat >"$OUT" <<EOF
-DCF_ENGINE_URL=https://dcf-engine.onrender.com
-DCF_ENGINE_INTERNAL_KEY=${DCF_ENGINE_INTERNAL_KEY}
-CONVEX_URL=${CONVEX_URL}
-NEXT_PUBLIC_CONVEX_URL=${CONVEX_URL}
-DAMODARAN_SYNC_TOKEN=${DAMODARAN_SYNC_TOKEN:-}
-SEC_USER_AGENT=${SEC_USER_AGENT:-}
-EOF
+{
+  write_env_line DCF_ENGINE_URL "https://dcf-engine.onrender.com"
+  write_env_line DCF_ENGINE_INTERNAL_KEY "$DCF_ENGINE_INTERNAL_KEY"
+  write_env_line CONVEX_URL "$CONVEX_URL"
+  write_env_line NEXT_PUBLIC_CONVEX_URL "$CONVEX_URL"
+  write_env_line DAMODARAN_SYNC_TOKEN "${DAMODARAN_SYNC_TOKEN:-}"
+  write_env_line SEC_USER_AGENT "${SEC_USER_AGENT:-}"
+} >"$OUT"
 
 echo "Wrote $OUT"

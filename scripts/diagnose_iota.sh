@@ -5,6 +5,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IOTA_URL="${IOTA_URL:-https://dcf-dashboard-iota.vercel.app}"
 
+curl_http_status() {
+  local url="$1" body_file="$2"
+  local http_code
+  if http_code="$(curl -sS -o "$body_file" -w "%{http_code}" "$url")"; then
+    printf '%s' "$http_code"
+  else
+    printf '000'
+  fi
+}
+
 echo "=== Iota production diagnostics ==="
 echo "Target: $IOTA_URL"
 echo
@@ -20,8 +30,7 @@ echo
 facts_body="$(mktemp)"
 trap 'rm -f "$facts_body"' EXIT
 
-facts_status="$(curl -sS -o "$facts_body" -w "%{http_code}" \
-  "$IOTA_URL/api/company/facts?symbol=AAPL" || echo "000")"
+facts_status="$(curl_http_status "$IOTA_URL/api/company/facts?symbol=AAPL" "$facts_body")"
 echo "GET /api/company/facts?symbol=AAPL -> $facts_status"
 if [[ -s "$facts_body" ]]; then
   head -c 200 "$facts_body"
@@ -29,8 +38,7 @@ if [[ -s "$facts_body" ]]; then
 fi
 echo
 
-search_status="$(curl -sS -o /dev/null -w "%{http_code}" \
-  "$IOTA_URL/api/company/search?q=AAPL" || echo "000")"
+search_status="$(curl_http_status "$IOTA_URL/api/company/search?q=AAPL" /dev/null)"
 echo "GET /api/company/search?q=AAPL -> $search_status"
 echo
 
