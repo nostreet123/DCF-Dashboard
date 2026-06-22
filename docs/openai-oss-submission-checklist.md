@@ -17,7 +17,6 @@ Use this before submitting DCF Dashboard to an OpenAI open-source program that r
 - [ ] README includes a screenshot before deep architecture details.
 - [ ] README has a no-secret demo path that works in minutes.
 - [ ] README clearly says public preview, not production SaaS.
-- [ ] Release notes for `v0.1.0` are visible: https://github.com/nostreet123/DCF-Dashboard/releases/tag/v0.1.0
 - [ ] Roadmap has concrete public-preview follow-up work.
 
 ## Maintainer Evidence

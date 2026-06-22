@@ -2,6 +2,8 @@
 
 Use this immediately **before** switching the repository to public visibility or announcing a major public launch. Code changes belong in PRs; this list includes maintainer-only GitHub settings from [public-release-safety-gate0.md](./public-release-safety-gate0.md).
 
+No release tag is required for the current public-preview launch. If a versioned release is cut later, follow [RELEASING.md](../RELEASING.md).
+
 ## Code and docs (in-repo)
 
 - [ ] `main` passes `npm run harness:verify` — evidence in [verification.md](./verification.md)
@@ -41,7 +43,7 @@ Record a **redacted** summary in [public-release-safety-gate0.md](./public-relea
 
 - [ ] README public-preview boundary is accurate
 - [ ] [SUPPORT.md](../SUPPORT.md) and issue templates are discoverable
-- [ ] Release tag and [docs/releases/](./releases/) notes published if cutting a version ([RELEASING.md](../RELEASING.md))
+- [ ] If cutting a version, publish the release tag and notes according to [RELEASING.md](../RELEASING.md)
 
 ## Sign-off
 

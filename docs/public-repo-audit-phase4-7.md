@@ -22,7 +22,6 @@ This pass covers:
 - [`SECURITY.md`](../SECURITY.md)
 - [`CHANGELOG.md`](../CHANGELOG.md)
 - [`ROADMAP.md`](../ROADMAP.md)
-- [`docs/releases/v0.1.0.md`](releases/v0.1.0.md)
 - [`.github/ISSUE_TEMPLATE/bug_report.yml`](../.github/ISSUE_TEMPLATE/bug_report.yml)
 - [`.github/ISSUE_TEMPLATE/feature_request.yml`](../.github/ISSUE_TEMPLATE/feature_request.yml)
 - [`.github/ISSUE_TEMPLATE/documentation.yml`](../.github/ISSUE_TEMPLATE/documentation.yml)
@@ -39,7 +38,6 @@ This pass covers:
 - label taxonomy defined for type, priority, area, and workflow
 - public-preview milestone created
 - real follow-up issues created from the roadmap
-- first release notes prepared for `v0.1.0`
 
 Label taxonomy:
 
