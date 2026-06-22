@@ -95,7 +95,7 @@ convex_deploy_key_safe_for_prod() {
   local key="${CONVEX_DEPLOY_KEY:-}"
   [[ -z "$key" ]] && return 0
   [[ "$key" == preview:* ]] && return 1
-  [[ "$key" =~ ^dev:.*\| ]] && return 1
+  [[ "$key" =~ ^(dev|custom):.*\| ]] && return 1
   return 0
 }
 
