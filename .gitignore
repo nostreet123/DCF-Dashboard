@@ -6,6 +6,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.invariant-failures.local.txt
 python/.pytest_cache/
 node_modules/
 .coverage
