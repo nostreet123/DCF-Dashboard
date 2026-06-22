@@ -117,7 +117,7 @@ def test_mirror_manifest_allows_relative_asset_on_mirror_host(
 
     assert len(assets) == 1
     assert assets[0].source_url == "https://mirror.example.com/assets/latest.xls"
-    assert "mirror.example.com" in assets[0].allowed_host_hints
+    assert assets[0].allowed_host_hints == ("mirror.example.com",)
 
 
 def test_mirror_manifest_preserves_mirror_host_hint_with_original_source_page(
@@ -138,7 +138,7 @@ def test_mirror_manifest_preserves_mirror_host_hint_with_original_source_page(
 
     assert assets[0].source_page_url == "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/data.html"
     assert assets[0].source_url == "https://mirror.example.com/assets/latest.xls"
-    assert "mirror.example.com" in assets[0].allowed_host_hints
+    assert assets[0].allowed_host_hints == ("mirror.example.com",)
 
 
 def test_mirror_manifest_skips_entries_without_urls(
