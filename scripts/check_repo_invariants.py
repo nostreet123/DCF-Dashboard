@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
 import subprocess
 import sys
@@ -127,6 +128,21 @@ def iter_files(base: Path, suffix: str) -> list[Path]:
 
 def add_error(errors: list[str], path: Path, line: int, message: str) -> None:
     errors.append(f"{rel(path)}:{line}: {message}")
+
+
+def redact_invariant_message(message: str) -> str:
+    redacted = message
+    for key in sorted(LOCAL_ONLY_ENV_KEYS, key=len, reverse=True):
+        redacted = re.sub(
+            rf"({re.escape(key)}\s*=\s*)[^\s,;]+",
+            rf"\1<redacted>",
+            redacted,
+        )
+    return redacted
+
+
+def running_in_ci() -> bool:
+    return bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
 
 
 def check_ds_store(errors: list[str]) -> None:
@@ -559,7 +575,14 @@ def main() -> int:
 
     if errors:
         print("Repository invariant check failed:", file=sys.stderr)
-        print(f"- {len(errors)} invariant failure(s) detected; details suppressed.", file=sys.stderr)
+        if running_in_ci():
+            print(
+                f"- {len(errors)} invariant failure(s) detected; details suppressed in CI logs.",
+                file=sys.stderr,
+            )
+        else:
+            for finding in errors:
+                print(f"- {redact_invariant_message(finding)}", file=sys.stderr)
         return 1
 
     print("Repository invariant check passed.")

@@ -79,7 +79,9 @@ if [[ -z "${CONVEX_URL:-}" ]]; then
   exit 1
 fi
 
-if [[ "$CONVEX_URL" == https://*.convex.cloud ]]; then
+CONVEX_URL="$(normalize_convex_url "$CONVEX_URL")"
+
+if is_cloud_convex_url "$CONVEX_URL"; then
   prod_token="$(detect_convex_prod_sync_token || true)"
   if [[ -n "$prod_token" ]]; then
     if [[ -n "${DAMODARAN_SYNC_TOKEN:-}" && "$DAMODARAN_SYNC_TOKEN" != "$prod_token" ]]; then
