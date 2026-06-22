@@ -50,11 +50,14 @@ add_for_env() {
   printf '%s' "$value" | npx vercel env add "$key" production --yes --force $flags
 }
 
+seen_keys=" "
+
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
   key="${line%%=*}"
   value="$(parse_env_value_raw "${line#*=}")"
   [[ -z "$key" ]] && continue
+  seen_keys="${seen_keys}${key} "
 
   if [[ -z "$value" ]]; then
     if is_required "$key"; then
@@ -73,6 +76,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   echo "Setting $key (production) ..."
   add_for_env "$key" "$value" "$(flags_for "$key")"
 done <"$ENV_FILE"
+
+for required in $REQUIRED_KEYS; do
+  if [[ "$seen_keys" != *" ${required} "* ]]; then
+    echo "ERROR: Required key $required is missing from $ENV_FILE." >&2
+    exit 1
+  fi
+done
 
 echo "Done. All keys pushed to production only (preview/development unchanged)."
 echo "Redeploy with: npx vercel --prod"

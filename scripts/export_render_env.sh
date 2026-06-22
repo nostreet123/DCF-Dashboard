@@ -43,7 +43,7 @@ detect_convex_prod_sync_token() {
   local line token
   line="$(run_convex_prod_cli npx convex env list --prod 2>/dev/null | grep '^DAMODARAN_SYNC_TOKEN=' | head -1 || true)"
   if [[ "$line" =~ ^DAMODARAN_SYNC_TOKEN=(.+)$ ]]; then
-    token="${BASH_REMATCH[1]}"
+    token="$(parse_env_value_raw "${BASH_REMATCH[1]}")"
     echo "$token"
   fi
 }

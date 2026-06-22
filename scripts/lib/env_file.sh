@@ -79,10 +79,20 @@ read_env_key_from_file() {
 
 run_convex_prod_cli() {
   (
-    # Dev deployment selector can override --prod; keep CONVEX_DEPLOY_KEY for headless prod auth.
     unset CONVEX_DEPLOYMENT
+    if [[ -n "${CONVEX_DEPLOY_KEY:-}" ]] && ! convex_deploy_key_safe_for_prod; then
+      unset CONVEX_DEPLOY_KEY
+    fi
     "$@"
   )
+}
+
+convex_deploy_key_safe_for_prod() {
+  local key="${CONVEX_DEPLOY_KEY:-}"
+  [[ -z "$key" ]] && return 0
+  [[ "$key" == preview:* ]] && return 1
+  [[ "$key" =~ ^dev:.*\| ]] && return 1
+  return 0
 }
 
 normalize_convex_url() {
