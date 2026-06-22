@@ -65,6 +65,11 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     continue
   fi
 
+  if [[ "$key" == "DAMODARAN_SYNC_TOKEN" && ${#value} -lt 32 ]]; then
+    echo "ERROR: DAMODARAN_SYNC_TOKEN must be at least 32 characters in $ENV_FILE." >&2
+    exit 1
+  fi
+
   echo "Setting $key (production) ..."
   add_for_env "$key" "$value" "$(flags_for "$key")"
 done <"$ENV_FILE"

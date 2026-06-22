@@ -147,15 +147,18 @@ def redact_invariant_message(message: str) -> str:
     redacted = message
     for key in sorted(LOCAL_ONLY_ENV_KEYS, key=len, reverse=True):
         redacted = re.sub(
-            rf"({re.escape(key)}\s*=\s*)[^\s,;]+",
-            rf"\1<redacted>",
+            rf"({re.escape(key)}\s*=\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+            r"\1<redacted>",
             redacted,
         )
     return redacted
 
 
 def running_in_ci() -> bool:
-    return bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return True
+    ci = os.environ.get("CI")
+    return ci is not None and ci.strip().lower() in {"1", "true", "yes"}
 
 
 def write_local_findings(findings: ErrorList) -> None:

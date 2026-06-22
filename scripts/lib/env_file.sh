@@ -17,7 +17,7 @@ parse_quoted_env_value() {
     ch="${raw:i:1}"
     if [[ "$ch" == "\\" ]]; then
       next="${raw:i+1:1}"
-      if [[ -n "$next" ]]; then
+      if [[ -n "$next" && ( "$next" == "$quote" || "$next" == "\\" ) ]]; then
         result+="$next"
         ((i += 2)) || true
         continue
@@ -34,14 +34,14 @@ parse_quoted_env_value() {
 
 parse_env_value_raw() {
   local raw="$1"
-  raw="${raw#"${raw%%[![:space:]]*}"}"
+  local trimmed="${raw#"${raw%%[![:space:]]*}"}"
 
-  if [[ "$raw" == \"* ]]; then
-    parse_quoted_env_value '"' "${raw:1}"
+  if [[ "$trimmed" == \"* ]]; then
+    parse_quoted_env_value '"' "${trimmed:1}"
     return
   fi
-  if [[ "$raw" == \'* ]]; then
-    parse_quoted_env_value "'" "${raw:1}"
+  if [[ "$trimmed" == \'* ]]; then
+    parse_quoted_env_value "'" "${trimmed:1}"
     return
   fi
 
@@ -95,5 +95,5 @@ normalize_convex_url() {
 
 is_cloud_convex_url() {
   local url="$1"
-  [[ "$url" =~ ^https://[^/]+\.convex\.cloud/?$ ]]
+  [[ "$url" =~ ^https://([A-Za-z0-9-]+\.)+convex\.cloud/?$ ]]
 }
