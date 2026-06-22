@@ -16,7 +16,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 NON_SENSITIVE_KEYS="DCF_ENGINE_URL CONVEX_URL NEXT_PUBLIC_CONVEX_URL SEC_USER_AGENT"
-REQUIRED_KEYS="DCF_ENGINE_URL DCF_ENGINE_INTERNAL_KEY CONVEX_URL NEXT_PUBLIC_CONVEX_URL"
+REQUIRED_KEYS="DCF_ENGINE_URL DCF_ENGINE_INTERNAL_KEY CONVEX_URL NEXT_PUBLIC_CONVEX_URL DAMODARAN_SYNC_TOKEN"
 
 is_non_sensitive() {
   local key="$1"
@@ -50,20 +50,41 @@ add_for_env() {
   printf '%s' "$value" | npx vercel env add "$key" production --yes --force $flags
 }
 
+seen_keys=" "
+
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
   key="${line%%=*}"
   value="$(parse_env_value_raw "${line#*=}")"
   [[ -z "$key" ]] && continue
+  seen_keys="${seen_keys}${key} "
 
   if [[ -z "$value" ]]; then
     if is_required "$key"; then
       echo "ERROR: $key is empty in $ENV_FILE." >&2
       exit 1
     fi
-    echo "WARN: Skipping $key (empty) — existing Vercel value unchanged." >&2
     continue
   fi
+
+  if [[ "$key" == "DAMODARAN_SYNC_TOKEN" && ${#value} -lt 32 ]]; then
+    echo "ERROR: DAMODARAN_SYNC_TOKEN must be at least 32 characters in $ENV_FILE." >&2
+    exit 1
+  fi
+done <"$ENV_FILE"
+
+for required in $REQUIRED_KEYS; do
+  if [[ "$seen_keys" != *" ${required} "* ]]; then
+    echo "ERROR: Required key $required is missing from $ENV_FILE." >&2
+    exit 1
+  fi
+done
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+  key="${line%%=*}"
+  value="$(parse_env_value_raw "${line#*=}")"
+  [[ -z "$key" || -z "$value" ]] && continue
 
   echo "Setting $key (production) ..."
   add_for_env "$key" "$value" "$(flags_for "$key")"

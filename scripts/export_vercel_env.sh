@@ -38,6 +38,8 @@ elif [[ -z "${CONVEX_URL:-}" ]] || [[ "${CONVEX_URL:-}" == http://127.0.0.1:* ]]
   exit 1
 fi
 
+CONVEX_URL="$(normalize_convex_url "$CONVEX_URL")"
+
 {
   write_env_line DCF_ENGINE_URL "https://dcf-engine.onrender.com"
   write_env_line DCF_ENGINE_INTERNAL_KEY "$DCF_ENGINE_INTERNAL_KEY"

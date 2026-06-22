@@ -15,7 +15,7 @@ This document records the non-PR safety gate completed before [public-repo-audit
 | Ref coverage | `main`, `origin/main`, and fetched local/remote refs on 2026-05-31 |
 | Current-tree result | Zero confirmed secret leaks |
 | History on `main` lineage | No `security_best_practices_report.md`; no matches for the previously leaked Convex deployment identifier on `main` / `origin/main` |
-| Evidence artifact | SHA-256 `f51f9be4c8364643d629d8e4c7f66179cc06edbe1e95691e9f476997b8447fcd` (redacted summary payload below) |
+| Evidence artifact | SHA-256 `6855bc8414f97682c696486b9c005b9f2622127edd12ff8d8de7376f8802b575` (redacted summary payload below) |
 
 Redacted summary payload (hashed above):
 

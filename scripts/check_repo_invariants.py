@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -109,6 +111,18 @@ HOSTED_DEPLOYMENT_FILES = (
 
 WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 
+LOCAL_FINDINGS_PATH = ROOT / ".invariant-failures.local.txt"
+
+
+@dataclass(frozen=True)
+class InvariantFinding:
+    relative_path: str
+    line: int
+    message: str
+
+
+ErrorList = list[InvariantFinding]
+
 
 def rel(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
@@ -125,11 +139,49 @@ def iter_files(base: Path, suffix: str) -> list[Path]:
     ]
 
 
-def add_error(errors: list[str], path: Path, line: int, message: str) -> None:
-    errors.append(f"{rel(path)}:{line}: {message}")
+def add_error(errors: ErrorList, path: Path, line: int, message: str) -> None:
+    errors.append(InvariantFinding(rel(path), line, message))
 
 
-def check_ds_store(errors: list[str]) -> None:
+def redact_invariant_message(message: str) -> str:
+    redacted = message
+    for key in sorted(LOCAL_ONLY_ENV_KEYS, key=len, reverse=True):
+        redacted = re.sub(
+            rf"({re.escape(key)}\s*=\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+            r"\1<redacted>",
+            redacted,
+        )
+    return redacted
+
+
+def running_in_ci() -> bool:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return True
+    ci = os.environ.get("CI")
+    return ci is not None and ci.strip().lower() in {"1", "true", "yes"}
+
+
+def write_local_findings(findings: ErrorList) -> None:
+    lines = [
+        f"- {finding.relative_path}:{finding.line}: "
+        f"{redact_invariant_message(finding.message)}"
+        for finding in findings
+    ]
+    LOCAL_FINDINGS_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def emit_local_failure_summary(findings: ErrorList) -> None:
+    write_local_findings(findings)
+    print(
+        f"- {len(findings)} invariant failure(s); "
+        f"details in {LOCAL_FINDINGS_PATH.relative_to(ROOT)}",
+        file=sys.stderr,
+    )
+    for finding in findings:
+        print(f"  {finding.relative_path}:{finding.line}", file=sys.stderr)
+
+
+def check_ds_store(errors: ErrorList) -> None:
     gitignore = ROOT / ".gitignore"
     ignored = gitignore.read_text(encoding="utf-8").splitlines()
     if ".DS_Store" not in ignored:
@@ -144,7 +196,7 @@ def check_ds_store(errors: list[str]) -> None:
         add_error(errors, path, 1, "remove Finder metadata from the workspace")
 
 
-def check_python_prints(errors: list[str]) -> None:
+def check_python_prints(errors: ErrorList) -> None:
     for base in PYTHON_LIBRARY_DIRS:
         for path in iter_files(base, ".py"):
             if path in PYTHON_PRINT_ALLOWLIST or "tests" in path.parts:
@@ -152,7 +204,7 @@ def check_python_prints(errors: list[str]) -> None:
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             except SyntaxError as exc:
-                add_error(errors, path, exc.lineno or 1, f"Python syntax error: {exc.msg}")
+                add_error(errors, path, exc.lineno or 1, "Python syntax error")
                 continue
 
             for node in ast.walk(tree):
@@ -215,7 +267,7 @@ def line_for_offset(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
-def check_convex_mutation_auth(errors: list[str]) -> None:
+def check_convex_mutation_auth(errors: ErrorList) -> None:
     pattern = re.compile(r"export\s+const\s+(\w+)\s*=\s*(internalMutation|mutation)\s*\(\s*{")
 
     for path in iter_files(ROOT / "convex", ".ts"):
@@ -238,7 +290,7 @@ def check_convex_mutation_auth(errors: list[str]) -> None:
                 )
 
 
-def check_convex_query_indexes(errors: list[str]) -> None:
+def check_convex_query_indexes(errors: ErrorList) -> None:
     query_pattern = re.compile(r"\.query\(\s*[\"']([^\"']+)[\"']\s*\)")
 
     for path in iter_files(ROOT / "convex", ".ts"):
@@ -263,7 +315,7 @@ def count_source_lines(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines())
 
 
-def check_line_counts(errors: list[str], warnings: list[str]) -> None:
+def check_line_counts(errors: ErrorList, warnings: list[str]) -> None:
     extensions = {".ts", ".tsx", ".py"}
     for base in (ROOT / "app", ROOT / "components", ROOT / "lib", ROOT / "convex", ROOT / "test", ROOT / "python"):
         if not base.exists():
@@ -292,7 +344,7 @@ def check_line_counts(errors: list[str], warnings: list[str]) -> None:
                 )
 
 
-def check_route_convex_any_hatches(errors: list[str]) -> None:
+def check_route_convex_any_hatches(errors: ErrorList) -> None:
     route_root = ROOT / "app" / "api"
     if not route_root.exists():
         return
@@ -309,7 +361,7 @@ def check_route_convex_any_hatches(errors: list[str]) -> None:
             )
 
 
-def check_workflow_posture(errors: list[str]) -> None:
+def check_workflow_posture(errors: ErrorList) -> None:
     if not WORKFLOW_ROOT.exists():
         return
     trigger_pattern = re.compile(
@@ -328,7 +380,7 @@ def check_workflow_posture(errors: list[str]) -> None:
                 )
 
 
-def check_hosted_local_only_flags(errors: list[str]) -> None:
+def check_hosted_local_only_flags(errors: ErrorList) -> None:
     for path in HOSTED_DEPLOYMENT_FILES:
         if not path.exists():
             continue
@@ -360,7 +412,7 @@ def check_hosted_local_only_flags(errors: list[str]) -> None:
                 )
 
 
-def check_tracked_ds_store(errors: list[str]) -> None:
+def check_tracked_ds_store(errors: ErrorList) -> None:
     if not (ROOT / ".git").exists():
         return
 
@@ -373,7 +425,7 @@ def check_tracked_ds_store(errors: list[str]) -> None:
         check=False,
     )
     if result.returncode != 0:
-        errors.append(f"git ls-files failed: {result.stderr.strip()}")
+        add_error(errors, ROOT, 1, "git ls-files failed while checking tracked .DS_Store files")
         return
     for line in result.stdout.splitlines():
         add_error(errors, ROOT / line, 1, "remove tracked .DS_Store")
@@ -396,7 +448,7 @@ def list_tracked_git_files(*pathspecs: str) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def check_tracked_agents_md(errors: list[str]) -> None:
+def check_tracked_agents_md(errors: ErrorList) -> None:
     for tracked in list_tracked_git_files("AGENTS.md", "**/AGENTS.md"):
         add_error(
             errors,
@@ -406,7 +458,7 @@ def check_tracked_agents_md(errors: list[str]) -> None:
         )
 
 
-def check_local_only_flags_in_markdown(errors: list[str]) -> None:
+def check_local_only_flags_in_markdown(errors: ErrorList) -> None:
     for tracked in list_tracked_git_files("*.md"):
         if tracked in LOCAL_ONLY_FLAG_DOC_ALLOWLIST:
             continue
@@ -421,7 +473,7 @@ def check_local_only_flags_in_markdown(errors: list[str]) -> None:
                         path,
                         line_no,
                         (
-                            f"local-only assignment {assignment} is not allowed in public "
+                            f"local-only flag {assignment.split('=', 1)[0]} is not allowed in public "
                             f"markdown; add to LOCAL_ONLY_FLAG_DOC_ALLOWLIST only with a "
                             "documented local-dev warning"
                         ),
@@ -458,7 +510,7 @@ def _iter_engine_client_boundary_files() -> list[Path]:
     return files
 
 
-def check_engine_server_only_boundary(errors: list[str]) -> None:
+def check_engine_server_only_boundary(errors: ErrorList) -> None:
     for path in _iter_engine_client_boundary_files():
         text = path.read_text(encoding="utf-8")
         for line_no, line in enumerate(text.splitlines(), start=1):
@@ -507,7 +559,7 @@ def check_engine_server_only_boundary(errors: list[str]) -> None:
                 )
 
 
-def check_route_auth_classification(errors: list[str]) -> None:
+def check_route_auth_classification(errors: ErrorList) -> None:
     route_auth_markers = (
         "enforceRateLimit",
         "enforceGlobalRateLimit",
@@ -536,7 +588,7 @@ def check_route_auth_classification(errors: list[str]) -> None:
 
 
 def main() -> int:
-    errors: list[str] = []
+    errors: ErrorList = []
     warnings: list[str] = []
     check_ds_store(errors)
     check_tracked_ds_store(errors)
@@ -559,7 +611,13 @@ def main() -> int:
 
     if errors:
         print("Repository invariant check failed:", file=sys.stderr)
-        print(f"- {len(errors)} invariant failure(s) detected; details suppressed.", file=sys.stderr)
+        if running_in_ci():
+            print(
+                f"- {len(errors)} invariant failure(s) detected; details suppressed in CI logs.",
+                file=sys.stderr,
+            )
+        else:
+            emit_local_failure_summary(errors)
         return 1
 
     print("Repository invariant check passed.")
