@@ -1,21 +1,21 @@
 # Default owner for the public repository.
-* @nostreet123 @cursor
+* @nostreet123
 
 # Sensitive automation and data-mutation paths require extra care.
-.github/** @nostreet123 @cursor
-.github/dependabot.yml @nostreet123 @cursor
-.github/workflows/** @nostreet123 @cursor
-package.json @nostreet123 @cursor
-package-lock.json @nostreet123 @cursor
-.nvmrc @nostreet123 @cursor
-app/api/** @nostreet123 @cursor
-convex/http.ts @nostreet123 @cursor
-convex/rateLimits.ts @nostreet123 @cursor
-convex/security*.ts @nostreet123 @cursor
-convex/syncAuth.ts @nostreet123 @cursor
-python/constraints.txt @nostreet123 @cursor
-python/requirements.txt @nostreet123 @cursor
-python/requirements-dev.txt @nostreet123 @cursor
-python/damodaran_sync/** @nostreet123 @cursor
-python/dcf_engine/persist/** @nostreet123 @cursor
-python/dcf_engine/service/** @nostreet123 @cursor
+.github/** @nostreet123
+.github/dependabot.yml @nostreet123
+.github/workflows/** @nostreet123
+package.json @nostreet123
+package-lock.json @nostreet123
+.nvmrc @nostreet123
+app/api/** @nostreet123
+convex/http.ts @nostreet123
+convex/rateLimits.ts @nostreet123
+convex/security*.ts @nostreet123
+convex/syncAuth.ts @nostreet123
+python/constraints.txt @nostreet123
+python/requirements.txt @nostreet123
+python/requirements-dev.txt @nostreet123
+python/damodaran_sync/** @nostreet123
+python/dcf_engine/persist/** @nostreet123
+python/dcf_engine/service/** @nostreet123

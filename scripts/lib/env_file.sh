@@ -21,6 +21,10 @@ parse_quoted_env_value() {
         result+="$next"
         ((i += 2)) || true
         continue
+      else
+        result+="$ch"
+        ((i += 1)) || true
+        continue
       fi
     elif [[ "$ch" == "$quote" ]]; then
       break

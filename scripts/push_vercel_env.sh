@@ -64,7 +64,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       echo "ERROR: $key is empty in $ENV_FILE." >&2
       exit 1
     fi
-    echo "WARN: Skipping $key (empty) — existing Vercel value unchanged." >&2
     continue
   fi
 
@@ -72,9 +71,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     echo "ERROR: DAMODARAN_SYNC_TOKEN must be at least 32 characters in $ENV_FILE." >&2
     exit 1
   fi
-
-  echo "Setting $key (production) ..."
-  add_for_env "$key" "$value" "$(flags_for "$key")"
 done <"$ENV_FILE"
 
 for required in $REQUIRED_KEYS; do
@@ -83,6 +79,16 @@ for required in $REQUIRED_KEYS; do
     exit 1
   fi
 done
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+  key="${line%%=*}"
+  value="$(parse_env_value_raw "${line#*=}")"
+  [[ -z "$key" || -z "$value" ]] && continue
+
+  echo "Setting $key (production) ..."
+  add_for_env "$key" "$value" "$(flags_for "$key")"
+done <"$ENV_FILE"
 
 echo "Done. All keys pushed to production only (preview/development unchanged)."
 echo "Redeploy with: npx vercel --prod"
