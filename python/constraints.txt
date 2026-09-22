@@ -7,7 +7,7 @@ beautifulsoup4==4.14.3
 certifi==2026.2.25
 charset-normalizer==3.4.5
 click==8.3.3
-convex==0.7.0
+convex==0.8.1
 defusedxml==0.7.1
 et_xmlfile==2.0.0
 fastapi==0.135.1
