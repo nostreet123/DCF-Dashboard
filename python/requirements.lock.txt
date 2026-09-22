@@ -4,6 +4,9 @@
 #
 #    pip-compile --constraint=python/constraints.txt --generate-hashes --output-file=python/requirements.lock.txt python/requirements.txt
 #
+# Regenerate with pip-tools==7.5.3 and pip==26.1.2.
+# pip 26.2 moved stdlib_pkgs, which pip-tools 7.5.3 still imports.
+#
 annotated-doc==0.0.4 \
     --hash=sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320 \
     --hash=sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4

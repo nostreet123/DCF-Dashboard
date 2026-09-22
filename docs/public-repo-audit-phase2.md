@@ -110,13 +110,16 @@ Deferred major upgrades to evaluate separately:
 
 - Next.js 16 / React 19 / `eslint-config-next` 16
 - `eslint` 10
-- GitHub Actions latest major lines:
-  - `actions/checkout` v6
-  - `actions/setup-python` v6
-  - `actions/setup-node` v6
-  - `actions/github-script` v8
 
-Those are not blocked by supply-chain drift now; they are compatibility migrations.
+GitHub Actions majors were evaluated and applied after checking that the workflow inputs still exist on the pinned releases and that CI stayed green:
+
+- `actions/checkout` v7.0.1
+- `actions/setup-python` v7.0.0
+- `actions/setup-node` v7.0.0
+- `actions/github-script` v9.0.0
+- `actions/dependency-review-action` v5.0.0
+
+The Python audit workflow pins `pip==26.1.2` because `pip-tools==7.5.3` still imports a private helper that pip 26.2 moved. Revisit that pin when pip-tools supports pip 26.2 or newer.
 
 ## Tested Clean Install Path
 
