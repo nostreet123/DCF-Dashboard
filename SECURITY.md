@@ -37,7 +37,7 @@ This application does **not** implement end-user authentication. Privilege is en
 - `INTERNAL_PERSISTENCE_KEY` — HMAC secret for Next.js persistence routes.
 - `DCF_ENGINE_INTERNAL_KEY` — HMAC secret for Next.js → FastAPI requests.
 
-Anyone who learns `DAMODARAN_SYNC_TOKEN` plus your Convex deployment URL can call protected Convex functions directly, bypassing Next.js middleware. Treat sync-token rotation and Convex dashboard access as production security controls.
+Anyone who learns `DAMODARAN_SYNC_TOKEN` plus your Convex deployment URL can call protected Convex functions directly, bypassing the Next.js request proxy. Treat sync-token rotation and Convex dashboard access as production security controls.
 
 ## Public Data Boundary
 

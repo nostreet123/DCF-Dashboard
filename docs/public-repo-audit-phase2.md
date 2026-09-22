@@ -10,7 +10,8 @@ This repo now has one clear install path, exact top-level dependency pins, a tes
 
 The main remaining upgrade items are intentional framework/tooling majors, not accidental drift:
 
-- Next.js 15 / React 18 is pinned and verified.
+- Next.js 16.3.5 and `eslint-config-next` 16.3.5 are pinned. React stays on 18.3.1.
+- Node runtime stays on 22 (`.nvmrc` and `engines`). `@types/node` 26.6.2 is type-only and describes Node 26 APIs.
 - Python is pinned through `python/requirements.txt`, `python/requirements-dev.txt`, and `python/constraints.txt`.
 - npm is the canonical package manager.
 - Bun remains test/runtime tooling only.
@@ -110,7 +111,7 @@ Safe upgrades already applied in this pass (2026-03-14 snapshot):
 
 Deferred major upgrades to evaluate separately:
 
-- Next.js 16 / React 19 / `eslint-config-next` 16
+- React 19. `eslint-plugin-react-hooks` 7 rules `set-state-in-effect` and `refs` stay off until that upgrade, because the current components still use the React 18 patterns those rules reject.
 - `eslint` 10
 
 Applied on 2026-09-22, after the snapshot above. GitHub Actions majors were evaluated and applied after checking that the workflow inputs still exist on the pinned releases and that CI stayed green:
@@ -122,6 +123,14 @@ Applied on 2026-09-22, after the snapshot above. GitHub Actions majors were eval
 - `actions/dependency-review-action` v5.0.0
 
 The Python audit workflow pins `pip==26.1.2` because `pip-tools==7.5.3` still imports a private helper that pip 26.2 moved. Revisit that pin when pip-tools supports pip 26.2 or newer.
+
+Also applied on 2026-09-22, in place of Dependabot's `next` 16.2.12, `eslint-config-next` 16.2.12, and `@types/node` 26.1.2. Next.js 16.2.12 is still inside the advisory range fixed by 16.3.3 and later.
+
+- `next` `15.5.25` -> `16.3.5`
+- `eslint-config-next` `15.5.25` -> `16.3.5`
+- `@types/node` `25.5.0` -> `26.6.2`, with the Node runtime left at 22
+- `middleware.ts` renamed to `proxy.ts`; the removed `eslint` key in `next.config.mjs` matches Next.js 16, which no longer lints during `next build`
+- `js-yaml` override `4.2.0` -> `4.3.2`, and `brace-expansion` overrides `1.1.13` / `5.0.6` -> `1.1.21` / `5.0.12`
 
 ## Tested Clean Install Path
 
