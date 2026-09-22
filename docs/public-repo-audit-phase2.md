@@ -17,7 +17,7 @@ The main remaining upgrade items are intentional framework/tooling majors, not a
 
 ## Dependency Inventory
 
-The lists below are the 2026-03-14 snapshot from this audit. Current pins are `package.json`, `python/requirements.txt`, and `python/constraints.txt`.
+The lists below are the 2026-03-14 snapshot from this audit. Current pins are `package.json`, `python/requirements.txt`, `python/requirements-dev.txt`, and `python/constraints.txt`.
 
 JavaScript runtime:
 
@@ -113,7 +113,7 @@ Deferred major upgrades to evaluate separately:
 - Next.js 16 / React 19 / `eslint-config-next` 16
 - `eslint` 10
 
-GitHub Actions majors were evaluated and applied after checking that the workflow inputs still exist on the pinned releases and that CI stayed green:
+Applied on 2026-09-22, after the snapshot above. GitHub Actions majors were evaluated and applied after checking that the workflow inputs still exist on the pinned releases and that CI stayed green:
 
 - `actions/checkout` v7.0.1
 - `actions/setup-python` v7.0.0
