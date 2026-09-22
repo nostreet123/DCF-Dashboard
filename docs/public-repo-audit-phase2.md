@@ -17,6 +17,8 @@ The main remaining upgrade items are intentional framework/tooling majors, not a
 
 ## Dependency Inventory
 
+The lists below are the 2026-03-14 snapshot from this audit. Current pins are `package.json`, `python/requirements.txt`, `python/requirements-dev.txt`, and `python/constraints.txt`.
+
 JavaScript runtime:
 
 - `@radix-ui/react-icons==1.3.2`
@@ -95,7 +97,7 @@ Replaced:
 
 ## Upgrade List
 
-Safe upgrades already applied in this pass:
+Safe upgrades already applied in this pass (2026-03-14 snapshot):
 
 - `convex` `1.31.x` -> `1.33.1`
 - `next` `15.5.10` -> `15.5.12`
@@ -110,13 +112,16 @@ Deferred major upgrades to evaluate separately:
 
 - Next.js 16 / React 19 / `eslint-config-next` 16
 - `eslint` 10
-- GitHub Actions latest major lines:
-  - `actions/checkout` v6
-  - `actions/setup-python` v6
-  - `actions/setup-node` v6
-  - `actions/github-script` v8
 
-Those are not blocked by supply-chain drift now; they are compatibility migrations.
+Applied on 2026-09-22, after the snapshot above. GitHub Actions majors were evaluated and applied after checking that the workflow inputs still exist on the pinned releases and that CI stayed green:
+
+- `actions/checkout` v7.0.1
+- `actions/setup-python` v7.0.0
+- `actions/setup-node` v7.0.0
+- `actions/github-script` v9.0.0
+- `actions/dependency-review-action` v5.0.0
+
+The Python audit workflow pins `pip==26.1.2` because `pip-tools==7.5.3` still imports a private helper that pip 26.2 moved. Revisit that pin when pip-tools supports pip 26.2 or newer.
 
 ## Tested Clean Install Path
 
