@@ -24,7 +24,7 @@ packaging==26.0
 pandas==3.0.3
 pluggy==1.6.0
 pydantic==2.12.5
-pydantic_core==2.41.5
+pydantic_core==2.49.0
 pypdf==6.16.1
 pytest==9.1.1
 python-dateutil==2.9.0.post0
