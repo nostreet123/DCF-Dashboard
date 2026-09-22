@@ -17,6 +17,8 @@ The main remaining upgrade items are intentional framework/tooling majors, not a
 
 ## Dependency Inventory
 
+The lists below are the 2026-03-14 snapshot from this audit. Current pins are `package.json`, `python/requirements.txt`, and `python/constraints.txt`.
+
 JavaScript runtime:
 
 - `@radix-ui/react-icons==1.3.2`
@@ -95,7 +97,7 @@ Replaced:
 
 ## Upgrade List
 
-Safe upgrades already applied in this pass:
+Safe upgrades already applied in this pass (2026-03-14 snapshot):
 
 - `convex` `1.31.x` -> `1.33.1`
 - `next` `15.5.10` -> `15.5.12`
