@@ -52,7 +52,7 @@
     "@types/react": "18.3.28",
     "@types/react-dom": "18.3.7",
     "bun-types": "1.4.2",
-    "convex-test": "0.0.54",
+    "convex-test": "0.0.59",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.5",
     "typescript": "5.9.3"
