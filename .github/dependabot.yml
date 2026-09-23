@@ -30,5 +30,12 @@ updates:
         patterns:
           - "*"
     ignore:
-      # pydantic pins pydantic-core to an exact version; bump it together with pydantic.
+      # pydantic pins pydantic-core to an exact version, so standalone bumps never
+      # resolve. When merging a pydantic bump, update pydantic_core in
+      # constraints.txt and regenerate requirements.lock.txt in the same PR.
+      # Scoped to version updates so security updates still come through.
       - dependency-name: "pydantic-core"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
