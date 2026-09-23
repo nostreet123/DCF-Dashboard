@@ -14,6 +14,20 @@ updates:
       # (pulled in by eslint-config-next) only support eslint up to 9.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # React 19 needs react, react-dom and both @types packages moved together,
+      # plus re-enabling the react-hooks rules disabled in the Next.js 16 upgrade.
+      # Separate bumps cannot resolve their peer dependencies.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 removed the baseUrl option that tsconfig.json relies on.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
