@@ -41,21 +41,20 @@
     "@radix-ui/react-icons": "1.3.2",
     "clsx": "2.1.1",
     "convex": "1.42.3",
-    "next": "15.5.25",
+    "next": "16.3.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "3.3.5",
     "@playwright/test": "1.58.2",
-    "@types/node": "25.5.0",
+    "@types/node": "26.6.2",
     "@types/react": "18.3.28",
     "@types/react-dom": "18.3.7",
     "bun-types": "1.3.10",
     "convex-test": "0.0.54",
     "eslint": "9.39.4",
-    "eslint-config-next": "15.5.25",
+    "eslint-config-next": "16.3.5",
     "typescript": "5.9.3"
   },
   "overrides": {
@@ -69,13 +68,13 @@
       "postcss": "8.5.28"
     },
     "minimatch@3.1.5": {
-      "brace-expansion": "1.1.13"
+      "brace-expansion": "1.1.21"
     },
     "minimatch@10.2.4": {
-      "brace-expansion": "5.0.6"
+      "brace-expansion": "5.0.12"
     },
     "ws": "8.21.0",
     "esbuild": "0.28.1",
-    "js-yaml": "4.2.0"
+    "js-yaml": "4.3.2"
   }
 }
