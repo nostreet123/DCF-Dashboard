@@ -9,6 +9,11 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+    ignore:
+      # eslint-plugin-react, eslint-plugin-import and eslint-plugin-jsx-a11y
+      # (pulled in by eslint-config-next) only support eslint up to 9.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -24,3 +29,6 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+    ignore:
+      # pydantic pins pydantic-core to an exact version; bump it together with pydantic.
+      - dependency-name: "pydantic-core"
