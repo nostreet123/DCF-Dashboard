@@ -5,7 +5,7 @@ annotated-types==0.7.0
 anyio==4.14.2
 beautifulsoup4==4.14.3
 certifi==2026.2.25
-charset-normalizer==3.4.5
+charset-normalizer==3.5.1
 click==8.5.0
 convex==0.8.1
 defusedxml==0.7.1
