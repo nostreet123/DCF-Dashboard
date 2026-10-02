@@ -4,7 +4,7 @@ annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.15.1
 beautifulsoup4==4.14.3
-certifi==2026.2.25
+certifi==2026.7.22
 charset-normalizer==3.5.1
 click==8.5.0
 convex==0.8.1
