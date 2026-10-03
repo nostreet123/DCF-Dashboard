@@ -264,7 +264,16 @@ function LabMemoBody() {
     }
   };
 
+  const activeLabel = caseLabel(
+    scenario,
+    assumptions,
+    savedRun?.assumptions ? { base: savedRun.assumptions } : undefined,
+  );
+
   const pickScenario = (nextScenario: Scenario) => {
+    if (nextScenario === scenario && activeLabel !== 'Your case') {
+      return;
+    }
     setEngineResult(null);
     setSelectedRunId(null);
     setScenario(nextScenario);
@@ -319,11 +328,7 @@ function LabMemoBody() {
           ticker={dashboard.company.activeTicker}
           name={companyName}
           shortName={shortName}
-          label={caseLabel(
-            scenario,
-            assumptions,
-            savedRun?.assumptions ? { base: savedRun.assumptions } : undefined,
-          )}
+          label={activeLabel}
           fairValue={fairValue}
           price={price}
           assumptions={assumptions}
