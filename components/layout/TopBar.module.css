@@ -27,6 +27,7 @@
   gap: var(--spacing-xs);
   flex-shrink: 0;
   color: var(--text-tertiary);
+  text-decoration: none;
 }
 
 .logoText {

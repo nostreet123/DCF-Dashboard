@@ -6,6 +6,7 @@ import {
   MixerHorizontalIcon,
 } from '@radix-ui/react-icons';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ModeToggle } from '@/components/ui/ModeToggle';
@@ -170,7 +171,7 @@ export function TopBar({
             <HamburgerMenuIcon width={18} height={18} aria-hidden="true" />
           </button>
 
-          <div className={styles.logo}>
+          <Link href="/lab" className={styles.logo}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="3" width="7" height="7" rx="1" fill="var(--accent-gold)" />
               <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor" opacity="0.55" />
@@ -178,7 +179,7 @@ export function TopBar({
               <rect x="14" y="14" width="7" height="7" rx="1" fill="var(--accent-gold)" opacity="0.86" />
             </svg>
             <span className={styles.logoText}>DCF Lab</span>
-          </div>
+          </Link>
 
           {ticker && (
             <div className={styles.tickerPill}>
