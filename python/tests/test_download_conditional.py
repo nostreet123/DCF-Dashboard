@@ -110,6 +110,9 @@ def _private_example_resolution(*args, **kwargs):
 @pytest.fixture(autouse=True)
 def _allow_example_download_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DAMODARAN_ALLOWED_ASSET_HOSTS", "example.com")
+    # Requests use DummyClient; DNS must also be deterministic and offline.
+    # Security cases override this with private-address or rebinding fixtures.
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
 
 
 def test_conditional_get_304_uses_cache(tmp_path) -> None:

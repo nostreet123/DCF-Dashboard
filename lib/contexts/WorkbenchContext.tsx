@@ -127,8 +127,14 @@ type WorkbenchContextValue = WorkbenchState & WorkbenchActions;
 
 const WorkbenchContext = createContext<WorkbenchContextValue | undefined>(undefined);
 
-export function WorkbenchProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(workbenchReducer, undefined, createInitialWorkbenchState);
+export function WorkbenchProvider({ children, initialState }: {
+  children: ReactNode;
+  initialState?: Partial<WorkbenchState>;
+}) {
+  const [state, dispatch] = useReducer(workbenchReducer, initialState, (initial) => ({
+    ...createInitialWorkbenchState(),
+    ...initial,
+  }));
 
   const setSelectedSymbol = useCallback((symbol: string | null) => {
     dispatch({ type: 'set_selected_symbol', symbol });

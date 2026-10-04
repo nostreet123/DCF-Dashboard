@@ -16,6 +16,7 @@ import {
   gapPhrase,
   LAB_DISCLAIMER,
   LAB_PATHS,
+  isDemoMemoAvailable,
   resolveLabPhase,
 } from '../lib/lab/presentation';
 
@@ -27,13 +28,13 @@ describe('lab presentation', () => {
     expect(LAB_PATHS.workbench).toBe('/workbench');
   });
 
-  test('shows the computing screen only when that status was requested', () => {
+  test('shows initial loading and errors without masking them with an old result', () => {
     expect(resolveLabPhase({
       queryStatus: 'memo',
       workspaceMode: 'valuation',
       hasError: false,
       hasValue: false,
-    })).toBe('memo');
+    })).toBe('computing');
     expect(resolveLabPhase({
       queryStatus: 'computing',
       workspaceMode: 'valuation',
@@ -57,6 +58,10 @@ describe('lab presentation', () => {
       workspaceMode: 'valuation',
       hasError: true,
       hasValue: true,
+    })).toBe('unavailable');
+    expect(resolveLabPhase({
+      queryStatus: 'import', workspaceMode: 'valuation', hasError: false,
+      hasValue: true, importApproved: true,
     })).toBe('memo');
   });
 
@@ -81,6 +86,41 @@ describe('lab presentation', () => {
     expect(catalog.some((company) => company.ticker === 'NVDA' && !company.ready)).toBe(true);
     expect(filterLibrary(catalog, 'zz', 'all')).toEqual([]);
     expect(filterLibrary(catalog, 'nvda', 'import').map((company) => company.ticker)).toEqual(['NVDA']);
+    expect(filterLibrary(catalog, '', 'ready').map((company) => company.ticker)).toEqual(['AAPL']);
+  });
+
+  test('never opens an unsupported demo ticker or result-only run as an Apple memo', () => {
+    expect(isDemoMemoAvailable(null, null)).toBe(true);
+    expect(isDemoMemoAvailable('aapl', 'r1')).toBe(true);
+    expect(isDemoMemoAvailable('MSFT', null)).toBe(false);
+    expect(isDemoMemoAvailable(null, 'r2')).toBe(false);
+    expect(isDemoMemoAvailable('AAPL', 'unknown')).toBe(false);
+  });
+
+  test('preserves signed bridge amounts and bounded waterfall positions', () => {
+    const rows = buildBridgeRows({
+      pvExplicit: -63.6, pvTerminal: 413, cash: 10, debt: 50,
+      equity: 309.4, sharesOutstanding: 10,
+    });
+    expect(rows[0]?.amount).toBe(-63.6);
+    expect(rows[0]?.valueLabel).toBe('−63.6');
+    expect(rows.filter((row) => !row.emphasis).reduce((sum, row) => sum + row.amount, 0)).toBeCloseTo(309.4);
+    for (const row of rows) {
+      expect(row.left).toBeGreaterThanOrEqual(0);
+      expect(row.width).toBeGreaterThanOrEqual(0);
+      expect(row.left + row.width).toBeLessThanOrEqual(100.000001);
+    }
+    const zero = buildBridgeRows({ pvExplicit: 0, pvTerminal: -10, cash: 0, debt: 20, equity: -30, sharesOutstanding: 1 });
+    expect(zero).toHaveLength(5);
+    expect(zero.find((row) => row.tone === 'equity')?.amount).toBe(-30);
+  });
+
+  test('does not invent a present-value split when forecast data is missing', () => {
+    const bridge = bridgeFromStatements(100, { cash: 10, debt: 50, sharesOutstanding: 10 });
+    expect(bridge.pvExplicit).toBeNull();
+    expect(bridge.pvTerminal).toBeNull();
+    const signed = bridgeFromStatements(-3, null, { pvExplicit: -10, pvTerminal: null, cash: 0, debt: 20, equity: -30, sharesOutstanding: 1 });
+    expect(signed.pvTerminal).toBe(0);
   });
 
   test('slices the demo sensitivity matrix to the five-by-five window', () => {

@@ -101,6 +101,6 @@ test('dashboard harness smoke', async ({ page }) => {
 
   await page.getByPlaceholder('Search companies...').fill('msft');
   await page.getByRole('option', { name: /Microsoft Corporation.*MSFT/i }).click();
-  await expect(page.getByRole('banner').getByText('MSFT')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Search companies', exact: true })).toHaveValue('MSFT');
   await expect(page.getByText('MSFT Fair Value')).toBeVisible();
 });

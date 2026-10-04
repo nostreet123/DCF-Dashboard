@@ -125,6 +125,52 @@ const jsonResponse = (payload: unknown) =>
     headers: { "Content-Type": "application/json" },
   });
 
+describe('value bridge normalization', () => {
+  test('reads snake_case bridge fields and sums signed discounted cash flows', () => {
+    const result = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: {
+        valuation: { fair_value_per_share: 30.94 },
+        trace: {
+          discounting: { pv_fcff: [-31.8, -31.8], pv_terminal: 413 },
+          bridge: { cash: 10, debt: 50, equity_value: 309.4, shares_outstanding: 10 },
+        },
+      },
+    }, 'base');
+    expect(result.valueBridge).toEqual({
+      pvExplicit: -63.6, pvTerminal: 413, cash: 10, debt: 50, equity: 309.4, sharesOutstanding: 10,
+    });
+  });
+
+  test('prefers valuation totals and supports camelCase trace fields', () => {
+    const result = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: {
+        valuation: { fairValuePerShare: 42, pvFcff: 100, pvTerminal: 400, equityValue: 460 },
+        trace: { discounting: { pvFcff: [1, 2] }, bridge: { cash: 10, debt: 50, sharesOutstanding: 10 } },
+      },
+    }, 'base');
+    expect(result.valueBridge).toEqual({
+      pvExplicit: 100, pvTerminal: 400, cash: 10, debt: 50, equity: 460, sharesOutstanding: 10,
+    });
+  });
+
+  test('keeps zero totals and leaves absent or invalid bridge data undefined', () => {
+    expect(normalizeDcfComputeResponse(COMPUTE_PAYLOAD, 'base').valueBridge).toBeUndefined();
+    const withZero = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: { valuation: { fairValuePerShare: 0, pv_fcff: 0, pv_terminal: 0 }, trace: { bridge: { cash: 0, debt: 0, equity_value: 0, shares_outstanding: 10 } } },
+    }, 'base');
+    expect(withZero.valueBridge?.pvExplicit).toBe(0);
+    expect(withZero.valueBridge?.equity).toBe(0);
+    const invalid = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: { valuation: { fairValuePerShare: 42 }, trace: { discounting: { pv_fcff: [null, NaN, Infinity] } } },
+    }, 'base');
+    expect(invalid.valueBridge).toBeUndefined();
+  });
+});
+
 function setup(debounceMs = 10) {
   const refs = createComputeRefs();
   let isLoading = false;

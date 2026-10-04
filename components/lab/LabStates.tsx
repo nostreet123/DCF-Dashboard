@@ -105,7 +105,7 @@ export function UnavailableMemo({
     <section className={styles.page} aria-label="Engine error">
       <span className={styles.eyebrow}>03 · Valuation engine unavailable</span>
       <div className={`${styles.card} ${styles.alert}`} role="alert">
-        <div className={`${styles.kicker} ${styles.alertKicker}`}>Couldn&apos;t finish this memo</div>
+        <div className={`${styles.kicker} ${styles.alertKicker}`}>Unable to finish this memo</div>
         <h1 className={styles.title}>The valuation engine didn&apos;t respond.</h1>
         <p className={styles.copy}>
           Your assumptions are kept. Try again, or {savedLabel} while the engine recovers.

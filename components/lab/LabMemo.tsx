@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { ImportWorkspace } from '@/components/workspace/ParityPanels';
@@ -8,7 +8,6 @@ import { WorkbenchProvider, useWorkbench } from '@/lib/contexts/WorkbenchContext
 import { getDashboardDataMode } from '@/lib/dashboardDataMode';
 import { useDashboardController } from '@/lib/hooks/useDashboardController';
 import {
-  useDcfCompute,
   type DcfResult,
   type ProjectionRow,
   type StatementHistoryPoint,
@@ -34,6 +33,7 @@ import {
   formatSharePrice,
   formatStartingRevenue,
   gapPhrase,
+  isDemoMemoAvailable,
   LAB_DISCLAIMER,
   LAB_PATHS,
   parseLabStatus,
@@ -41,7 +41,6 @@ import {
   resolveLabPhase,
   stepAssumption,
   type AssumptionKind,
-  type LabStatus,
 } from '@/lib/lab/presentation';
 import {
   scenarioAssumptionDefaults,
@@ -52,6 +51,7 @@ import { scenarioValues } from '@/lib/workbench/mockData';
 import type { CompanySearchResult } from '@/lib/contracts/company';
 import { cn } from '@/lib/utils/cn';
 import { LabFrame } from './LabFrame';
+import { LabFeatureUnavailable } from './LabFeatureUnavailable';
 import { ComputingMemo, ImportMemo, UnavailableMemo } from './LabStates';
 import styles from './memo.module.css';
 
@@ -80,24 +80,15 @@ function LabMemoBody() {
   const compact = useCompactLayout();
   const isDemo = getDashboardDataMode() === 'demo';
   const workbench = useWorkbench();
-  const dashboard = useDashboardController();
-  const { compute } = useDcfCompute({ debounceMs: 0 });
-  const [engineResult, setEngineResult] = useState<DcfResult | null>(null);
-  const [enginePhase, setEnginePhase] = useState<LabStatus>('memo');
+  const rawStatus = parseLabStatus(searchParams.get('status'));
+  const dashboard = useDashboardController({ computeEnabled: rawStatus === 'memo' });
   const [reviewing, setReviewing] = useState(false);
-  const [retryNonce, setRetryNonce] = useState(0);
   const appliedRoute = useRef<string | null>(null);
   const scenarioAssumptionsRef = useRef(workbench.assumptions);
   scenarioAssumptionsRef.current = workbench.assumptions;
-  const computeRef = useRef(compute);
-  computeRef.current = compute;
-  const workbenchRef = useRef(workbench);
-  workbenchRef.current = workbench;
-
   const queryStatus = parseLabStatus(searchParams.get('status'));
   const requestedTicker = searchParams.get('ticker');
   const requestedRun = searchParams.get('run');
-  const rerun = searchParams.get('rerun');
   const requestedName = searchParams.get('name');
 
   const { selectCompany, setScenario, setScenarioAssumptions, setSelectedRunId } = workbench;
@@ -149,73 +140,41 @@ function LabMemoBody() {
     setSelectedRunId,
   ]);
 
-  const runValuation = useCallback((
-    symbol: string,
-    listingId: string | null,
-    assumptions = workbenchRef.current.assumptions,
-  ) => {
-    const current = workbenchRef.current;
-    void computeRef
-      .current({
-        symbol,
-        listingId,
-        scenario: current.scenario,
-        assumptions,
-      })
-      .then((result) => {
-        setEngineResult(result);
-        setEnginePhase('memo');
-        current.setSelectedRunId(null);
-      })
-      .catch((error: unknown) => {
-        if (
-          error instanceof Error &&
-          (error.name === 'AbortError' || error.message === 'Superseded' || error.message === 'Reset')
-        ) {
-          return;
-        }
-        setEnginePhase('unavailable');
-      });
-  }, []);
-
   useEffect(() => {
-    if (rerun !== '1' || queryStatus !== 'memo') {
-      return;
-    }
-    const symbol = requestedTicker ?? workbenchRef.current.selectedSymbol ?? 'AAPL';
-    runValuation(symbol, workbenchRef.current.selectedCompanyId);
-  }, [queryStatus, requestedTicker, rerun, retryNonce, runValuation]);
+    if (dashboard.import.status !== 'approved' || queryStatus !== 'import') return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('status');
+    const query = params.toString();
+    router.replace(`${LAB_PATHS.memo}${query ? `?${query}` : ''}`);
+  }, [dashboard.import.status, queryStatus, router, searchParams]);
 
   const catalogCompany = findCatalogCompany(dashboard.company.activeTicker);
-  const companyName = catalogCompany?.name ?? dashboard.company.activeTicker;
+  const companyName = dashboard.company.companyDetail?.name ?? dashboard.valuation.detailsForDisplay?.provenance?.name ?? catalogCompany?.name ?? dashboard.company.activeTicker;
   const shortName = companyShortName(companyName);
   const importTicker = (requestedTicker ?? 'NVDA').toUpperCase();
   const importCompany = findCatalogCompany(importTicker);
   const importName = importCompany?.name ?? requestedName ?? importTicker;
 
-  const details = engineResult ?? dashboard.valuation.detailsForDisplay;
+  const details = dashboard.valuation.detailsForDisplay;
   const scenarioMap = readScenarioValues(details, isDemo);
   const assumptions = dashboard.workspace.assumptions;
   const savedRun = isDemo
     ? buildDemoHistory().find((run) => run.id === workbench.selectedRunId) ?? null
     : null;
   const scenario = dashboard.workspace.scenario;
-  const fairValue =
-    engineResult?.fairValue ??
-    (savedRun && savedRun.ticker !== 'AAPL' ? savedRun.value : null) ??
-    (isDemo ? scenarioMap[scenario] : dashboard.valuation.currentValue);
+  const fairValue = isDemo ? scenarioMap[scenario] : dashboard.valuation.currentValue;
   const price = isDemo ? DEMO_MARKET_PRICE : null;
   const projections = readProjections(details);
   const statement = readStatement(details);
-  const bridge = buildBridgeRows(
-    bridgeFromStatements(fairValue ?? 0, statement, engineResult?.valueBridge ?? readBridge(details), {
+  const bridgeModel = bridgeFromStatements(fairValue ?? 0, statement, readBridge(details), isDemo ? {
       cashFlows: projections.map((row) => row.freeCashFlow),
       discountRate: assumptions.discountRate,
       terminalGrowth: assumptions.terminalGrowth,
-    }),
-  );
-  const sensitivitySource = engineResult?.sensitivityMatrix ?? dashboard.valuation.sensitivityMatrix ?? [];
-  const offsets = !engineResult && isDemo ? demoSensitivityOffsets() : readOffsets(details);
+    } : undefined);
+  const bridge = bridgeModel.pvExplicit !== null && bridgeModel.pvTerminal !== null
+    ? buildBridgeRows(bridgeModel) : [];
+  const sensitivitySource = dashboard.valuation.sensitivityMatrix ?? [];
+  const offsets = isDemo ? demoSensitivityOffsets() : readOffsets(details);
   const sensitivity = buildSensitivityGrid({
     matrix: sensitivitySource,
     growthOffsets: offsets.growth,
@@ -236,18 +195,19 @@ function LabMemoBody() {
     queryStatus,
     workspaceMode: dashboard.workspace.mode,
     hasError:
-      enginePhase === 'unavailable' ||
-      (!isDemo && Boolean(dashboard.valuation.error) && !dashboard.valuation.isReplayDisplay),
+      !isDemo && Boolean(dashboard.valuation.error) && !dashboard.valuation.isReplayDisplay,
     hasValue: fairValue !== null,
+    importApproved: dashboard.import.status === 'approved',
   });
 
   const retry = () => {
-    const params = new URLSearchParams({
-      rerun: '1',
-      ticker: dashboard.company.activeTicker,
-    });
-    router.replace(`${LAB_PATHS.memo}?${params.toString()}`);
-    setRetryNonce((value) => value + 1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('status');
+    params.delete('rerun');
+    params.delete('run');
+    const query = params.toString();
+    router.replace(`${LAB_PATHS.memo}${query ? `?${query}` : ''}`);
+    dashboard.valuation.clearError();
   };
 
   const changeAssumption = (kind: AssumptionKind, direction: -1 | 1) => {
@@ -256,20 +216,12 @@ function LabMemoBody() {
     if (!fieldForKind) {
       return;
     }
-    const scenarioNow = workbenchRef.current.scenario;
-    const nextAssumptions = {
-      ...workbenchRef.current.assumptions,
-      [scenarioNow]: next,
-    };
     dashboard.workspace.handleAssumptionChange(fieldForKind.key, next[fieldForKind.key]);
     if (kind === 'discount' && next.terminalGrowth !== assumptions.terminalGrowth) {
       dashboard.workspace.handleAssumptionChange('terminalGrowth', next.terminalGrowth);
     }
     if (kind === 'terminal' && next.discountRate !== assumptions.discountRate) {
       dashboard.workspace.handleAssumptionChange('discountRate', next.discountRate);
-    }
-    if (!isDemo && queryStatus === 'memo') {
-      runValuation(dashboard.company.activeTicker, workbenchRef.current.selectedCompanyId, nextAssumptions);
     }
   };
 
@@ -283,7 +235,6 @@ function LabMemoBody() {
     if (nextScenario === scenario && activeLabel !== 'Your case') {
       return;
     }
-    setEngineResult(null);
     setSelectedRunId(null);
     setScenario(nextScenario);
     setScenarioAssumptions({
@@ -298,7 +249,7 @@ function LabMemoBody() {
     : 'open the last saved memo';
 
   const importTarget: CompanySearchResult = {
-    id: importCompany?.id ?? `import:${importTicker}`,
+    id: (isDemo ? importCompany?.id : undefined) ?? `import:${importTicker}`,
     symbol: importTicker,
     name: importName,
     coverageState: 'import_required',
@@ -307,6 +258,9 @@ function LabMemoBody() {
 
   return (
     <LabFrame active="memo" showCompanySearch={phase === 'memo'} tone={phase === 'memo' ? 'paper' : 'status'}>
+      {phase === 'memo' && !isDemo && dashboard.valuation.isComputing ? (
+        <p role="status">Updating this memo. The displayed value is from the previous calculation.</p>
+      ) : null}
       {phase === 'computing' ? (
         <ComputingMemo companyLabel={`${dashboard.company.activeTicker} · ${companyName}`} shortName={shortName} />
       ) : null}
@@ -345,12 +299,12 @@ function LabMemoBody() {
           scenarioMap={scenarioMap}
           field={field}
           bridge={bridge}
-          shares={statement?.sharesOutstanding ?? null}
+          shares={bridgeModel.sharesOutstanding}
           sensitivity={sensitivity}
           compact={compact}
           projections={projections}
           startingRevenue={statement?.revenue ?? null}
-          disclaimer={isDemo ? demoDisclaimer('Illustrative demo data.') : LAB_DISCLAIMER}
+          disclaimer={isDemo ? demoDisclaimer('Illustrative demo data. The bridge is scaled to the demo equity value.') : LAB_DISCLAIMER}
           onStep={changeAssumption}
           onScenario={pickScenario}
         />
@@ -505,13 +459,14 @@ function MemoDocument({
           <span className={`${styles.sectionMeta} ${styles.fullOnly}`}>USD billions</span>
         </div>
         <div>
+          {bridge.length === 0 ? <p className={styles.blockCopy}>The present-value breakdown is unavailable for this result.</p> : null}
           {bridge.map((row) => (
             <div key={row.label} className={styles.bridgeRow}>
               <span className={cn(styles.bridgeLabel, row.emphasis && styles.emphasis)}>{row.label}</span>
               <span className={styles.track}>
                 <span
                   className={cn(styles.bar, barClass(row.tone))}
-                  style={{ left: `${row.left}%`, width: `${Math.max(row.width, 1.5)}%` }}
+                  style={{ left: `${row.left}%`, width: `${row.width}%` }}
                 />
               </span>
               <span
@@ -519,7 +474,7 @@ function MemoDocument({
                   styles.bridgeValue,
                   row.emphasis && styles.emphasis,
                   row.tone === 'cash' && styles.positive,
-                  row.tone === 'debt' && styles.negative,
+                  row.negative && styles.negative,
                 )}
               >
                 {row.valueLabel}
@@ -543,28 +498,28 @@ function MemoDocument({
             Growth across, discount rate down. Shaded cells sit above today&apos;s price.
           </p>
           <div className={styles.scroll}>
-            <div
-              className={styles.sens}
-              role="img"
-              aria-label="Sensitivity grid of fair values"
-              style={{
-                gridTemplateColumns: `${compact ? 48 : 60}px repeat(${Math.max(sensitivity.columns - 1, 1)}, minmax(${compact ? 0 : 56}px, 1fr))`,
-              }}
-            >
-              {sensitivity.cells.map((cell, index) => (
-                <div
-                  key={`${cell.role}-${index}`}
-                  className={cn(
-                    styles.sensCell,
-                    cell.role !== 'value' && styles.sensHeader,
-                    cell.abovePrice && styles.sensAbove,
-                    cell.isBase && styles.sensBase,
-                  )}
-                >
-                  {cell.text}
-                </div>
-              ))}
-            </div>
+            <table className={styles.sens} aria-label="Sensitivity grid of fair values">
+              <caption className={styles.visuallyHidden}>Fair value per share; revenue growth across columns, discount rate down rows.</caption>
+              <thead><tr>
+                {sensitivity.cells.slice(0, sensitivity.columns).map((cell, index) => (
+                  <th key={index} scope="col" className={cn(styles.sensCell, styles.sensHeader)}>
+                    {index === 0 ? 'Discount / growth' : `${cell.text}${compact ? '%' : ''}`}
+                  </th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {Array.from({ length: sensitivity.cells.length / sensitivity.columns - 1 }, (_, row) => (
+                  <tr key={row}>
+                    {sensitivity.cells.slice((row + 1) * sensitivity.columns, (row + 2) * sensitivity.columns).map((cell, column) => (
+                      column === 0 ? <th key={column} scope="row" className={cn(styles.sensCell, styles.sensHeader)}>{cell.text}{compact ? '%' : ''}</th> :
+                      <td key={column} className={cn(styles.sensCell, cell.abovePrice && styles.sensAbove, cell.isBase && styles.sensBase)}>
+                        {cell.text}{cell.isBase ? <span className={styles.visuallyHidden}> (base case)</span> : null}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
         <div className={styles.block}>
@@ -699,8 +654,24 @@ function readOffsets(details: DcfResult | ValuationReplaySnapshot | null): { gro
 }
 
 export function LabMemo() {
+  const params = useSearchParams();
+  const isDemo = getDashboardDataMode() === 'demo';
+  const ticker = params.get('ticker')?.trim().toUpperCase() ?? null;
+  const runId = params.get('run');
+  const status = parseLabStatus(params.get('status'));
+  if (isDemo && (status === 'import' || !isDemoMemoAvailable(ticker, runId))) {
+    return <LabFeatureUnavailable active="memo" title="This demo memo is unavailable"
+      description="Only Apple has a complete illustrative snapshot. Imports and other companies are available in the live workbench." />;
+  }
+  if (!isDemo && runId) {
+    return <LabFeatureUnavailable active="memo" title="Open saved live memos in the workbench"
+      description="Use the workbench to restore the actual saved result and its original assumptions." />;
+  }
   return (
-    <WorkbenchProvider>
+    <WorkbenchProvider key={`${ticker ?? ''}|${runId ?? ''}`} initialState={{
+      selectedSymbol: ticker ?? 'AAPL',
+      selectedCompanyId: isDemo ? '1' : null,
+    }}>
       <LabMemoBody />
     </WorkbenchProvider>
   );

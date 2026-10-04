@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 import { LabFrame } from '@/components/lab/LabFrame';
+import { LabFeatureUnavailable } from './LabFeatureUnavailable';
+import { getDashboardDataMode } from '@/lib/dashboardDataMode';
 import {
   buildDemoHistory,
   demoDisclaimer,
@@ -18,18 +20,24 @@ import { cn } from '@/lib/utils/cn';
 import styles from './history.module.css';
 
 export function LabHistory() {
-  const runs = buildDemoHistory();
+  const isDemo = getDashboardDataMode() === 'demo';
+  const runs = isDemo ? buildDemoHistory() : [];
   const [selectedId, setSelectedId] = useState(runs[0]?.id ?? '');
   const selected = runs.find((run) => run.id === selectedId) ?? runs[0];
+
+  if (!isDemo) {
+    return <LabFeatureUnavailable active="history" title="Saved live memos are in the workbench"
+      description="Open the workbench to access your actual saved runs and their assumptions." />;
+  }
 
   return (
     <LabFrame active="history">
       <div className={styles.page}>
         <section className={styles.intro}>
           <div className={styles.kicker}>Run history</div>
-          <h1 className={styles.title}>Every memo you&apos;ve saved.</h1>
+          <h1 className={styles.title}>Illustrative demo runs.</h1>
           <p className={styles.lede}>
-            Each run keeps its assumptions and result, so you can reopen it exactly as it was or rerun it on today&apos;s data.
+            Apple includes a complete demo snapshot. The Microsoft and Alphabet entries are example results only; their original assumptions and details are unavailable.
           </p>
         </section>
 
@@ -77,20 +85,14 @@ export function LabHistory() {
                 </p>
               ) : (
                 <p className={styles.previewCopy}>
-                  The assumptions behind this run are stored with it. Open it to read the full memo.
+                  Result-only demo. No assumptions or full memo were saved for this example.
                 </p>
               )}
-              <div className={styles.actions}>
+              {selected.assumptions ? <div className={styles.actions}>
                 <Link href={`${LAB_PATHS.memo}?run=${encodeURIComponent(selected.id)}`} className={styles.primary}>
                   Open this memo
                 </Link>
-                <Link
-                  href={`${LAB_PATHS.memo}?rerun=1&ticker=${encodeURIComponent(selected.ticker)}&run=${encodeURIComponent(selected.id)}`}
-                  className={styles.secondary}
-                >
-                  Rerun on today&apos;s data
-                </Link>
-              </div>
+              </div> : null}
             </article>
           ) : null}
         </div>

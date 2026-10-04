@@ -43,6 +43,8 @@ export interface LabHistoryRun {
 }
 
 export interface BridgeRowModel {
+  amount: number;
+  negative: boolean;
   label: string;
   valueLabel: string;
   left: number;
@@ -106,22 +108,28 @@ export function resolveLabPhase({
   workspaceMode,
   hasError,
   hasValue,
+  importApproved = false,
 }: {
   queryStatus: LabStatus;
   workspaceMode: string;
   hasError: boolean;
   hasValue: boolean;
+  importApproved?: boolean;
 }): LabStatus {
-  if (queryStatus !== 'memo') {
+  if (queryStatus !== 'memo' && !(queryStatus === 'import' && importApproved)) {
     return queryStatus;
   }
   if (workspaceMode === 'import') {
     return 'import';
   }
-  if (hasError && !hasValue) {
+  if (hasError) {
     return 'unavailable';
   }
-  return 'memo';
+  return hasValue ? 'memo' : 'computing';
+}
+
+export function isDemoMemoAvailable(ticker: string | null, runId: string | null): boolean {
+  return (!ticker || ticker.trim().toUpperCase() === 'AAPL') && (!runId || runId === 'r1');
 }
 
 export function companyShortName(name: string): string {
@@ -285,7 +293,7 @@ export function buildLibraryCatalog(
         ticker: item.ticker,
         name: item.name,
         sector,
-        ready: true,
+        ready: item.ticker === 'AAPL',
         lastValue: last?.value ?? null,
         lastAt: last?.timestamp ?? null,
       };
@@ -342,7 +350,7 @@ export function buildDemoHistory(): LabHistoryRun[] {
       shortName: companyShortName(name),
       value: run.value,
       at: run.timestamp,
-      scenarioLabel: assumptions ? 'Base case' : 'Saved run',
+      scenarioLabel: assumptions ? 'Base case' : 'Result-only demo',
       assumptions,
     };
   });
@@ -397,7 +405,7 @@ function fillPresentValues(
   if (pvExplicit !== null && pvTerminal !== null) {
     return { pvExplicit, pvTerminal };
   }
-  if (operating === null || operating <= 0) {
+  if (operating === null) {
     return { pvExplicit, pvTerminal };
   }
   if (pvExplicit !== null) {
@@ -408,8 +416,8 @@ function fillPresentValues(
   }
   const split = discountForecast(forecast);
   const raw = split.explicit + split.terminal;
-  if (raw <= 0) {
-    return { pvExplicit: operating * 0.25, pvTerminal: operating * 0.75 };
+  if (raw <= 0 || !Number.isFinite(raw)) {
+    return { pvExplicit: null, pvTerminal: null };
   }
   const scale = operating / raw;
   return { pvExplicit: split.explicit * scale, pvTerminal: split.terminal * scale };
@@ -450,31 +458,28 @@ export function buildBridgeRows(bridge: ValueBridge): BridgeRowModel[] {
     { label: 'Less debt', amount: bridge.debt, tone: 'debt', emphasis: false, signed: 'minus' },
     { label: 'Equity value', amount: bridge.equity, tone: 'equity', emphasis: true, signed: 'none' },
   ];
-  const visible = rows.filter((row) => row.amount !== null && row.amount > 0);
-  const positive = visible
-    .filter((row) => row.tone !== 'debt' && row.tone !== 'equity')
-    .reduce((sum, row) => sum + (row.amount ?? 0), 0);
-  const scale = Math.max(positive, bridge.equity ?? 0, bridge.debt ?? 0, 1);
+  const visible = rows.filter((row) => row.amount !== null && Number.isFinite(row.amount));
   let cursor = 0;
-  return visible.map((row) => {
-    const amount = row.amount ?? 0;
-    const width = (amount / scale) * 100;
-    let left = 0;
-    if (row.tone === 'debt') {
-      left = Math.max(0, ((positive - amount) / scale) * 100);
-    } else if (row.tone === 'equity') {
-      left = 0;
-    } else {
-      left = (cursor / scale) * 100;
-      cursor += amount;
-    }
+  const segments = visible.map((row) => {
+    const amount = row.signed === 'minus' ? -(row.amount ?? 0) : row.amount ?? 0;
+    const start = row.emphasis ? 0 : cursor;
+    const end = row.emphasis ? amount : cursor + amount;
+    if (!row.emphasis) cursor = end;
+    return { row, amount, start, end };
+  });
+  const minimum = Math.min(0, ...segments.flatMap(({ start, end }) => [start, end]));
+  const maximum = Math.max(0, ...segments.flatMap(({ start, end }) => [start, end]));
+  const scale = maximum - minimum || 1;
+  return segments.map(({ row, amount, start, end }) => {
+    const width = Math.abs(end - start) / scale * 100;
+    const left = (Math.min(start, end) - minimum) / scale * 100;
     const valueLabel =
-      row.signed === 'plus'
-        ? `+${formatBillions(amount)}`
-        : row.signed === 'minus'
-          ? `−${formatBillions(amount)}`
+      amount < 0 ? `−${formatBillions(Math.abs(amount))}`
+        : row.signed !== 'none' && amount > 0 ? `+${formatBillions(amount)}`
           : formatBillions(amount);
     return {
+      amount,
+      negative: amount < 0,
       label: row.label,
       valueLabel,
       left,

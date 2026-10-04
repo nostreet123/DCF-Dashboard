@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
 import { LabFrame } from '@/components/lab/LabFrame';
+import { LabFeatureUnavailable } from './LabFeatureUnavailable';
 import { SearchIcon } from '@/components/lab/icons';
 import { getDashboardDataMode } from '@/lib/dashboardDataMode';
 import {
@@ -26,11 +27,16 @@ const FILTERS: Array<{ id: LibraryFilter; label: string }> = [
 
 export function LabLibrary() {
   const isDemo = getDashboardDataMode() === 'demo';
-  const companies = useMemo(() => (isDemo ? buildLibraryCatalog() : buildLibraryCatalog()), [isDemo]);
+  const companies = useMemo(() => isDemo ? buildLibraryCatalog() : [], [isDemo]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('all');
   const shown = filterLibrary(companies, query, filter);
   const trimmed = query.trim();
+
+  if (!isDemo) {
+    return <LabFeatureUnavailable active="library" title="The live library is in the workbench"
+      description="Search live companies and check their statement coverage in the workbench." />;
+  }
 
   return (
     <LabFrame active="library">
@@ -39,7 +45,7 @@ export function LabLibrary() {
           <div className={styles.kicker}>Library</div>
           <h1 className={styles.title}>Pick a company to write a memo on.</h1>
           <p className={styles.lede}>
-            Companies marked ready have statements loaded and can be valued right away. Anything else can be imported from its SEC filings first.
+            Apple has a complete illustrative memo. Other demo companies do not have memo snapshots. Use the live workbench to value or import another company.
           </p>
         </section>
 
@@ -95,9 +101,9 @@ export function LabLibrary() {
                 <span className={`${styles.muted} ${styles.hideSmall}`}>{company.sector}</span>
                 <span className={`${styles.last} ${styles.hideSmall}`}>{formatLastMemo(company)}</span>
                 <span className={styles.status}>
-                  <Link href={href} className={cn(styles.action, !company.ready && styles.actionSolid)}>
+                  {company.ready ? <Link href={href} className={styles.action}>
                     {action}
-                  </Link>
+                  </Link> : <span className={styles.muted}>Demo unavailable</span>}
                 </span>
               </div>
             );

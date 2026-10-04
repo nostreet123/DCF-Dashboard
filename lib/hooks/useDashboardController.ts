@@ -26,7 +26,7 @@ export {
 
 export type { DashboardViewModel } from '@/lib/dashboard/viewModel';
 
-export function useDashboardController(): DashboardViewModel {
+export function useDashboardController({ computeEnabled = true }: { computeEnabled?: boolean } = {}): DashboardViewModel {
   const {
     scenario,
     assumptions: scenarioAssumptions,
@@ -64,6 +64,7 @@ export function useDashboardController(): DashboardViewModel {
   });
 
   const dataSource = useDashboardDataSource({
+    computeEnabled,
     scenario,
     scenarioAssumptions,
     selectedCompanyId,
