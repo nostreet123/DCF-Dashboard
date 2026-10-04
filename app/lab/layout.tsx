@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, Newsreader, Public_Sans } from 'next/font/google';
 
+import styles from './layout.module.css';
+
 const sans = Public_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
@@ -28,5 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default function LabLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${sans.variable} ${serif.variable} ${mono.variable}`}>{children}</div>;
+  return (
+    <div className={`${styles.root} ${sans.variable} ${serif.variable} ${mono.variable}`}>{children}</div>
+  );
 }

@@ -23,6 +23,7 @@
 
 .title {
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 56px;
   font-weight: 400;
@@ -95,8 +96,10 @@
 }
 
 .runName {
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 20px;
+  font-weight: 400;
 }
 
 .runMeta {
@@ -135,6 +138,7 @@
 
 .previewTitle {
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 36px;
   font-weight: 400;

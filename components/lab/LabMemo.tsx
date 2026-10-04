@@ -201,7 +201,11 @@ function LabMemoBody() {
   const projections = readProjections(details);
   const statement = readStatement(details);
   const bridge = buildBridgeRows(
-    bridgeFromStatements(fairValue ?? 0, statement, engineResult?.valueBridge ?? readBridge(details)),
+    bridgeFromStatements(fairValue ?? 0, statement, engineResult?.valueBridge ?? readBridge(details), {
+      cashFlows: projections.map((row) => row.freeCashFlow),
+      discountRate: assumptions.discountRate,
+      terminalGrowth: assumptions.terminalGrowth,
+    }),
   );
   const sensitivitySource = engineResult?.sensitivityMatrix ?? dashboard.valuation.sensitivityMatrix ?? [];
   const offsets = !engineResult && isDemo ? demoSensitivityOffsets() : readOffsets(details);

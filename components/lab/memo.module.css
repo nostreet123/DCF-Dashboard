@@ -32,6 +32,7 @@
 .headline {
   max-width: 900px;
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 64px;
   font-weight: 400;
@@ -138,6 +139,7 @@
 
 .sectionTitle {
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 32px;
   font-weight: 400;
@@ -347,6 +349,7 @@
 
 .blockTitle {
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 28px;
   font-weight: 400;

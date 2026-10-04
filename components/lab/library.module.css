@@ -24,6 +24,7 @@
 .title {
   max-width: 820px;
   margin: 0;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 56px;
   font-weight: 400;

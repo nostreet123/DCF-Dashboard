@@ -10,6 +10,9 @@
   --serif: var(--font-lab-serif), Georgia, 'Times New Roman', serif;
   --sans: var(--font-lab-sans), 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: var(--font-lab-mono), 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -17,12 +20,37 @@
   background: #ffffff;
   color: var(--ink);
   font-family: var(--sans);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   color-scheme: light;
 }
 
+.shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #ffffff;
+  pointer-events: none;
+}
+
 .shellStatus {
   background: var(--soft);
+}
+
+.shellStatus::before {
+  background: var(--soft);
+}
+
+.shell h1,
+.shell h2,
+.shell h3,
+.shell h4,
+.shell h5,
+.shell h6 {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-weight: 400;
 }
 
 .shell button,

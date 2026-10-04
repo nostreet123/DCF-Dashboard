@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from 'bun:test';
 
-import { mockDemoReplaySnapshot, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
+import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
 import {
   bridgeFromStatements,
   buildBridgeRows,
@@ -58,14 +58,30 @@ describe('lab presentation', () => {
     expect(grid.cells.filter((cell) => cell.abovePrice)).toHaveLength(3);
   });
 
-  test('builds a cash and debt bridge from statements when the engine omits present values', () => {
+  test('builds present-value rows that tie cash and debt back to equity', () => {
     const statement = mockStatementHistory[0];
     if (!statement) {
       throw new Error('missing statement');
     }
-    const rows = buildBridgeRows(bridgeFromStatements(145.2, statement));
-    expect(rows.map((row) => row.label)).toEqual(['Plus cash', 'Less debt', 'Equity value']);
+    const bridge = bridgeFromStatements(145.2, statement, undefined, {
+      cashFlows: mockProjectionRows.map((row) => row.freeCashFlow),
+      discountRate: 9,
+      terminalGrowth: 2,
+    });
+    const rows = buildBridgeRows(bridge);
+    expect(rows.map((row) => row.label)).toEqual([
+      'PV of 5-year cash flow',
+      'PV of terminal value',
+      'Plus cash',
+      'Less debt',
+      'Equity value',
+    ]);
     expect(rows.find((row) => row.label === 'Equity value')?.valueLabel).toBe('2,192.5');
+    const tied =
+      (bridge.pvExplicit ?? 0) + (bridge.pvTerminal ?? 0) + (bridge.cash ?? 0) - (bridge.debt ?? 0);
+    expect(Math.abs(tied - (bridge.equity ?? 0))).toBeLessThan(1);
+    expect(bridge.pvExplicit ?? 0).toBeGreaterThan(0);
+    expect(bridge.pvTerminal ?? 0).toBeGreaterThan(0);
   });
 
   test('keeps assumptions only on the saved Apple run', () => {

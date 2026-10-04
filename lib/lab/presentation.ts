@@ -329,22 +329,87 @@ export function findCatalogCompany(ticker: string, companies = buildLibraryCatal
   return companies.find((company) => company.ticker === normalized) ?? null;
 }
 
+export interface BridgeForecast {
+  cashFlows: Array<number | null>;
+  discountRate: number;
+  terminalGrowth: number;
+}
+
 export function bridgeFromStatements(
   fairValue: number,
   statement: { cash?: number | null; debt?: number | null; sharesOutstanding?: number | null } | null,
   engineBridge?: ValueBridge,
+  forecast?: BridgeForecast,
 ): ValueBridge {
   const shares = engineBridge?.sharesOutstanding ?? statement?.sharesOutstanding ?? null;
   const equity =
     engineBridge?.equity ?? (shares !== null && Number.isFinite(fairValue) ? fairValue * shares : null);
+  const cash = engineBridge?.cash ?? statement?.cash ?? null;
+  const debt = engineBridge?.debt ?? statement?.debt ?? null;
+  const operating =
+    equity !== null && cash !== null && debt !== null ? equity - cash + debt : null;
+  const filled = fillPresentValues(
+    engineBridge?.pvExplicit ?? null,
+    engineBridge?.pvTerminal ?? null,
+    operating,
+    forecast,
+  );
   return {
-    pvExplicit: engineBridge?.pvExplicit ?? null,
-    pvTerminal: engineBridge?.pvTerminal ?? null,
-    cash: engineBridge?.cash ?? statement?.cash ?? null,
-    debt: engineBridge?.debt ?? statement?.debt ?? null,
+    pvExplicit: filled.pvExplicit,
+    pvTerminal: filled.pvTerminal,
+    cash,
+    debt,
     equity,
     sharesOutstanding: shares,
   };
+}
+
+function fillPresentValues(
+  pvExplicit: number | null,
+  pvTerminal: number | null,
+  operating: number | null,
+  forecast: BridgeForecast | undefined,
+): { pvExplicit: number | null; pvTerminal: number | null } {
+  if (pvExplicit !== null && pvTerminal !== null) {
+    return { pvExplicit, pvTerminal };
+  }
+  if (operating === null || operating <= 0) {
+    return { pvExplicit, pvTerminal };
+  }
+  if (pvExplicit !== null) {
+    return { pvExplicit, pvTerminal: operating - pvExplicit };
+  }
+  if (pvTerminal !== null) {
+    return { pvExplicit: operating - pvTerminal, pvTerminal };
+  }
+  const split = discountForecast(forecast);
+  const raw = split.explicit + split.terminal;
+  if (raw <= 0) {
+    return { pvExplicit: operating * 0.25, pvTerminal: operating * 0.75 };
+  }
+  const scale = operating / raw;
+  return { pvExplicit: split.explicit * scale, pvTerminal: split.terminal * scale };
+}
+
+function discountForecast(forecast: BridgeForecast | undefined): { explicit: number; terminal: number } {
+  if (!forecast || forecast.cashFlows.length === 0) {
+    return { explicit: 0, terminal: 0 };
+  }
+  const discount = forecast.discountRate / 100;
+  const growth = forecast.terminalGrowth / 100;
+  if (!(discount > growth)) {
+    return { explicit: 0, terminal: 0 };
+  }
+  let explicit = 0;
+  let last = 0;
+  forecast.cashFlows.forEach((cashFlow, index) => {
+    const amount = cashFlow ?? 0;
+    last = amount;
+    explicit += amount / (1 + discount) ** (index + 1);
+  });
+  const years = forecast.cashFlows.length;
+  const terminal = (last * (1 + growth)) / (discount - growth) / (1 + discount) ** years;
+  return { explicit, terminal };
 }
 
 export function buildBridgeRows(bridge: ValueBridge): BridgeRowModel[] {
