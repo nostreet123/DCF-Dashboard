@@ -101,6 +101,29 @@ export function parseLabStatus(value: string | null | undefined): LabStatus {
   return 'memo';
 }
 
+export function resolveLabPhase({
+  queryStatus,
+  workspaceMode,
+  hasError,
+  hasValue,
+}: {
+  queryStatus: LabStatus;
+  workspaceMode: string;
+  hasError: boolean;
+  hasValue: boolean;
+}): LabStatus {
+  if (queryStatus !== 'memo') {
+    return queryStatus;
+  }
+  if (workspaceMode === 'import') {
+    return 'import';
+  }
+  if (hasError && !hasValue) {
+    return 'unavailable';
+  }
+  return 'memo';
+}
+
 export function companyShortName(name: string): string {
   return name.replace(/\s+(Inc\.|Corp\.|Corporation|Incorporated|Ltd\.|Limited|Co\.)$/i, '').trim();
 }

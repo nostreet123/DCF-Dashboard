@@ -38,6 +38,7 @@ import {
   LAB_PATHS,
   parseLabStatus,
   projectionYearLabel,
+  resolveLabPhase,
   stepAssumption,
   type AssumptionKind,
   type LabStatus,
@@ -148,16 +149,18 @@ function LabMemoBody() {
     setSelectedRunId,
   ]);
 
-  const runValuation = useCallback((symbol: string, listingId: string | null) => {
-    setEnginePhase('computing');
-    setEngineResult(null);
+  const runValuation = useCallback((
+    symbol: string,
+    listingId: string | null,
+    assumptions = workbenchRef.current.assumptions,
+  ) => {
     const current = workbenchRef.current;
     void computeRef
       .current({
         symbol,
         listingId,
         scenario: current.scenario,
-        assumptions: current.assumptions,
+        assumptions,
       })
       .then((result) => {
         setEngineResult(result);
@@ -165,7 +168,10 @@ function LabMemoBody() {
         current.setSelectedRunId(null);
       })
       .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.message === 'Superseded' || error.message === 'Reset')
+        ) {
           return;
         }
         setEnginePhase('unavailable');
@@ -226,23 +232,14 @@ function LabMemoBody() {
     price,
   });
 
-  const realPhase: LabStatus = (() => {
-    if (dashboard.workspace.mode === 'import') {
-      return 'import';
-    }
-    if (!isDemo && dashboard.valuation.error && !dashboard.valuation.isReplayDisplay) {
-      return 'unavailable';
-    }
-    if (
-      !isDemo &&
-      dashboard.workspace.mode === 'valuation' &&
-      (dashboard.valuation.isComputing || fairValue === null)
-    ) {
-      return 'computing';
-    }
-    return 'memo';
-  })();
-  const phase: LabStatus = queryStatus !== 'memo' ? queryStatus : enginePhase !== 'memo' ? enginePhase : realPhase;
+  const phase = resolveLabPhase({
+    queryStatus,
+    workspaceMode: dashboard.workspace.mode,
+    hasError:
+      enginePhase === 'unavailable' ||
+      (!isDemo && Boolean(dashboard.valuation.error) && !dashboard.valuation.isReplayDisplay),
+    hasValue: fairValue !== null,
+  });
 
   const retry = () => {
     const params = new URLSearchParams({
@@ -254,18 +251,25 @@ function LabMemoBody() {
   };
 
   const changeAssumption = (kind: AssumptionKind, direction: -1 | 1) => {
-    setEngineResult(null);
     const next = stepAssumption(assumptions, kind, direction);
     const fieldForKind = assumptionFields().find((item) => item.kind === kind);
     if (!fieldForKind) {
       return;
     }
+    const scenarioNow = workbenchRef.current.scenario;
+    const nextAssumptions = {
+      ...workbenchRef.current.assumptions,
+      [scenarioNow]: next,
+    };
     dashboard.workspace.handleAssumptionChange(fieldForKind.key, next[fieldForKind.key]);
     if (kind === 'discount' && next.terminalGrowth !== assumptions.terminalGrowth) {
       dashboard.workspace.handleAssumptionChange('terminalGrowth', next.terminalGrowth);
     }
     if (kind === 'terminal' && next.discountRate !== assumptions.discountRate) {
       dashboard.workspace.handleAssumptionChange('discountRate', next.discountRate);
+    }
+    if (!isDemo && queryStatus === 'memo') {
+      runValuation(dashboard.company.activeTicker, workbenchRef.current.selectedCompanyId, nextAssumptions);
     }
   };
 

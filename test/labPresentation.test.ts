@@ -16,6 +16,7 @@ import {
   gapPhrase,
   LAB_DISCLAIMER,
   LAB_PATHS,
+  resolveLabPhase,
 } from '../lib/lab/presentation';
 
 describe('lab presentation', () => {
@@ -24,6 +25,39 @@ describe('lab presentation', () => {
     expect(LAB_PATHS.library).toBe('/library');
     expect(LAB_PATHS.history).toBe('/history');
     expect(LAB_PATHS.workbench).toBe('/workbench');
+  });
+
+  test('shows the computing screen only when that status was requested', () => {
+    expect(resolveLabPhase({
+      queryStatus: 'memo',
+      workspaceMode: 'valuation',
+      hasError: false,
+      hasValue: false,
+    })).toBe('memo');
+    expect(resolveLabPhase({
+      queryStatus: 'computing',
+      workspaceMode: 'valuation',
+      hasError: false,
+      hasValue: true,
+    })).toBe('computing');
+    expect(resolveLabPhase({
+      queryStatus: 'import',
+      workspaceMode: 'valuation',
+      hasError: false,
+      hasValue: false,
+    })).toBe('import');
+    expect(resolveLabPhase({
+      queryStatus: 'memo',
+      workspaceMode: 'valuation',
+      hasError: true,
+      hasValue: false,
+    })).toBe('unavailable');
+    expect(resolveLabPhase({
+      queryStatus: 'memo',
+      workspaceMode: 'valuation',
+      hasError: true,
+      hasValue: true,
+    })).toBe('memo');
   });
 
   test('describes the demo price gap and keeps the education disclaimer', () => {
