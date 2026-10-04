@@ -144,13 +144,10 @@
   font-weight: 500;
 }
 
-.primary {
+.primary.primary.primary,
+.primary.primary.primary:hover {
   border: 0;
   background: var(--ink);
-  color: #ffffff;
-}
-
-.primary:hover {
   color: #ffffff;
 }
 

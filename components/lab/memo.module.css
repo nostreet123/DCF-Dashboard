@@ -115,7 +115,7 @@
   font-weight: 500;
 }
 
-.chipSelected {
+.chip.chipSelected {
   border-color: var(--ink);
   background: var(--ink);
   color: #ffffff;

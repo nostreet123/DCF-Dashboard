@@ -101,7 +101,8 @@
   font-weight: 500;
 }
 
-.filterSelected {
+.filter.filterSelected,
+.filter.filterSelected .count {
   border-color: var(--ink);
   background: var(--ink);
   color: #ffffff;
@@ -192,13 +193,10 @@
   color: var(--ink);
 }
 
-.actionSolid {
+.action.actionSolid.actionSolid,
+.action.actionSolid.actionSolid:hover {
   border-color: var(--ink);
   background: var(--ink);
-  color: #ffffff;
-}
-
-.actionSolid:hover {
   color: #ffffff;
 }
 
@@ -221,7 +219,8 @@
   font-size: 15px;
 }
 
-.sec {
+.sec.sec.sec,
+.sec.sec.sec:hover {
   display: inline-flex;
   align-items: center;
   height: 44px;
@@ -231,10 +230,6 @@
   color: #ffffff;
   font-size: 14px;
   font-weight: 500;
-}
-
-.sec:hover {
-  color: #ffffff;
 }
 
 .footer {
