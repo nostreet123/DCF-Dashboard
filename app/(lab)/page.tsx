@@ -6,7 +6,7 @@ import { LabFrame } from '@/components/lab/LabFrame';
 import { LabMemo } from '@/components/lab/LabMemo';
 import { ComputingMemo } from '@/components/lab/LabStates';
 
-export default function LabMemoPage() {
+export default function MemoPage() {
   return (
     <Suspense
       fallback={

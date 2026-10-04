@@ -103,7 +103,7 @@ test.describe('admin settings visibility', () => {
 
   test.beforeEach(async ({ page }) => {
     await mockLiveValuation(page);
-    await page.goto('/');
+    await page.goto('/workbench');
     await expect(page.getByText('AAPL Fair Value')).toBeVisible({ timeout: 30_000 });
   });
 

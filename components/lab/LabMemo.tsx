@@ -35,6 +35,7 @@ import {
   formatStartingRevenue,
   gapPhrase,
   LAB_DISCLAIMER,
+  LAB_PATHS,
   parseLabStatus,
   projectionYearLabel,
   stepAssumption,
@@ -248,7 +249,7 @@ function LabMemoBody() {
       rerun: '1',
       ticker: dashboard.company.activeTicker,
     });
-    router.replace(`/lab?${params.toString()}`);
+    router.replace(`${LAB_PATHS.memo}?${params.toString()}`);
     setRetryNonce((value) => value + 1);
   };
 

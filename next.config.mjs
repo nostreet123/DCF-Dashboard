@@ -17,6 +17,13 @@ const nextConfig = {
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: assumePrecheckedBuild },
   outputFileTracingRoot: repoRoot,
+  async redirects() {
+    return [
+      { source: '/lab', destination: '/', permanent: false },
+      { source: '/lab/library', destination: '/library', permanent: false },
+      { source: '/lab/history', destination: '/history', permanent: false },
+    ];
+  },
   images: {
     remotePatterns: [
       {

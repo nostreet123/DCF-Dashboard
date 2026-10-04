@@ -15,9 +15,17 @@ import {
   formatAssumptionPercent,
   gapPhrase,
   LAB_DISCLAIMER,
+  LAB_PATHS,
 } from '../lib/lab/presentation';
 
 describe('lab presentation', () => {
+  test('puts the memo, library, and history on the front door', () => {
+    expect(LAB_PATHS.memo).toBe('/');
+    expect(LAB_PATHS.library).toBe('/library');
+    expect(LAB_PATHS.history).toBe('/history');
+    expect(LAB_PATHS.workbench).toBe('/workbench');
+  });
+
   test('describes the demo price gap and keeps the education disclaimer', () => {
     expect(gapPhrase(145.2, 152.35)).toBe('4.7% below');
     expect(demoDisclaimer('Illustrative demo data.')).toContain(LAB_DISCLAIMER);

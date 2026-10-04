@@ -87,7 +87,7 @@ test('dashboard harness smoke', async ({ page }) => {
     });
   });
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   await expect(page.getByText('DCF Lab')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Workbench' })).toBeVisible();

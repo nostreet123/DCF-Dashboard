@@ -4,7 +4,7 @@ import { isMobileProject, setRange } from './helpers/ui';
 test('desktop assumptions slider triggers recalculation', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only behavior.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const revenueGrowthSlider = page.getByRole('slider', { name: 'Revenue Growth' });
   await revenueGrowthSlider.focus();

@@ -171,7 +171,7 @@ export function TopBar({
             <HamburgerMenuIcon width={18} height={18} aria-hidden="true" />
           </button>
 
-          <Link href="/lab" className={styles.logo}>
+          <Link href="/" className={styles.logo}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="3" width="7" height="7" rx="1" fill="var(--accent-gold)" />
               <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor" opacity="0.55" />

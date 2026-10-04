@@ -5,9 +5,10 @@ import type { MockDatasetGroups } from '@/lib/workbench/mockData';
 import { mockDatasets, mockDemoReplaySnapshot, mockRunHistory } from '@/lib/workbench/mockData';
 
 export const LAB_PATHS = {
-  memo: '/lab',
-  library: '/lab/library',
-  history: '/lab/history',
+  memo: '/',
+  library: '/library',
+  history: '/history',
+  workbench: '/workbench',
 } as const;
 
 export const DEMO_MARKET_PRICE = 152.35;
