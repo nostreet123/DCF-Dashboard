@@ -6,6 +6,7 @@ import { readFairValue } from '@/lib/valuationHistory';
 import {
   buildWorkbenchPayloadFromFacts,
   getLatestAnnualStatement,
+  resolveReportingCurrency,
 } from '@/lib/workbench/factsPayload';
 
 export interface DcfInputs {
@@ -456,7 +457,7 @@ const buildProvenance = (
   symbol: facts.symbol,
   name: facts.name,
   cik: facts.cik,
-  currency: facts.filingCurrency ?? facts.currency ?? latest.currency,
+  currency: resolveReportingCurrency(facts, latest),
   source: facts.source,
   latestPeriodEnd: latest.period_end,
   latestFilingDate: latest.filing_date,

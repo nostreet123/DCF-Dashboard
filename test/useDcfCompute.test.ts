@@ -133,6 +133,14 @@ test('uses filing currency for provenance when listing currency differs', () => 
   expect(result.provenance.currency).toBe('EUR');
 });
 
+test('normalizes the same reported currency for provenance and compute inputs', () => {
+  const result = normalizeDcfComputeResponse(COMPUTE_PAYLOAD, 'base', {
+    ...FACTS_PAYLOAD, filingCurrency: ' ', currency: '',
+    statements: FACTS_PAYLOAD.statements.map((statement) => ({ ...statement, currency: ' eur ' })),
+  });
+  expect(result.provenance.currency).toBe('EUR');
+});
+
 describe('value bridge normalization', () => {
   test('reads snake_case bridge fields and sums signed discounted cash flows', () => {
     const result = normalizeDcfComputeResponse({

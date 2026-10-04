@@ -288,7 +288,7 @@ function LabMemoBody() {
           }
         />
       ) : null}
-      {phase === 'unavailable' ? <UnavailableMemo savedLabel={savedLabel} onRetry={retry} /> : null}
+      {phase === 'unavailable' ? <UnavailableMemo savedLabel={savedLabel} onRetry={retry} errorMessage={dashboard.valuation.error?.message} /> : null}
       {phase === 'memo' && fairValue !== null ? (
         <MemoDocument
           ticker={dashboard.company.activeTicker}
@@ -309,6 +309,7 @@ function LabMemoBody() {
           projections={projections}
           startingRevenue={statement?.revenue ?? null}
           disclaimer={isDemo ? demoDisclaimer('Illustrative demo data. The bridge is scaled to the demo equity value.') : LAB_DISCLAIMER}
+          readOnly={isDemo}
           onStep={changeAssumption}
           onScenario={pickScenario}
         />
@@ -336,6 +337,7 @@ function MemoDocument({
   projections,
   startingRevenue,
   disclaimer,
+  readOnly,
   onStep,
   onScenario,
 }: {
@@ -357,6 +359,7 @@ function MemoDocument({
   projections: ProjectionRow[];
   startingRevenue: number | null;
   disclaimer: string;
+  readOnly: boolean;
   onStep: (kind: AssumptionKind, direction: -1 | 1) => void;
   onScenario: (scenario: Scenario) => void;
 }) {
@@ -391,10 +394,10 @@ function MemoDocument({
           {price !== null ? <>, {gapPhrase(fairValue, price)} where it trades today.</> : '.'}
         </h1>
         <p className={styles.lede}>
-          If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} /> a year for {forecastPeriod} at a{' '}
-          <Stepper kind="margin" shown={margin} onStep={onStep} /> operating margin, and cash flows are discounted at{' '}
-          <Stepper kind="discount" shown={discount} onStep={onStep} /> with{' '}
-          <Stepper kind="terminal" shown={terminal} onStep={onStep} /> growth forever after.
+          If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} disabled={readOnly} /> a year for {forecastPeriod} at a{' '}
+          <Stepper kind="margin" shown={margin} onStep={onStep} disabled={readOnly} /> operating margin, and cash flows are discounted at{' '}
+          <Stepper kind="discount" shown={discount} onStep={onStep} disabled={readOnly} /> with{' '}
+          <Stepper kind="terminal" shown={terminal} onStep={onStep} disabled={readOnly} /> growth forever after.
         </p>
         <p className={styles.phoneLede}>
           If revenue grows <strong>{growth}</strong> a year at a <strong>{margin}</strong> margin, discounted at{' '}
@@ -404,12 +407,13 @@ function MemoDocument({
           {assumptionFields().map((fieldItem) => (
             <div key={fieldItem.kind} className={styles.stepRow}>
               <span className={styles.stepName}>{fieldItem.label}</span>
-              <Stepper kind={fieldItem.kind} shown={shown[fieldItem.kind]} onStep={onStep} />
+              <Stepper kind={fieldItem.kind} shown={shown[fieldItem.kind]} onStep={onStep} disabled={readOnly} />
             </div>
           ))}
         </div>
+        {readOnly ? <p className={styles.blockCopy}>Demo snapshot: assumptions and values are fixed.</p> : null}
         <div className={styles.cases}>
-          <span className={styles.caseLabel}>Start from a case</span>
+          <span className={styles.caseLabel}>{readOnly ? 'Saved demo case' : 'Start from a case'}</span>
           {SCENARIOS.map((item) => {
             const selected = scenario === item && label !== 'Your case';
             return (
@@ -418,6 +422,7 @@ function MemoDocument({
                 type="button"
                 className={cn(styles.chip, selected && styles.chipSelected)}
                 aria-pressed={selected}
+                disabled={readOnly}
                 onClick={() => onScenario(item)}
               >
                 {SCENARIO_LABELS[item]} · {formatSharePrice(scenarioMap[item], 0, currency)}
@@ -577,20 +582,22 @@ function Stepper({
   kind,
   shown,
   onStep,
+  disabled = false,
 }: {
   kind: AssumptionKind;
   shown: string;
   onStep: (kind: AssumptionKind, direction: -1 | 1) => void;
+  disabled?: boolean;
 }) {
   const field = assumptionFields().find((item) => item.kind === kind);
   const label = field?.label.toLowerCase() ?? 'assumption';
   return (
     <span className={styles.stepper}>
-      <button type="button" className={styles.step} aria-label={`Lower ${label}`} onClick={() => onStep(kind, -1)}>
+      <button type="button" className={styles.step} aria-label={`Lower ${label}`} disabled={disabled} onClick={() => onStep(kind, -1)}>
         −
       </button>
       <span className={styles.stepValue}>{shown}</span>
-      <button type="button" className={styles.step} aria-label={`Raise ${label}`} onClick={() => onStep(kind, 1)}>
+      <button type="button" className={styles.step} aria-label={`Raise ${label}`} disabled={disabled} onClick={() => onStep(kind, 1)}>
         +
       </button>
     </span>

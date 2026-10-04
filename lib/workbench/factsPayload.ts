@@ -133,6 +133,22 @@ const operatingIncomeOf = (statement: StatementFact): number | undefined =>
 const operatingMarginOf = (statement: StatementFact): number | undefined =>
   optionalStatementNumber(statement.operating_margin ?? statement.operatingMargin);
 
+export const resolveReportingCurrency = (
+  facts: CompanyFactsPayload,
+  latest: StatementFact,
+): string => {
+  const currency = [facts.filingCurrency, facts.currency, latest.currency]
+    .find((value) => typeof value === 'string' && value.trim().length > 0);
+  if (!currency) {
+    throw new Error(`${facts.symbol} reporting currency is missing. Confirm the filing currency before computing.`);
+  }
+  const normalized = currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(normalized)) {
+    throw new Error(`${facts.symbol} reporting currency is invalid. Confirm the filing currency before computing.`);
+  }
+  return normalized;
+};
+
 export const buildWorkbenchPayloadFromFacts = (
   inputs: WorkbenchInputs,
   facts: CompanyFactsPayload,
@@ -144,7 +160,7 @@ export const buildWorkbenchPayloadFromFacts = (
     primaryKeyNorm: facts.symbol.toLowerCase(),
     baseYear: getBaseYear(latest, facts.symbol),
     periods: MODEL_DEFAULTS.periods,
-    currency: facts.filingCurrency ?? facts.currency ?? latest.currency ?? 'USD',
+    currency: resolveReportingCurrency(facts, latest),
     revenueT0: requireStatementNumber(latest, 'revenue', facts.symbol),
     cash: optionalBalanceNumber(latest, 'cash'),
     debt: optionalBalanceNumber(latest, 'debt'),

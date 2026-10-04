@@ -61,7 +61,7 @@ test.describe('live Lab', () => {
     expect(requests.count()).toBe(2);
     requests.fail();
     await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Valuation error' }).getByRole('alert')).toBeVisible();
     await expect(page.getByRole('heading', { name: /looks worth/ })).toHaveCount(0);
     expect(requests.count()).toBe(3);
     await page.getByRole('button', { name: 'Try again' }).click();
@@ -81,6 +81,34 @@ test.describe('live Lab', () => {
     await expect(table.getByRole('cell').first()).toHaveText('€100');
     await expect(page.getByText(/USD billions/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Base · €/ })).toBeVisible();
+  });
+
+  test('missing reporting currency prevents compute, hides stale values, and explains recovery', async ({ page }) => {
+    const requests = await liveFixtures(page, 'EUR');
+    let hasCurrency = false;
+    await page.route('**/api/company/facts?**', (route) => route.fulfill({ json: {
+      symbol: 'MSFT', name: 'Microsoft Corporation',
+      ...(hasCurrency ? { filingCurrency: ' eur ' } : {}),
+      statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 100, cash: 10, debt: 50, shares_outstanding: 10 }],
+    } }));
+    await page.goto('/?ticker=MSFT');
+    await expect(page.getByRole('region', { name: 'Valuation error' }).getByRole('alert')).toContainText('MSFT reporting currency is missing');
+    await expect(page.getByRole('heading', { name: /looks worth/ })).toHaveCount(0);
+    await expect(page.getByText('USD billions', { exact: true })).toHaveCount(0);
+    expect(requests.count()).toBe(0);
+    hasCurrency = true;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('€100.00');
+    expect(requests.count()).toBe(1);
+    hasCurrency = false;
+    await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
+    await expect(page.getByRole('region', { name: 'Valuation error' }).getByRole('alert')).toContainText('MSFT reporting currency is missing');
+    await expect(page.getByRole('heading', { name: /looks worth/ })).toHaveCount(0);
+    expect(requests.count()).toBe(1);
+    hasCurrency = true;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('€110.00');
+    expect(requests.count()).toBe(2);
   });
 
   test('a live ticker rerun computes the requested company without an Apple request', async ({ page }) => {
@@ -137,6 +165,27 @@ test.describe('demo Lab', () => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Apple looks worth $145.20');
     await expect(page.getByRole('table').getByRole('cell')).toHaveCount(25);
+  });
+
+  test('the saved demo snapshot keeps assumptions and values fixed on desktop and mobile', async ({ page }) => {
+    let computes = 0;
+    page.on('request', (request) => { if (request.url().includes('/api/dcf/preview')) computes += 1; });
+    await page.goto('/');
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(page.getByText('Demo snapshot: assumptions and values are fixed.')).toBeVisible();
+      for (const step of await page.getByRole('button', { name: /^(Raise|Lower) / }).all()) {
+        await expect(step).toBeDisabled();
+      }
+      for (const name of ['Bear', 'Base', 'Bull']) {
+        await expect(page.getByRole('button', { name: new RegExp('^' + name + ' ·') })).toBeDisabled();
+      }
+      await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first()
+        .evaluate((button: HTMLButtonElement) => button.click());
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('Apple looks worth $145.20');
+      await expect(page.getByText('Your case', { exact: true })).toHaveCount(0);
+    }
+    expect(computes).toBe(0);
   });
 
   test('result-only entries cannot open or rerun an Apple memo', async ({ page }) => {

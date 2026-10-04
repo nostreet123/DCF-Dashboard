@@ -97,18 +97,21 @@ export function ImportMemo({
 export function UnavailableMemo({
   savedLabel,
   onRetry,
+  errorMessage,
 }: {
   savedLabel: string;
   onRetry: () => void;
+  errorMessage?: string;
 }) {
   return (
-    <section className={styles.page} aria-label="Engine error">
-      <span className={styles.eyebrow}>03 · Valuation engine unavailable</span>
+    <section className={styles.page} aria-label="Valuation error">
+      <span className={styles.eyebrow}>03 · Valuation unavailable</span>
       <div className={`${styles.card} ${styles.alert}`} role="alert">
         <div className={`${styles.kicker} ${styles.alertKicker}`}>Unable to finish this memo</div>
-        <h1 className={styles.title}>The valuation engine didn&apos;t respond.</h1>
+        <h1 className={styles.title}>This memo could not be calculated.</h1>
+        {errorMessage ? <p className={styles.copy}>{errorMessage}</p> : null}
         <p className={styles.copy}>
-          Your assumptions are kept. Try again, or {savedLabel} while the engine recovers.
+          Your assumptions are kept. Check the reported data and try again, or {savedLabel}.
         </p>
         <div className={styles.actions}>
           <button type="button" className={styles.primary} onClick={onRetry}>
