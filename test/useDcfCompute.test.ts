@@ -125,6 +125,14 @@ const jsonResponse = (payload: unknown) =>
     headers: { "Content-Type": "application/json" },
   });
 
+test('uses filing currency for provenance when listing currency differs', () => {
+  const result = normalizeDcfComputeResponse({ base: { valuation: { fairValuePerShare: 100 } }, sensitivity: { values: [[100]] } }, 'base', {
+    symbol: 'TEST', currency: 'USD', filingCurrency: 'EUR',
+    statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 500_000, shares_outstanding: 1000 }],
+  });
+  expect(result.provenance.currency).toBe('EUR');
+});
+
 describe('value bridge normalization', () => {
   test('reads snake_case bridge fields and sums signed discounted cash flows', () => {
     const result = normalizeDcfComputeResponse({

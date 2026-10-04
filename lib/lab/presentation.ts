@@ -136,11 +136,13 @@ export function companyShortName(name: string): string {
   return name.replace(/\s+(Inc\.|Corp\.|Corporation|Incorporated|Ltd\.|Limited|Co\.)$/i, '').trim();
 }
 
-export function formatSharePrice(value: number, digits = 2): string {
-  return `$${value.toLocaleString('en-US', {
+export function formatSharePrice(value: number, digits = 2, currency = 'USD'): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
-  })}`;
+  }).format(value);
 }
 
 export function formatAssumptionPercent(value: number, kind: AssumptionKind): string {
@@ -158,23 +160,22 @@ export function gapPhrase(fairValue: number, price: number): string {
 }
 
 export function formatBillions(dollars: number): string {
-  const scaled = Math.abs(dollars) >= 1_000_000 ? dollars / 1_000_000_000 : dollars;
+  const scaled = dollars / 1_000_000_000;
   return scaled.toLocaleString('en-US', {
     minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
+    maximumFractionDigits: Math.abs(scaled) >= 0.1 ? 1 : 9,
   });
 }
 
-export function formatStartingRevenue(dollars: number): string {
+export function formatStartingRevenue(dollars: number, currency = 'USD'): string {
   if (Math.abs(dollars) < 1_000_000) {
-    return `$${dollars.toLocaleString('en-US', { maximumFractionDigits: 1 })}`;
+    return formatSharePrice(dollars, 1, currency);
   }
   const billions = dollars / 1_000_000_000;
-  const digits = Number.isInteger(Math.round(billions * 10) / 10) && Number.isInteger(billions) ? 0 : 1;
-  return `$${billions.toLocaleString('en-US', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}B`;
+  return `${new Intl.NumberFormat('en-US', {
+    style: 'currency', currency, minimumFractionDigits: 0,
+    maximumFractionDigits: Math.abs(billions) >= 0.1 ? 1 : 9,
+  }).format(billions)}B`;
 }
 
 export function formatShareCount(shares: number): string {
@@ -444,7 +445,7 @@ function discountForecast(forecast: BridgeForecast | undefined): { explicit: num
   return { explicit, terminal };
 }
 
-export function buildBridgeRows(bridge: ValueBridge): BridgeRowModel[] {
+export function buildBridgeRows(bridge: ValueBridge, forecastYears?: number): BridgeRowModel[] {
   const rows: Array<{
     label: string;
     amount: number | null;
@@ -452,7 +453,7 @@ export function buildBridgeRows(bridge: ValueBridge): BridgeRowModel[] {
     emphasis: boolean;
     signed: 'none' | 'plus' | 'minus';
   }> = [
-    { label: 'PV of 5-year cash flow', amount: bridge.pvExplicit, tone: 'explicit', emphasis: false, signed: 'none' },
+    { label: forecastYears ? `PV of ${forecastYears}-year cash flow` : 'PV of explicit cash flow', amount: bridge.pvExplicit, tone: 'explicit', emphasis: false, signed: 'none' },
     { label: 'PV of terminal value', amount: bridge.pvTerminal, tone: 'terminal', emphasis: false, signed: 'plus' },
     { label: 'Plus cash', amount: bridge.cash, tone: 'cash', emphasis: false, signed: 'plus' },
     { label: 'Less debt', amount: bridge.debt, tone: 'debt', emphasis: false, signed: 'minus' },
@@ -496,6 +497,7 @@ export function buildValueMarks(input: {
   memo: number;
   price: number | null;
   compact?: boolean;
+  currency?: string;
 }): { marks: ValueMark[]; bandLeft: number; bandWidth: number; alt: string } {
   const values = [input.bear, input.bull, input.memo, input.price].filter(
     (value): value is number => value !== null,
@@ -508,8 +510,8 @@ export function buildValueMarks(input: {
     {
       label: 'Bear',
       compactLabel: 'Bear',
-      value: formatSharePrice(input.bear, 0),
-      compactValue: formatSharePrice(input.bear, 0),
+      value: formatSharePrice(input.bear, 0, input.currency),
+      compactValue: formatSharePrice(input.bear, 0, input.currency),
       left: pos(input.bear),
       placement: 'above',
       emphasis: false,
@@ -517,8 +519,8 @@ export function buildValueMarks(input: {
     {
       label: 'Bull',
       compactLabel: 'Bull',
-      value: formatSharePrice(input.bull, 0),
-      compactValue: formatSharePrice(input.bull, 0),
+      value: formatSharePrice(input.bull, 0, input.currency),
+      compactValue: formatSharePrice(input.bull, 0, input.currency),
       left: pos(input.bull),
       placement: 'above',
       emphasis: false,
@@ -528,8 +530,8 @@ export function buildValueMarks(input: {
     marks.push({
       label: 'Price',
       compactLabel: 'Price',
-      value: formatSharePrice(input.price),
-      compactValue: formatSharePrice(input.price, 0),
+      value: formatSharePrice(input.price, 2, input.currency),
+      compactValue: formatSharePrice(input.price, 0, input.currency),
       left: pos(input.price),
       placement: 'above',
       emphasis: false,
@@ -538,19 +540,19 @@ export function buildValueMarks(input: {
   marks.push({
     label: 'This memo',
     compactLabel: 'Memo',
-    value: formatSharePrice(input.memo),
-    compactValue: formatSharePrice(input.memo, 0),
+    value: formatSharePrice(input.memo, 2, input.currency),
+    compactValue: formatSharePrice(input.memo, 0, input.currency),
     left: pos(input.memo),
     placement: 'below',
     emphasis: true,
   });
   const altParts = [
-    `Bear ${formatSharePrice(input.bear)}`,
-    `this memo ${formatSharePrice(input.memo)}`,
-    `bull ${formatSharePrice(input.bull)}`,
+    `Bear ${formatSharePrice(input.bear, 2, input.currency)}`,
+    `this memo ${formatSharePrice(input.memo, 2, input.currency)}`,
+    `bull ${formatSharePrice(input.bull, 2, input.currency)}`,
   ];
   if (input.price !== null) {
-    altParts.push(`price ${formatSharePrice(input.price)}`);
+    altParts.push(`price ${formatSharePrice(input.price, 2, input.currency)}`);
   }
   return {
     marks,
@@ -581,6 +583,7 @@ export function buildSensitivityGrid(input: {
   baseDiscount: number;
   price: number | null;
   compact: boolean;
+  currency?: string;
 }): { cells: SensitivityCell[]; columns: number } {
   const growthTargets = [-2, -1, 0, 1, 2];
   const waccTargets = [-1, -0.5, 0, 0.5, 1];
@@ -614,7 +617,7 @@ export function buildSensitivityGrid(input: {
       const isBase = (input.growthOffsets[growthIndex] ?? 1) === 0 && (input.waccOffsets[waccIndex] ?? 1) === 0;
       const abovePrice = typeof value === 'number' && input.price !== null && value >= input.price;
       cells.push({
-        text: typeof value === 'number' ? (input.compact ? value.toFixed(0) : formatSharePrice(value, 0)) : '—',
+        text: typeof value === 'number' ? (input.compact ? value.toFixed(0) : formatSharePrice(value, 0, input.currency)) : '—',
         role: 'value',
         abovePrice,
         isBase,

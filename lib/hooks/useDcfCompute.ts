@@ -166,6 +166,7 @@ type EdgarStatement = {
 };
 
 type EdgarFacts = {
+  filingCurrency?: string | null;
   symbol: string;
   name?: string | null;
   cik?: string | null;
@@ -455,7 +456,7 @@ const buildProvenance = (
   symbol: facts.symbol,
   name: facts.name,
   cik: facts.cik,
-  currency: facts.currency ?? latest.currency,
+  currency: facts.filingCurrency ?? facts.currency ?? latest.currency,
   source: facts.source,
   latestPeriodEnd: latest.period_end,
   latestFilingDate: latest.filing_date,

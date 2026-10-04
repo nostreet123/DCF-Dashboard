@@ -14,6 +14,10 @@ import {
   filterLibrary,
   formatAssumptionPercent,
   gapPhrase,
+  formatBillions,
+  formatSharePrice,
+  formatStartingRevenue,
+  buildValueMarks,
   LAB_DISCLAIMER,
   LAB_PATHS,
   isDemoMemoAvailable,
@@ -21,6 +25,29 @@ import {
 } from '../lib/lab/presentation';
 
 describe('lab presentation', () => {
+  test('uses one billions scale above and below a million, preserving signs', () => {
+    expect(formatBillions(500_000)).toBe('0.0005');
+    expect(formatBillions(1_000_000)).toBe('0.001');
+    expect(formatBillions(-500_000)).toBe('-0.0005');
+    expect(formatBillions(1_000_000_000)).toBe('1.0');
+    expect(formatBillions(0)).toBe('0.0');
+  });
+
+  test('formats memo values and accessible marks in their result currency', () => {
+    expect(formatSharePrice(100, 2, 'EUR')).toBe('€100.00');
+    expect(formatStartingRevenue(500_000, 'EUR')).toBe('€500,000.0');
+    expect(formatStartingRevenue(1_000_000, 'EUR')).toBe('€0.001B');
+    expect(buildValueMarks({ bear: 80, bull: 120, memo: 100, price: null, currency: 'EUR' }).alt).toContain('€100.00');
+    expect(buildSensitivityGrid({ matrix: [[100]], growthOffsets: [0], waccOffsets: [0], baseGrowth: 12, baseDiscount: 9, price: null, compact: false, currency: 'EUR' }).cells.at(-1)?.text).toBe('€100');
+  });
+
+  test('labels the bridge with the actual forecast horizon', () => {
+    const bridge = { pvExplicit: 1e9, pvTerminal: 2e9, cash: 0, debt: 0, equity: 3e9, sharesOutstanding: 1e8 };
+    expect(buildBridgeRows(bridge, 10)[0]?.label).toBe('PV of 10-year cash flow');
+    expect(buildBridgeRows(bridge, 5)[0]?.label).toBe('PV of 5-year cash flow');
+    expect(buildBridgeRows(bridge)[0]?.label).toBe('PV of explicit cash flow');
+  });
+
   test('puts the memo, library, and history on the front door', () => {
     expect(LAB_PATHS.memo).toBe('/');
     expect(LAB_PATHS.library).toBe('/library');
@@ -103,7 +130,7 @@ describe('lab presentation', () => {
       equity: 309.4, sharesOutstanding: 10,
     });
     expect(rows[0]?.amount).toBe(-63.6);
-    expect(rows[0]?.valueLabel).toBe('−63.6');
+    expect(rows[0]?.valueLabel).toBe('−0.000000064');
     expect(rows.filter((row) => !row.emphasis).reduce((sum, row) => sum + row.amount, 0)).toBeCloseTo(309.4);
     for (const row of rows) {
       expect(row.left).toBeGreaterThanOrEqual(0);
@@ -152,7 +179,7 @@ describe('lab presentation', () => {
     });
     const rows = buildBridgeRows(bridge);
     expect(rows.map((row) => row.label)).toEqual([
-      'PV of 5-year cash flow',
+      'PV of explicit cash flow',
       'PV of terminal value',
       'Plus cash',
       'Less debt',

@@ -165,6 +165,7 @@ function LabMemoBody() {
   const fairValue = isDemo ? scenarioMap[scenario] : dashboard.valuation.currentValue;
   const price = isDemo ? DEMO_MARKET_PRICE : null;
   const projections = readProjections(details);
+  const currency = details?.provenance?.currency ?? dashboard.valuation.displayCurrency;
   const statement = readStatement(details);
   const bridgeModel = bridgeFromStatements(fairValue ?? 0, statement, readBridge(details), isDemo ? {
       cashFlows: projections.map((row) => row.freeCashFlow),
@@ -172,7 +173,7 @@ function LabMemoBody() {
       terminalGrowth: assumptions.terminalGrowth,
     } : undefined);
   const bridge = bridgeModel.pvExplicit !== null && bridgeModel.pvTerminal !== null
-    ? buildBridgeRows(bridgeModel) : [];
+    ? buildBridgeRows(bridgeModel, projections.length) : [];
   const sensitivitySource = dashboard.valuation.sensitivityMatrix ?? [];
   const offsets = isDemo ? demoSensitivityOffsets() : readOffsets(details);
   const sensitivity = buildSensitivityGrid({
@@ -183,12 +184,14 @@ function LabMemoBody() {
     baseDiscount: assumptions.discountRate,
     price,
     compact,
+    currency,
   });
   const field = buildValueMarks({
     bear: scenarioMap.bear,
     bull: scenarioMap.bull,
     memo: fairValue ?? scenarioMap.base,
     price,
+    currency,
   });
 
   const phase = resolveLabPhase({
@@ -293,6 +296,7 @@ function LabMemoBody() {
           shortName={shortName}
           label={activeLabel}
           fairValue={fairValue}
+          currency={currency}
           price={price}
           assumptions={assumptions}
           scenario={scenario}
@@ -319,6 +323,7 @@ function MemoDocument({
   shortName,
   label,
   fairValue,
+  currency,
   price,
   assumptions,
   scenario,
@@ -339,6 +344,7 @@ function MemoDocument({
   shortName: string;
   label: string;
   fairValue: number;
+  currency: string;
   price: number | null;
   assumptions: Assumptions;
   scenario: Scenario;
@@ -354,7 +360,8 @@ function MemoDocument({
   onStep: (kind: AssumptionKind, direction: -1 | 1) => void;
   onScenario: (scenario: Scenario) => void;
 }) {
-  const fairLabel = formatSharePrice(fairValue);
+  const fairLabel = formatSharePrice(fairValue, 2, currency);
+  const forecastPeriod = projections.length ? `${projections.length} ${projections.length === 1 ? "year" : "years"}` : "the forecast period";
   const growth = formatAssumptionPercent(assumptions.revenueGrowth, 'growth');
   const margin = formatAssumptionPercent(assumptions.operatingMargin, 'margin');
   const discount = formatAssumptionPercent(assumptions.discountRate, 'discount');
@@ -384,7 +391,7 @@ function MemoDocument({
           {price !== null ? <>, {gapPhrase(fairValue, price)} where it trades today.</> : '.'}
         </h1>
         <p className={styles.lede}>
-          If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} /> a year for five years at a{' '}
+          If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} /> a year for {forecastPeriod} at a{' '}
           <Stepper kind="margin" shown={margin} onStep={onStep} /> operating margin, and cash flows are discounted at{' '}
           <Stepper kind="discount" shown={discount} onStep={onStep} /> with{' '}
           <Stepper kind="terminal" shown={terminal} onStep={onStep} /> growth forever after.
@@ -413,7 +420,7 @@ function MemoDocument({
                 aria-pressed={selected}
                 onClick={() => onScenario(item)}
               >
-                {SCENARIO_LABELS[item]} · {formatSharePrice(scenarioMap[item], 0)}
+                {SCENARIO_LABELS[item]} · {formatSharePrice(scenarioMap[item], 0, currency)}
               </button>
             );
           })}
@@ -423,7 +430,7 @@ function MemoDocument({
       <section className={styles.section} aria-label="Where the value lands">
         <div className={styles.sectionHead}>
           <h2 className={styles.sectionTitle}>Where the value lands</h2>
-          <span className={`${styles.sectionMeta} ${styles.fullOnly}`}>Per share, against today&apos;s price</span>
+          <span className={`${styles.sectionMeta} ${styles.fullOnly}`}>{price !== null ? "Per share, against today’s price" : `Fair value per share, ${currency}`}</span>
         </div>
         <div className={styles.field} role="img" aria-label={field.alt}>
           <div className={styles.fieldLine} />
@@ -456,7 +463,7 @@ function MemoDocument({
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <h2 className={styles.sectionTitle}>From cash flow to share price</h2>
-          <span className={`${styles.sectionMeta} ${styles.fullOnly}`}>USD billions</span>
+          <span className={`${styles.sectionMeta} ${styles.fullOnly}`}>{currency} billions</span>
         </div>
         <div>
           {bridge.length === 0 ? <p className={styles.blockCopy}>The present-value breakdown is unavailable for this result.</p> : null}
@@ -492,14 +499,14 @@ function MemoDocument({
         <div className={styles.block}>
           <h2 className={styles.blockTitle}>If we&apos;re wrong</h2>
           <p className={cn(styles.blockCopy, styles.fullOnly)}>
-            Fair value per share as growth (across) and the discount rate (down) shift from the memo&apos;s case. Shaded cells sit above today&apos;s price.
+            Fair value per share as growth (across) and the discount rate (down) shift from the memo&apos;s case. {price !== null ? "Shaded cells sit above today’s price." : "A current market price is unavailable."}
           </p>
           <p className={cn(styles.blockCopy, styles.phoneNote)}>
-            Growth across, discount rate down. Shaded cells sit above today&apos;s price.
+            Growth across, discount rate down. {price !== null ? "Shaded cells sit above today’s price." : "A current market price is unavailable."}
           </p>
           <div className={styles.scroll}>
             <table className={styles.sens} aria-label="Sensitivity grid of fair values">
-              <caption className={styles.visuallyHidden}>Fair value per share; revenue growth across columns, discount rate down rows.</caption>
+              <caption className={styles.visuallyHidden}>Fair value per share in {currency}; revenue growth across columns, discount rate down rows.</caption>
               <thead><tr>
                 {sensitivity.cells.slice(0, sensitivity.columns).map((cell, index) => (
                   <th key={index} scope="col" className={cn(styles.sensCell, styles.sensHeader)}>
@@ -523,10 +530,10 @@ function MemoDocument({
           </div>
         </div>
         <div className={styles.block}>
-          <h2 className={styles.blockTitle}>The five years modeled</h2>
+          <h2 className={styles.blockTitle}>{projections.length ? `The ${forecastPeriod} modeled` : "The modeled forecast"}</h2>
           {startingRevenue !== null ? (
             <p className={cn(styles.blockCopy, styles.desktopNote)}>
-              Starting from {formatStartingRevenue(startingRevenue)} of revenue. USD billions.
+              Starting from {formatStartingRevenue(startingRevenue, currency)} of revenue. {currency} billions.
             </p>
           ) : null}
           <div className={styles.scroll}>
@@ -557,7 +564,7 @@ function MemoDocument({
             </div>
           </div>
           {startingRevenue !== null ? (
-            <span className={styles.phoneNote}>USD billions, from {formatStartingRevenue(startingRevenue)} of revenue.</span>
+            <span className={styles.phoneNote}>{currency} billions, from {formatStartingRevenue(startingRevenue, currency)} of revenue.</span>
           ) : null}
         </div>
       </section>

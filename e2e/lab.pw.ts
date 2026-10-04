@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const isDemo = process.env.NEXT_PUBLIC_DCF_DASHBOARD_MODE === 'demo';
 
-async function liveFixtures(page: Page) {
+async function liveFixtures(page: Page, currency = 'USD') {
   const symbols: string[] = [];
   let computes = 0;
   let failNext = false;
@@ -12,7 +12,7 @@ async function liveFixtures(page: Page) {
     symbols.push(symbol);
     await route.fulfill({ json: {
       symbol, name: symbol === 'MSFT' ? 'Microsoft Corporation' : symbol === 'NVDA' ? 'NVIDIA Corp.' : 'Apple Inc.',
-      currency: 'USD', statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 100, cash: 10, debt: 50, shares_outstanding: 10 }],
+      currency: 'USD', filingCurrency: currency, statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 100, cash: 10, debt: 50, shares_outstanding: 10 }],
     } });
   });
   await page.route('**/api/dcf/preview?**', async (route) => {
@@ -23,13 +23,15 @@ async function liveFixtures(page: Page) {
       return;
     }
     const input = route.request().postDataJSON();
+    expect(input.currency).toBe(currency);
+    expect(input.periods).toBe(10);
     const fair = input.base.revenueGrowth > 0.12 ? 110 : 100;
     const scenario = (value: number) => ({
       valuation: { fairValuePerShare: value },
       trace: {
         discounting: { pv_fcff: [-31.8, -31.8], pv_terminal: value * 10 + 103.6 },
         bridge: { cash: 10, debt: 50, equity_value: value * 10, shares_outstanding: 10 },
-        forecast: { years: [2026], revenue: [110], ebit: [22], nopat: [16.5], fcff: [-35] },
+        forecast: { years: Array.from({ length: input.periods }, (_, i) => 2026 + i), revenue: Array(input.periods).fill(500_000), ebit: Array(input.periods).fill(100_000), nopat: Array(input.periods).fill(75_000), fcff: Array(input.periods).fill(-35) },
       },
     });
     await route.fulfill({ json: {
@@ -53,7 +55,7 @@ test.describe('live Lab', () => {
     await expect(table.getByRole('cell')).toHaveCount(25);
     await expect(table.getByRole('columnheader')).toHaveCount(6);
     await expect(table.getByRole('rowheader')).toHaveCount(5);
-    await expect(page.getByText('−63.6', { exact: true })).toBeVisible();
+    await expect(page.getByText('−0.000000064', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
     expect(requests.count()).toBe(2);
@@ -65,6 +67,20 @@ test.describe('live Lab', () => {
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
     expect(requests.count()).toBe(4);
+  });
+
+  test('EUR memo labels ten years and uses consistent billions throughout', async ({ page }) => {
+    await liveFixtures(page, 'EUR');
+    await page.goto('/?ticker=MSFT');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('€100.00');
+    await expect(page.getByText(/a year for 10 years/)).toBeVisible();
+    await expect(page.getByText('PV of 10-year cash flow', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The 10 years modeled' })).toBeVisible();
+    await expect(page.getByText('0.0005', { exact: true })).toHaveCount(10);
+    const table = page.getByRole('table', { name: 'Sensitivity grid of fair values' });
+    await expect(table.getByRole('cell').first()).toHaveText('€100');
+    await expect(page.getByText(/USD billions/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Base · €/ })).toBeVisible();
   });
 
   test('a live ticker rerun computes the requested company without an Apple request', async ({ page }) => {
