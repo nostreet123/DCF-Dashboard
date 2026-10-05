@@ -16,6 +16,7 @@ import {
   LAB_PATHS,
   libraryAction,
   libraryMemoHref,
+  withLatestMemo,
   type LabCompany,
   type LibraryFilter,
 } from '@/lib/lab/presentation';
@@ -133,7 +134,7 @@ function LiveLibrary() {
     if (!latest) {
       return entry;
     }
-    return { ...entry, lastValue: latest.value, lastAt: new Date(latest.at) };
+    return withLatestMemo(entry, latest);
   });
   const shown = filterLibrary(companies, '', filter);
 

@@ -26,6 +26,8 @@ export interface ValueBridge {
 }
 
 export interface DcfResult {
+  /** Input snapshot belonging to this completed computation, never the current editor state. */
+  computedInputs?: DcfInputs;
   fairValue: number;
   range?: [number, number];
   histogram?: {
@@ -565,6 +567,14 @@ export function buildComputeFns(
 ) {
   const compute = (inputs: DcfInputs): Promise<DcfResult> => {
     const myRequestId = ++refs.requestId;
+    const inputSnapshot: DcfInputs = {
+      ...inputs,
+      assumptions: {
+        bear: { ...inputs.assumptions.bear },
+        base: { ...inputs.assumptions.base },
+        bull: { ...inputs.assumptions.bull },
+      },
+    };
 
     // Clear any pending debounce and reject the superseded promise
     if (refs.debounceTimer) {
@@ -595,7 +605,10 @@ export function buildComputeFns(
         refs.abortController = controller;
 
         try {
-          const data = await computeDcf(inputs, controller.signal);
+          const data = {
+            ...await computeDcf(inputSnapshot, controller.signal),
+            computedInputs: inputSnapshot,
+          };
 
           if (refs.requestId === myRequestId) {
             cbs.setResult(data);

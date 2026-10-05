@@ -2,6 +2,7 @@ import type { CompanySearchResult } from '@/lib/contracts/company';
 import type { ValueBridge } from '@/lib/hooks/useDcfCompute';
 import type { Assumptions, Scenario } from '@/lib/workbench/scenarioProfiles';
 import { scenarioAssumptionDefaults } from '@/lib/workbench/scenarioProfiles';
+import type { SessionMemoRun } from '@/lib/lab/sessionRuns';
 import type { MockDatasetGroups } from '@/lib/workbench/mockData';
 import { mockDatasets, mockDemoReplaySnapshot, mockRunHistory } from '@/lib/workbench/mockData';
 
@@ -30,6 +31,7 @@ export interface LabCompany {
   ready: boolean;
   lastValue: number | null;
   lastAt: Date | null;
+  currency?: string | null;
 }
 
 export interface LabHistoryRun {
@@ -39,6 +41,7 @@ export interface LabHistoryRun {
   shortName: string;
   value: number;
   at: Date;
+  currency?: string | null;
   scenarioLabel: string;
   assumptions: Assumptions | null;
 }
@@ -144,6 +147,21 @@ export function formatSharePrice(value: number, digits = 2, currency = 'USD'): s
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(value);
+}
+
+export function formatSharePriceWhenCurrencyKnown(
+  value: number,
+  currency: string | null | undefined,
+  digits = 2,
+): string {
+  const normalizedCurrency = currency?.trim().toUpperCase();
+  if (!normalizedCurrency) {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value);
+  }
+  return formatSharePrice(value, digits, normalizedCurrency);
 }
 
 export function formatAssumptionPercent(value: number, kind: AssumptionKind): string {
@@ -296,6 +314,20 @@ export function caseLabel(
   return 'Base case';
 }
 
+export function sessionRunToHistoryRun(run: SessionMemoRun): LabHistoryRun {
+  return {
+    id: run.id,
+    ticker: run.ticker,
+    name: run.name,
+    shortName: companyShortName(run.name),
+    value: run.value,
+    at: new Date(run.at),
+    currency: run.currency,
+    scenarioLabel: caseLabel(run.scenario, run.assumptions[run.scenario]),
+    assumptions: run.assumptions[run.scenario],
+  };
+}
+
 export function stepAssumption(
   assumptions: Assumptions,
   kind: AssumptionKind,
@@ -325,13 +357,18 @@ export function assumptionFields(): typeof ASSUMPTION_FIELDS {
 
 export function buildLibraryCatalog(
   datasets: MockDatasetGroups = mockDatasets,
-  runs: Array<{ ticker: string; value: number; timestamp: Date }> = mockRunHistory,
+  runs: Array<{ ticker: string; value: number; timestamp: Date; currency?: string | null }> =
+    mockRunHistory.map((run) => ({ ...run, currency: 'USD' })),
 ): LabCompany[] {
-  const latestByTicker = new Map<string, { value: number; timestamp: Date }>();
+  const latestByTicker = new Map<string, { value: number; timestamp: Date; currency: string | null }>();
   for (const run of runs) {
     const current = latestByTicker.get(run.ticker);
     if (!current || run.timestamp.getTime() > current.timestamp.getTime()) {
-      latestByTicker.set(run.ticker, { value: run.value, timestamp: run.timestamp });
+      latestByTicker.set(run.ticker, {
+        value: run.value,
+        timestamp: run.timestamp,
+        currency: run.currency ?? null,
+      });
     }
   }
 
@@ -346,6 +383,7 @@ export function buildLibraryCatalog(
         ready: item.ticker === 'AAPL',
         lastValue: last?.value ?? null,
         lastAt: last?.timestamp ?? null,
+        currency: last?.currency ?? null,
       };
     }),
   );
@@ -380,6 +418,19 @@ export function companyFromSearch(company: CompanySearchResult): LabCompany {
     ready: company.coverageState === 'valuation_ready',
     lastValue: null,
     lastAt: null,
+    currency: company.currency ?? null,
+  };
+}
+
+export function withLatestMemo(
+  company: LabCompany,
+  memo: { value: number; at: string; currency: string },
+): LabCompany {
+  return {
+    ...company,
+    lastValue: memo.value,
+    lastAt: new Date(memo.at),
+    currency: memo.currency,
   };
 }
 
@@ -432,7 +483,7 @@ export function formatLastMemo(company: LabCompany): string {
   if (company.lastValue === null || company.lastAt === null) {
     return '—';
   }
-  return `${formatSharePrice(company.lastValue)} · ${formatLabDay(company.lastAt)}`;
+  return `${formatSharePriceWhenCurrencyKnown(company.lastValue, company.currency)} · ${formatLabDay(company.lastAt)}`;
 }
 
 export function buildDemoHistory(): LabHistoryRun[] {
@@ -450,6 +501,7 @@ export function buildDemoHistory(): LabHistoryRun[] {
       shortName: companyShortName(name),
       value: run.value,
       at: run.timestamp,
+      currency: 'USD',
       scenarioLabel: assumptions ? 'Base case' : 'Result-only demo',
       assumptions,
     };

@@ -84,6 +84,50 @@ test.describe('live Lab', () => {
     await expect(table.getByRole('cell').first()).toHaveText('€100');
     await expect(page.getByText(/USD billions/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Base · €/ })).toBeVisible();
+    await page.getByRole('link', { name: 'Run history', exact: true }).click();
+    await expect(page).toHaveURL(/\/history$/);
+    await expect(page.getByRole('button', { name: /MSFT · Base case/ })).toContainText('€100.00');
+    await expect(page.getByRole('heading', { level: 2 })).toContainText('€100.00');
+    await expect(page.getByText('$100.00', { exact: true })).toHaveCount(0);
+    await page.route('**/api/company/search?**', (route) => route.fulfill({ json: {
+      results: [{ id: 'company-msft', symbol: 'MSFT', name: 'Microsoft Corporation', currency: 'USD', coverageState: 'valuation_ready', sourceLinks: [] }],
+    } }));
+    await page.getByRole('link', { name: 'Library', exact: true }).first().click();
+    await page.getByLabel('Search companies').fill('MSFT');
+    await expect(page.getByRole('link', { name: 'Open memo' })).toBeVisible();
+    await expect(page.getByText(/€100\.00 ·/)).toBeVisible();
+    await expect(page.getByText(/\$100\.00 ·/)).toHaveCount(0);
+  });
+
+  test('failed edits do not save stale results, while a successful retry saves the matching case', async ({ page }) => {
+    const requests = await liveFixtures(page);
+    await page.route('**/api/dcf/history**', (route) => route.fulfill({ status: 401, json: { message: 'Unauthorized' } }));
+    await page.goto('/?ticker=MSFT');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('$100.00');
+    requests.fail();
+    await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Valuation error' })).toBeVisible();
+    await page.getByRole('link', { name: 'Run history', exact: true }).click();
+    await expect(page).toHaveURL(/\/history$/);
+    const runs = page.getByRole('region', { name: 'Saved runs' });
+    await expect(runs.getByRole('button')).toHaveCount(1);
+    await expect(runs.getByRole('button', { name: /Your case/ })).toHaveCount(0);
+    await expect(page.getByRole('heading', { level: 2 })).toContainText('$100.00');
+    await expect(page.getByText('12%', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Open this memo' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('$100.00');
+    requests.fail();
+    await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Valuation error' })).toBeVisible();
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
+    await page.getByRole('link', { name: 'Run history', exact: true }).click();
+    await expect(page).toHaveURL(/\/history$/);
+    await expect(runs.getByRole('button')).toHaveCount(2);
+    await runs.getByRole('button', { name: /Your case/ }).click();
+    await expect(page.getByRole('heading', { level: 2 })).toContainText('$110.00');
+    await expect(page.getByText('12.5%', { exact: true })).toBeVisible();
+    expect(requests.count()).toBe(5);
   });
 
   test('missing reporting currency prevents compute, hides stale values, and explains recovery', async ({ page }) => {

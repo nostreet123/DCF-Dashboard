@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { scenarioAssumptionDefaults } from '../lib/workbench/scenarioProfiles';
 import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
+import type { SessionMemoRun } from '../lib/lab/sessionRuns';
 import {
   bridgeFromStatements,
   buildBridgeRows,
@@ -22,13 +23,17 @@ import {
   formatAssumptionPercent,
   gapPhrase,
   formatBillions,
+  formatLastMemo,
   formatSharePrice,
+  formatSharePriceWhenCurrencyKnown,
   formatStartingRevenue,
   buildValueMarks,
   LAB_DISCLAIMER,
   LAB_PATHS,
   isDemoMemoAvailable,
   resolveLabPhase,
+  sessionRunToHistoryRun,
+  withLatestMemo,
 } from '../lib/lab/presentation';
 
 describe('lab presentation', () => {
@@ -42,10 +47,54 @@ describe('lab presentation', () => {
 
   test('formats memo values and accessible marks in their result currency', () => {
     expect(formatSharePrice(100, 2, 'EUR')).toBe('€100.00');
+    expect(formatSharePriceWhenCurrencyKnown(100, 'eur')).toBe('€100.00');
+    expect(formatSharePriceWhenCurrencyKnown(100, null)).toBe('100.00');
     expect(formatStartingRevenue(500_000, 'EUR')).toBe('€500,000.0');
     expect(formatStartingRevenue(1_000_000, 'EUR')).toBe('€0.001B');
     expect(buildValueMarks({ bear: 80, bull: 120, memo: 100, price: null, currency: 'EUR' }).alt).toContain('€100.00');
     expect(buildSensitivityGrid({ matrix: [[100]], growthOffsets: [0], waccOffsets: [0], baseGrowth: 12, baseDiscount: 9, price: null, compact: false, currency: 'EUR' }).cells.at(-1)?.text).toBe('€100');
+  });
+
+  test('keeps a session memo currency when it appears in the Library', () => {
+    const company = companyFromSearch({
+      id: 'company-msft',
+      symbol: 'MSFT',
+      name: 'Microsoft Corporation',
+      currency: null,
+      coverageState: 'valuation_ready',
+      sourceLinks: [],
+    });
+    const withMemo = withLatestMemo(company, {
+      value: 100,
+      at: '2026-10-05T12:00:00.000Z',
+      currency: 'EUR',
+    });
+
+    expect(withMemo.currency).toBe('EUR');
+    expect(formatLastMemo(withMemo)).toContain('€100.00');
+  });
+
+  test('keeps a session memo currency in the History row and preview', () => {
+    const run: SessionMemoRun = {
+      id: 'session:MSFT:1',
+      ticker: 'MSFT',
+      name: 'Microsoft Corporation',
+      listingId: 'company-msft',
+      value: 100,
+      currency: 'EUR',
+      at: '2026-10-05T12:00:00.000Z',
+      scenario: 'base',
+      assumptions: {
+        bear: scenarioAssumptionDefaults.bear,
+        base: scenarioAssumptionDefaults.base,
+        bull: scenarioAssumptionDefaults.bull,
+      },
+      caseQuotes: { base: 100 },
+    };
+    const historyRun = sessionRunToHistoryRun(run);
+
+    expect(historyRun.currency).toBe('EUR');
+    expect(formatSharePriceWhenCurrencyKnown(historyRun.value, historyRun.currency)).toBe('€100.00');
   });
 
   test('keeps value marks inside the chart for negative, sign-crossing, and degenerate ranges', () => {

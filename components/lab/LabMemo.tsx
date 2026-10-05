@@ -249,7 +249,9 @@ function LabMemoBody() {
   const quotedDetailsRef = useRef<typeof details>(null);
   if (quotedDetailsRef.current !== details) {
     quotedDetailsRef.current = details;
-    quotedAssumptionsRef.current = workbench.assumptions;
+    quotedAssumptionsRef.current = details && isComputeResult(details)
+      ? details.computedInputs?.assumptions ?? workbench.assumptions
+      : workbench.assumptions;
   }
   const quotedAssumptions = quotedAssumptionsRef.current;
   const chipQuotes = scenarioChipQuotes(scenarioMap, quotedAssumptions, chipPin.current);
@@ -272,12 +274,17 @@ function LabMemoBody() {
   });
 
   const retry = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('status');
-    params.delete('rerun');
-    params.delete('run');
-    const query = params.toString();
-    router.replace(`${LAB_PATHS.memo}${query ? `?${query}` : ''}`);
+    // A normal memo retry must keep its mounted editor and current assumptions.
+    if (queryStatus !== 'memo') {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('status');
+      params.delete('rerun');
+      if (!findSessionRun(requestedRun)) {
+        params.delete('run');
+      }
+      const query = params.toString();
+      router.replace(`${LAB_PATHS.memo}${query ? `?${query}` : ''}`);
+    }
     dashboard.valuation.clearError();
   };
 
@@ -297,45 +304,41 @@ function LabMemoBody() {
     }
   };
 
-  const assumptionKey = JSON.stringify(workbench.assumptions);
-  const quoteKey = JSON.stringify(chipQuotes);
+  const rememberedResult = useRef<DcfResult | null>(null);
   useEffect(() => {
     if (
       isDemo ||
       phase !== 'memo' ||
-      fairValue === null ||
+      !details ||
+      !isComputeResult(details) ||
+      !details.computedInputs ||
+      rememberedResult.current === details ||
       dashboard.valuation.isComputing ||
       dashboard.valuation.isReplayDisplay ||
       dashboard.valuation.error
     ) {
       return;
     }
+    const inputs = details.computedInputs;
     rememberSessionRun({
-      ticker: dashboard.company.activeTicker,
-      name: companyName,
-      listingId: dashboard.company.activeCompanyId,
-      value: fairValue,
-      currency,
-      scenario,
-      assumptions: workbench.assumptions,
-      caseQuotes: chipQuotes,
+      ticker: inputs.symbol,
+      name: details.provenance.name ?? findCatalogCompany(inputs.symbol)?.name ?? inputs.symbol,
+      listingId: inputs.listingId ?? null,
+      value: details.fairValue,
+      currency: details.provenance.currency ?? currency,
+      scenario: inputs.scenario,
+      assumptions: inputs.assumptions,
+      caseQuotes: scenarioChipQuotes(readScenarioValues(details, false), inputs.assumptions, chipPin.current),
     });
-    // assumptionKey and quoteKey stand in for the object identities.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    rememberedResult.current = details;
   }, [
-    assumptionKey,
-    companyName,
     currency,
-    dashboard.company.activeCompanyId,
-    dashboard.company.activeTicker,
     dashboard.valuation.error,
     dashboard.valuation.isComputing,
     dashboard.valuation.isReplayDisplay,
-    fairValue,
+    details,
     isDemo,
     phase,
-    quoteKey,
-    scenario,
   ]);
 
   const activeLabel = caseLabel(

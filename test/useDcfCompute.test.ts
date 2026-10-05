@@ -324,6 +324,85 @@ describe("useDcfCompute concurrency", () => {
     expect(getIsLoading()).toBe(false);
   });
 
+  test("a completed result carries the inputs captured before debounce and later edits", async () => {
+    const inputs = structuredClone(INPUTS);
+    const expectedInputs = structuredClone(inputs);
+    let postedGrowth: number | undefined;
+    let factsUrl = "";
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsUrl = String(url);
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      postedGrowth = JSON.parse(String(init?.body)).base.revenueGrowth;
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { compute, getResult } = setup();
+    const pending = compute(inputs);
+    inputs.symbol = "MSFT";
+    inputs.assumptions.base.revenueGrowth = 12.5;
+    const result = await pending;
+
+    expect(factsUrl).toBe("/api/company/facts?symbol=AAPL");
+    expect(postedGrowth).toBe(0.1);
+    expect(result.computedInputs).toEqual(expectedInputs);
+    expect(getResult()).toBe(result);
+  });
+
+  test("a failed edit preserves only the previous successful result and its input snapshot", async () => {
+    let fail = false;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return fail
+        ? new Response(JSON.stringify({ message: "Engine unavailable" }), { status: 503 })
+        : jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, getResult } = setup();
+    const original = await compute(INPUTS);
+    fail = true;
+    const edited = structuredClone(INPUTS);
+    edited.assumptions.base.revenueGrowth = 12.5;
+    await expect(compute(edited)).rejects.toThrow("Engine unavailable");
+    expect(getResult()).toBe(original);
+    expect(getResult().computedInputs.assumptions.base.revenueGrowth).toBe(10);
+    fail = false;
+    const retried = await compute(edited);
+    expect(getResult()).toBe(retried);
+    expect(retried.computedInputs?.assumptions.base.revenueGrowth).toBe(12.5);
+  });
+
+  test("an older response cannot replace the newer result or its saved assumptions", async () => {
+    let releaseOld!: () => void;
+    let oldStarted!: () => void;
+    const started = new Promise<void>((resolve) => { oldStarted = resolve; });
+    let calls = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      calls += 1;
+      if (calls === 1) {
+        oldStarted();
+        // Deliberately ignore abort to simulate a late response from the old request.
+        await new Promise<void>((resolve) => { releaseOld = resolve; });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, getResult } = setup(0);
+    const old = compute(INPUTS);
+    await started;
+    const edited = structuredClone(INPUTS);
+    edited.assumptions.base.revenueGrowth = 12.5;
+    const latest = await compute(edited);
+    releaseOld();
+    await old;
+    expect(getResult()).toBe(latest);
+    expect(getResult().computedInputs.assumptions.base.revenueGrowth).toBe(12.5);
+  });
+
   test("uses signed browser facts route for imported non-SEC listings when a context token exists", async () => {
     Object.defineProperty(globalThis, "window", {
       value: {

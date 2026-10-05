@@ -7,20 +7,19 @@ import { LabFrame } from '@/components/lab/LabFrame';
 import { areBrowserHistoryReadsEnabled, getDashboardDataMode } from '@/lib/dashboardDataMode';
 import {
   buildDemoHistory,
-  caseLabel,
-  companyShortName,
   demoDisclaimer,
   formatAssumptionPercent,
   formatLabDate,
   formatLabDay,
   formatLabTime,
-  formatSharePrice,
+  formatSharePriceWhenCurrencyKnown,
   historyMemoHref,
   LAB_PATHS,
+  sessionRunToHistoryRun,
   type LabHistoryRun,
 } from '@/lib/lab/presentation';
 import { readRecentCompanies } from '@/lib/lab/recentCompanies';
-import { getServerSessionRuns, readSessionRuns, subscribeSessionRuns, type SessionMemoRun } from '@/lib/lab/sessionRuns';
+import { getServerSessionRuns, readSessionRuns, subscribeSessionRuns } from '@/lib/lab/sessionRuns';
 import { toUserFacingValuationHistoryError } from '@/lib/hooks/useValuationHistory';
 import {
   buildValuationHistoryPath,
@@ -63,7 +62,7 @@ function LiveHistory() {
   const [serverRuns, setServerRuns] = useState<LabHistoryRun[]>([]);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const mappedSession = sessionRuns.map(sessionToHistoryRun);
+  const mappedSession = sessionRuns.map(sessionRunToHistoryRun);
   const symbols = uniqueSymbols(sessionRuns.map((run) => run.ticker).concat(recentSymbols));
   const symbolKey = symbols.join('|');
 
@@ -113,7 +112,7 @@ function LiveHistory() {
   return (
     <HistoryPage
       title="Saved memos."
-      lede="Memos you calculate in this browser keep their assumptions here. Runs stored on the server appear when this session is allowed to read them."
+      lede="Browser-only memos are temporary: they stay in this tab’s session and are not saved to your account. Server runs appear when this session is allowed to read them."
       runs={runs}
       selected={selected}
       onSelect={setSelectedId}
@@ -201,7 +200,7 @@ function HistoryPage({
                       {run.ticker} · {run.scenarioLabel}
                     </span>
                   </span>
-                  <span className={styles.runValue}>{formatSharePrice(run.value)}</span>
+                  <span className={styles.runValue}>{formatSharePriceWhenCurrencyKnown(run.value, run.currency)}</span>
                 </button>
               );
             })}
@@ -215,7 +214,7 @@ function HistoryPage({
                 Saved {formatLabDate(selected.at)} · {selected.ticker} · {selected.scenarioLabel}
               </div>
               <h2 className={styles.previewTitle}>
-                {selected.shortName} looked worth <span className={styles.accent}>{formatSharePrice(selected.value)}</span> a share.
+                {selected.shortName} looked worth <span className={styles.accent}>{formatSharePriceWhenCurrencyKnown(selected.value, selected.currency)}</span> a share.
               </h2>
               {selected.assumptions ? (
                 <p className={styles.previewCopy}>
@@ -244,19 +243,6 @@ function HistoryPage({
       </div>
     </LabFrame>
   );
-}
-
-function sessionToHistoryRun(run: SessionMemoRun): LabHistoryRun {
-  return {
-    id: run.id,
-    ticker: run.ticker,
-    name: run.name,
-    shortName: companyShortName(run.name),
-    value: run.value,
-    at: new Date(run.at),
-    scenarioLabel: caseLabel(run.scenario, run.assumptions[run.scenario]),
-    assumptions: run.assumptions[run.scenario],
-  };
 }
 
 function readRecentSymbols(): string[] {
@@ -308,6 +294,7 @@ async function loadServerRuns(
         shortName: item.ticker,
         value: item.value,
         at: item.timestamp,
+        currency: null,
         scenarioLabel: 'Saved result',
         assumptions: null,
       });
