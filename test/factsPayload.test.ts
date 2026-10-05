@@ -24,6 +24,39 @@ const assumptions = {
 };
 
 describe("buildWorkbenchPayloadFromFacts", () => {
+  const statement = { period_end: "2025-12-31", period_type: "FY", revenue: 1000, shares_outstanding: 100 };
+
+  test("rejects missing and blank currency instead of inventing USD", () => {
+    for (const currencies of [{}, { filingCurrency: " ", currency: "" }]) {
+      expect(() => buildWorkbenchPayloadFromFacts(
+        { symbol: "MSFT", scenario: "base", assumptions },
+        { symbol: "MSFT", ...currencies, statements: [statement] },
+      )).toThrow("MSFT reporting currency is missing");
+    }
+  });
+
+  test("uses the first reported nonblank currency and normalizes its code", () => {
+    const cases = [
+      { filingCurrency: " eur ", currency: "USD", statementCurrency: "GBP", expected: "EUR" },
+      { filingCurrency: " ", currency: " gbp ", statementCurrency: "EUR", expected: "GBP" },
+      { filingCurrency: null, currency: null, statementCurrency: " eur ", expected: "EUR" },
+    ];
+    for (const { statementCurrency, expected, ...currencies } of cases) {
+      const payload = buildWorkbenchPayloadFromFacts(
+        { symbol: "MSFT", scenario: "base", assumptions },
+        { symbol: "MSFT", ...currencies, statements: [{ ...statement, currency: statementCurrency }] },
+      );
+      expect(payload.currency).toBe(expected);
+    }
+  });
+
+  test("rejects a malformed reported currency instead of using the listing fallback", () => {
+    expect(() => buildWorkbenchPayloadFromFacts(
+      { symbol: "MSFT", scenario: "base", assumptions },
+      { symbol: "MSFT", filingCurrency: "Euro", currency: "USD", statements: [statement] },
+    )).toThrow("MSFT reporting currency is invalid");
+  });
+
   test("defaults missing optional balance bridge fields to zero", () => {
     const payload = buildWorkbenchPayloadFromFacts(
       { symbol: "BRK-A", scenario: "base", assumptions },

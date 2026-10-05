@@ -109,7 +109,7 @@ test('dashboard loads', async ({ page }, testInfo: TestInfo) => {
     }
   });
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   if (isMobileProject(testInfo)) {
     await expect(page.getByRole('button', { name: 'Open library panel' })).toBeVisible();
@@ -137,7 +137,7 @@ test('dashboard loads', async ({ page }, testInfo: TestInfo) => {
 test('scenario tabs update state', async ({ page }) => {
   test.skip(shouldExpectLocalEngineError(), 'Requires a configured valuation engine or demo mode.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const base = page.getByRole('button', { name: 'Base' });
   const bull = page.getByRole('button', { name: 'Bull' });
@@ -151,7 +151,7 @@ test('scenario tabs update state', async ({ page }) => {
 test('desktop search shows selectable listing-aware results', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const desktopSearch = page.getByPlaceholder('Search companies...');
   await desktopSearch.fill('app');
@@ -170,7 +170,7 @@ test('run history click replays the hero card for the selected scenario', async 
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
   test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const workspace = page.getByRole('main');
   await expect(page.getByText('AAPL Fair Value')).toBeVisible();
@@ -224,7 +224,7 @@ test('live run history click replays the hero card through browser history route
     ],
   });
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const workspace = page.getByRole('main');
   const heroValue = workspace.locator('[class*="ValueCard_value__"]');
@@ -248,7 +248,7 @@ test('changing company clears the selected historical replay', async ({ page }, 
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
   test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const workspace = page.getByRole('main');
   const historyButton = page.getByRole('button', { name: /AAPL \$145\.20/i });
@@ -282,7 +282,7 @@ test('demo run history never calls internal replay routes', async ({ page }, tes
     }
   });
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const historyButton = page.getByRole('button', { name: /AAPL \$145\.20/i });
   await expect(historyButton).toBeVisible();
@@ -298,7 +298,7 @@ test('demo run history is shown without identity error copy', async ({ page }, t
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
   test.skip(!isDemoDashboardMode(), 'Demo-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   await expect(page.getByRole('button', { name: /AAPL \$145\.20/i })).toBeVisible();
   await expect(page.getByText('Recent runs are temporarily unavailable')).toHaveCount(0);
@@ -319,7 +319,7 @@ test('rapid company switching does not spam history requests', async ({ page }, 
     });
   });
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const msftButton = page.getByRole('button', { name: /MSFT.*Microsoft/i });
   const googlButton = page.getByRole('button', { name: /GOOGL.*Alphabet/i });
@@ -338,7 +338,7 @@ test('rapid company switching does not spam history requests', async ({ page }, 
 });
 
 test('search selects company', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const desktopSearch = page.getByPlaceholder('Search companies...');
   if (await desktopSearch.isVisible()) {
@@ -358,7 +358,7 @@ test('sensitivity heatmap stays within the mobile viewport', async ({ page }, te
   test.skip(!isMobileProject(testInfo), 'Mobile-only assertion.');
   test.skip(shouldExpectLocalEngineError(), 'Requires a configured valuation engine or demo mode.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const sensitivitySection = page
     .locator('section')
@@ -375,7 +375,7 @@ test('sensitivity heatmap stays within the mobile viewport', async ({ page }, te
 });
 
 test('search shows inline feedback when no company matches', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const desktopSearch = page.getByPlaceholder('Search companies...');
   if (await desktopSearch.isVisible()) {
@@ -394,7 +394,7 @@ test('search shows inline feedback when no company matches', async ({ page }) =>
 test('search shortcut opens the relevant search surface', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only keyboard shortcut assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const shortcutHint = page.locator('kbd').filter({ hasText: /K/ }).first();
   await expect(shortcutHint).toHaveText(/^(Ctrl\+K|⌘K)$/);
@@ -418,7 +418,7 @@ test('search shortcut opens the relevant search surface', async ({ page }, testI
 test('investor mode is marked unavailable', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const investor = page.getByRole('button', { name: /Investor/i });
   await expect(investor).toBeDisabled();
@@ -429,7 +429,7 @@ test('investor mode is marked unavailable', async ({ page }, testInfo) => {
 test('assumptions slider keeps a visible focus outline', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const slider = page.getByRole('slider', { name: 'Revenue Growth' });
   await slider.focus();
@@ -442,7 +442,7 @@ test('assumptions slider keeps a visible focus outline', async ({ page }, testIn
 test('coverage selector is available in the left rail', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo), 'Desktop-only assertion.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const coveragePanel = page.getByRole('complementary').filter({ hasText: 'Coverage' }).first();
   await expect(coveragePanel.getByRole('button', { name: 'All' })).toBeVisible();

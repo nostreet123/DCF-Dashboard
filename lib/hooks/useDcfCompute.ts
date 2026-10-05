@@ -6,6 +6,7 @@ import { readFairValue } from '@/lib/valuationHistory';
 import {
   buildWorkbenchPayloadFromFacts,
   getLatestAnnualStatement,
+  resolveReportingCurrency,
 } from '@/lib/workbench/factsPayload';
 
 export interface DcfInputs {
@@ -15,7 +16,18 @@ export interface DcfInputs {
   assumptions: Record<Scenario, Assumptions>;
 }
 
+export interface ValueBridge {
+  pvExplicit: number | null;
+  pvTerminal: number | null;
+  cash: number | null;
+  debt: number | null;
+  equity: number | null;
+  sharesOutstanding: number | null;
+}
+
 export interface DcfResult {
+  /** Input snapshot belonging to this completed computation, never the current editor state. */
+  computedInputs?: DcfInputs;
   fairValue: number;
   range?: [number, number];
   histogram?: {
@@ -33,6 +45,7 @@ export interface DcfResult {
   statementHistory: StatementHistoryPoint[];
   monteCarloSummary?: MonteCarloSummary;
   provenance: ValuationProvenance;
+  valueBridge?: ValueBridge;
 }
 
 export interface ProjectionRow {
@@ -156,6 +169,7 @@ type EdgarStatement = {
 };
 
 type EdgarFacts = {
+  filingCurrency?: string | null;
   symbol: string;
   name?: string | null;
   cik?: string | null;
@@ -272,6 +286,73 @@ const readScenarioValue = (payload: Record<string, unknown>, scenario: Scenario)
   return readFairValue(valuation);
 };
 
+const readOptionalNumber = (record: Record<string, unknown> | null, keys: string[]): number | null => {
+  if (!record) {
+    return null;
+  }
+  for (const key of keys) {
+    const value = readFiniteNumber(record[key]);
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const sumFinite = (value: unknown): number | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  let total = 0;
+  let found = false;
+  for (const item of value) {
+    const number = readFiniteNumber(item);
+    if (number !== null) {
+      total += number;
+      found = true;
+    }
+  }
+  return found ? total : null;
+};
+
+const readValueBridge = (scenarioResult: unknown): ValueBridge | undefined => {
+  if (!isRecord(scenarioResult)) {
+    return undefined;
+  }
+  const valuation = isRecord(scenarioResult.valuation) ? scenarioResult.valuation : null;
+  const trace = isRecord(scenarioResult.trace) ? scenarioResult.trace : null;
+  const discounting = isRecord(trace?.discounting) ? trace.discounting : null;
+  const bridge = isRecord(trace?.bridge) ? trace.bridge : null;
+  if (!valuation && !discounting && !bridge) {
+    return undefined;
+  }
+
+  const pvExplicit =
+    readOptionalNumber(valuation, ['pvFcff', 'pv_fcff']) ??
+    sumFinite(discounting?.pvFcff ?? discounting?.pv_fcff);
+  const pvTerminal = readOptionalNumber(valuation, ['pvTerminal', 'pv_terminal']) ??
+    readOptionalNumber(discounting, ['pvTerminal', 'pv_terminal']);
+  const cash = readOptionalNumber(bridge, ['cash']);
+  const debt = readOptionalNumber(bridge, ['debt']);
+  const equity =
+    readOptionalNumber(bridge, ['equityValue', 'equity_value']) ??
+    readOptionalNumber(valuation, ['equityValue', 'equity_value']);
+  const sharesOutstanding = readOptionalNumber(bridge, ['sharesOutstanding', 'shares_outstanding']);
+
+  if (
+    pvExplicit === null &&
+    pvTerminal === null &&
+    cash === null &&
+    debt === null &&
+    equity === null &&
+    sharesOutstanding === null
+  ) {
+    return undefined;
+  }
+
+  return { pvExplicit, pvTerminal, cash, debt, equity, sharesOutstanding };
+};
+
 const readProjections = (scenarioResult: unknown): ProjectionRow[] => {
   const trace = isRecord(scenarioResult) && isRecord(scenarioResult.trace)
     ? scenarioResult.trace
@@ -378,7 +459,7 @@ const buildProvenance = (
   symbol: facts.symbol,
   name: facts.name,
   cik: facts.cik,
-  currency: facts.currency ?? latest.currency,
+  currency: resolveReportingCurrency(facts, latest),
   source: facts.source,
   latestPeriodEnd: latest.period_end,
   latestFilingDate: latest.filing_date,
@@ -424,6 +505,7 @@ export const normalizeDcfComputeResponse = (
       waccOffsets: readPercentPointOffsets(sensitivity?.waccOffsets),
     },
     projections: readProjections(payload[scenario]),
+    valueBridge: readValueBridge(payload[scenario]),
     kpis: readKpis(kpis?.kpis),
     statementHistory: readStatementHistory(kpis?.history),
     monteCarloSummary: readMonteCarloSummary(monteCarlo),
@@ -485,6 +567,14 @@ export function buildComputeFns(
 ) {
   const compute = (inputs: DcfInputs): Promise<DcfResult> => {
     const myRequestId = ++refs.requestId;
+    const inputSnapshot: DcfInputs = {
+      ...inputs,
+      assumptions: {
+        bear: { ...inputs.assumptions.bear },
+        base: { ...inputs.assumptions.base },
+        bull: { ...inputs.assumptions.bull },
+      },
+    };
 
     // Clear any pending debounce and reject the superseded promise
     if (refs.debounceTimer) {
@@ -515,7 +605,10 @@ export function buildComputeFns(
         refs.abortController = controller;
 
         try {
-          const data = await computeDcf(inputs, controller.signal);
+          const data = {
+            ...await computeDcf(inputSnapshot, controller.signal),
+            computedInputs: inputSnapshot,
+          };
 
           if (refs.requestId === myRequestId) {
             cbs.setResult(data);

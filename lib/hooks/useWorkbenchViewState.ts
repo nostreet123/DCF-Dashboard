@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useReducer } from 'react';
+import type { CompanySearchResult } from '@/lib/contracts/company';
 
 export type ViewMode = 'workbench' | 'investor';
 export type DrawerState = 'library' | 'assumptions' | null;
@@ -60,6 +61,19 @@ export function resolveActiveCompany(
     return ordered[0];
   }
   return ordered.find((item) => item.id === selectedCompanyId) ?? ordered[0];
+}
+
+export function resolveDashboardCompanyIdentity(
+  datasets: DatasetGroups,
+  selectedCompanyId: string | null,
+  selectedSymbol: string | null,
+  selectedSearchCompany: CompanySearchResult | null,
+) {
+  const demoCompany = selectedSearchCompany ? null : resolveActiveCompany(datasets, selectedCompanyId);
+  return {
+    activeCompanyId: selectedSearchCompany?.id ?? demoCompany?.id ?? selectedCompanyId,
+    activeTicker: selectedSearchCompany?.symbol ?? demoCompany?.ticker ?? selectedSymbol ?? 'AAPL',
+  };
 }
 
 export function useWorkbenchViewState() {

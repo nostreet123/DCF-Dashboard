@@ -14,7 +14,7 @@ import type { DcfResult } from '@/lib/hooks/useDcfCompute';
 import { useDcfCompute } from '@/lib/hooks/useDcfCompute';
 import { useValuationHistory, useValuationReplay } from '@/lib/hooks/useValuationHistory';
 import type { ValuationReplaySnapshot } from '@/lib/hooks/useValuationHistory';
-import { resolveActiveCompany } from '@/lib/hooks/useWorkbenchViewState';
+import { resolveDashboardCompanyIdentity } from '@/lib/hooks/useWorkbenchViewState';
 import {
   fallbackRange,
   mockDatasets,
@@ -83,6 +83,7 @@ const getDemoReplay = (runId: string | undefined | null): ValuationReplaySnapsho
 };
 
 export function useDashboardDataSource({
+  computeEnabled = true,
   scenario,
   scenarioAssumptions,
   selectedCompanyId,
@@ -95,6 +96,7 @@ export function useDashboardDataSource({
   setRetryToken,
   aiAdminToken,
 }: {
+  computeEnabled?: boolean;
   scenario: Scenario;
   scenarioAssumptions: Record<Scenario, Assumptions>;
   selectedCompanyId: string | null;
@@ -122,9 +124,9 @@ export function useDashboardDataSource({
   const isDemoMode = getDashboardDataMode() === 'demo';
   const shouldLoadBrowserHistory = !isDemoMode && areBrowserHistoryReadsEnabled();
 
-  const activeCompany = isDemoMode ? resolveActiveCompany(mockDatasets, selectedCompanyId) : null;
-  const activeCompanyId = activeCompany?.id ?? selectedCompanyId ?? null;
-  const activeTicker = activeCompany?.ticker ?? selectedSymbol ?? 'AAPL';
+  const { activeCompanyId, activeTicker } = resolveDashboardCompanyIdentity(
+    isDemoMode ? mockDatasets : {}, selectedCompanyId, selectedSymbol, selectedSearchCompany,
+  );
 
   const {
     runs: liveRunHistory,
@@ -223,7 +225,7 @@ export function useDashboardDataSource({
   }, [activeCompanyId, activeTicker, isDemoMode, selectedSearchCompany, shouldLoadBrowserHistory]);
 
   useEffect(() => {
-    if (!shouldComputeLiveValuation({ isDemoMode, selectedRunId, workspaceMode })) {
+    if (!computeEnabled || !shouldComputeLiveValuation({ isDemoMode, selectedRunId, workspaceMode })) {
       if (!isDemoMode) {
         reset();
       }
@@ -238,6 +240,7 @@ export function useDashboardDataSource({
       // useDcfCompute stores the error for rendering.
     });
   }, [
+    computeEnabled,
     activeCompanyId,
     activeTicker,
     compute,

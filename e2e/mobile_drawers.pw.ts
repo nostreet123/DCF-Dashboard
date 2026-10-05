@@ -4,7 +4,7 @@ import { isMobileProject, openDrawer, openMobileSearch, setRange } from './helpe
 test('mobile library drawer selects company and closes', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const libraryDrawer = await openDrawer(page, 'Dataset Library');
   await libraryDrawer.getByRole('button', { name: /MSFT.*Microsoft/i }).click();
@@ -16,7 +16,7 @@ test('mobile library drawer selects company and closes', async ({ page }, testIn
 test('mobile assumptions drawer slider recalculates and closes on escape', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const assumptionsDrawer = await openDrawer(page, 'Assumptions');
   const revenueGrowthSlider = assumptionsDrawer.getByRole('slider', { name: 'Revenue Growth' });
@@ -29,7 +29,7 @@ test('mobile assumptions drawer slider recalculates and closes on escape', async
 test('mobile assumptions drawer keeps Ctrl+K trapped inside the modal', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const assumptionsDrawer = await openDrawer(page, 'Assumptions');
   const revenueGrowthSlider = assumptionsDrawer.getByRole('slider', { name: 'Revenue Growth' });
@@ -46,7 +46,7 @@ test('mobile assumptions drawer keeps Ctrl+K trapped inside the modal', async ({
 test('mobile search overlay closes with escape', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   const dialog = await openMobileSearch(page);
   await expect(dialog.getByRole('textbox', { name: 'Search companies' })).toBeFocused();
@@ -75,7 +75,7 @@ test('mobile search overlay closes with escape', async ({ page }, testInfo) => {
 test('mobile top bar hides the investor stub and keeps controls clickable', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile-only flow.');
 
-  await page.goto('/');
+  await page.goto('/workbench');
 
   await expect(page.getByRole('button', { name: /Investor.*Soon/i })).toBeHidden();
 
