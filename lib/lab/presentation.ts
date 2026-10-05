@@ -1,3 +1,4 @@
+import type { CompanySearchResult } from '@/lib/contracts/company';
 import type { ValueBridge } from '@/lib/hooks/useDcfCompute';
 import type { Assumptions, Scenario } from '@/lib/workbench/scenarioProfiles';
 import { scenarioAssumptionDefaults } from '@/lib/workbench/scenarioProfiles';
@@ -229,6 +230,54 @@ export function assumptionsMatch(left: Assumptions, right: Assumptions): boolean
   );
 }
 
+export function forecastPeriodPhrase(years: number): string {
+  if (!Number.isInteger(years) || years <= 0) {
+    return 'the forecast period';
+  }
+  return years === 1 ? '1 year' : `${years} years`;
+}
+
+export function scenarioChipQuotes(
+  reported: Record<Scenario, number>,
+  assumptions: Record<Scenario, Assumptions>,
+  pinned: Partial<Record<Scenario, number>>,
+): Record<Scenario, number> {
+  const quotes: Record<Scenario, number> = { ...reported };
+  for (const scenario of ['bear', 'base', 'bull'] as const) {
+    const reportedValue = reported[scenario];
+    const matchesPreset = assumptionsMatch(
+      assumptions[scenario],
+      scenarioAssumptionDefaults[scenario],
+    );
+    const pinnedValue = pinned[scenario];
+    if (matchesPreset && reportedValue > 0 && Number.isFinite(reportedValue)) {
+      quotes[scenario] = reportedValue;
+    } else if (pinnedValue !== undefined && Number.isFinite(pinnedValue)) {
+      quotes[scenario] = pinnedValue;
+    }
+  }
+  return quotes;
+}
+
+export function pinScenarioQuotes(
+  reported: Record<Scenario, number>,
+  assumptions: Record<Scenario, Assumptions>,
+  pinned: Partial<Record<Scenario, number>>,
+): Partial<Record<Scenario, number>> {
+  const next = { ...pinned };
+  for (const scenario of ['bear', 'base', 'bull'] as const) {
+    const reportedValue = reported[scenario];
+    if (
+      assumptionsMatch(assumptions[scenario], scenarioAssumptionDefaults[scenario]) &&
+      reportedValue > 0 &&
+      Number.isFinite(reportedValue)
+    ) {
+      next[scenario] = reportedValue;
+    }
+  }
+  return next;
+}
+
 export function caseLabel(
   scenario: Scenario,
   assumptions: Assumptions,
@@ -320,6 +369,56 @@ export function filterLibrary(
       filter === 'all' || (filter === 'ready' ? company.ready : !company.ready);
     return matchesQuery && matchesFilter;
   });
+}
+
+export function companyFromSearch(company: CompanySearchResult): LabCompany {
+  return {
+    id: company.id,
+    ticker: company.symbol.trim().toUpperCase(),
+    name: company.name,
+    sector: company.market?.trim() || '—',
+    ready: company.coverageState === 'valuation_ready',
+    lastValue: null,
+    lastAt: null,
+  };
+}
+
+export function libraryMemoHref(company: LabCompany): string {
+  if (!company.ready) {
+    const params = new URLSearchParams({
+      status: 'import',
+      ticker: company.ticker,
+      name: company.name,
+    });
+    if (company.id && !company.id.startsWith('import:')) {
+      params.set('listingId', company.id);
+    }
+    return `${LAB_PATHS.memo}?${params.toString()}`;
+  }
+  const params = new URLSearchParams({ ticker: company.ticker });
+  if (company.id) {
+    params.set('listingId', company.id);
+  }
+  return `${LAB_PATHS.memo}?${params.toString()}`;
+}
+
+export function historyMemoHref(input: {
+  id: string;
+  ticker: string;
+  listingId?: string | null;
+  rerun?: boolean;
+}): string {
+  const params = new URLSearchParams({
+    ticker: input.ticker,
+    run: input.id,
+  });
+  if (input.listingId) {
+    params.set('listingId', input.listingId);
+  }
+  if (input.rerun) {
+    params.set('rerun', '1');
+  }
+  return `${LAB_PATHS.memo}?${params.toString()}`;
 }
 
 export function libraryAction(company: LabCompany): 'Open memo' | 'Write a memo' | 'Import from SEC' {

@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from 'bun:test';
 
+import { scenarioAssumptionDefaults } from '../lib/workbench/scenarioProfiles';
 import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
 import {
   bridgeFromStatements,
@@ -9,7 +10,13 @@ import {
   buildLibraryCatalog,
   buildSensitivityGrid,
   caseLabel,
+  companyFromSearch,
   demoDisclaimer,
+  forecastPeriodPhrase,
+  historyMemoHref,
+  libraryMemoHref,
+  pinScenarioQuotes,
+  scenarioChipQuotes,
   demoSensitivityOffsets,
   filterLibrary,
   formatAssumptionPercent,
@@ -217,5 +224,55 @@ describe('lab presentation', () => {
     const runs = buildDemoHistory();
     expect(runs[0]?.assumptions?.revenueGrowth).toBe(8);
     expect(runs.slice(1).every((run) => run.assumptions === null)).toBe(true);
+  });
+
+  test('names the forecast period from the year count', () => {
+    expect(forecastPeriodPhrase(10)).toBe('10 years');
+    expect(forecastPeriodPhrase(5)).toBe('5 years');
+    expect(forecastPeriodPhrase(1)).toBe('1 year');
+    expect(forecastPeriodPhrase(0)).toBe('the forecast period');
+  });
+
+  test('keeps the base chip on the preset value after the base assumptions change', () => {
+    const assumptions = {
+      bear: scenarioAssumptionDefaults.bear,
+      base: { ...scenarioAssumptionDefaults.base, revenueGrowth: 12.5 },
+      bull: scenarioAssumptionDefaults.bull,
+    };
+    const preset = { bear: 70, base: 98.3, bull: 140 };
+    const edited = { bear: 70, base: 100.54, bull: 140 };
+    const pinned = pinScenarioQuotes(preset, {
+      bear: scenarioAssumptionDefaults.bear,
+      base: scenarioAssumptionDefaults.base,
+      bull: scenarioAssumptionDefaults.bull,
+    }, {});
+    expect(scenarioChipQuotes(edited, assumptions, pinned).base).toBe(98.3);
+    expect(scenarioChipQuotes(edited, assumptions, pinned).bull).toBe(140);
+    expect(pinScenarioQuotes(edited, assumptions, pinned).base).toBe(98.3);
+  });
+
+  test('opens a ready search result in the memo and an import result in the import flow', () => {
+    const ready = companyFromSearch({
+      id: 'company-msft',
+      symbol: 'msft',
+      name: 'Microsoft Corporation',
+      market: 'United States',
+      coverageState: 'valuation_ready',
+      sourceLinks: [],
+    });
+    expect(ready.ticker).toBe('MSFT');
+    expect(ready.ready).toBe(true);
+    expect(libraryMemoHref(ready)).toBe('/?ticker=MSFT&listingId=company-msft');
+    const missing = companyFromSearch({
+      id: 'company-nvda',
+      symbol: 'NVDA',
+      name: 'NVIDIA Corp.',
+      coverageState: 'import_required',
+      sourceLinks: [],
+    });
+    expect(libraryMemoHref(missing)).toContain('status=import');
+    expect(libraryMemoHref(missing)).toContain('listingId=company-nvda');
+    expect(historyMemoHref({ id: 'session:MSFT:1', ticker: 'MSFT', listingId: 'company-msft', rerun: true }))
+      .toBe('/?ticker=MSFT&run=session%3AMSFT%3A1&listingId=company-msft&rerun=1');
   });
 });

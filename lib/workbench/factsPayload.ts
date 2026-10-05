@@ -38,8 +38,10 @@ export type WorkbenchInputs = {
   assumptions: Record<Scenario, Assumptions>;
 };
 
+export const MODEL_FORECAST_YEARS = 10;
+
 const MODEL_DEFAULTS = {
-  periods: 10,
+  periods: MODEL_FORECAST_YEARS,
   taxRate: 0.25,
   salesToCapital: 2,
 } as const;

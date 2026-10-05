@@ -50,6 +50,7 @@ test.describe('live Lab', () => {
     const requests = await liveFixtures(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('$100.00');
+    const baseLabel = (await page.getByRole('button', { name: /^Base/ }).innerText()).replace(/\s+/g, ' ').trim();
     expect(requests.count()).toBe(1);
     const table = page.getByRole('table', { name: 'Sensitivity grid of fair values' });
     await expect(table.getByRole('cell')).toHaveCount(25);
@@ -58,6 +59,8 @@ test.describe('live Lab', () => {
     await expect(page.getByText('−0.000000064', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
+    await expect(page.getByText('Your case', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: baseLabel, exact: true })).toBeVisible();
     expect(requests.count()).toBe(2);
     requests.fail();
     await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
@@ -119,13 +122,56 @@ test.describe('live Lab', () => {
     expect(requests.count()).toBe(1);
   });
 
-  test('live library and history never advertise mock saved runs', async ({ page }) => {
+  test('live library search opens a memo and history restores that case', async ({ page }) => {
+    const requests = await liveFixtures(page);
+    await page.route('**/api/company/search?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+      await route.fulfill({
+        json: {
+          results: query.toUpperCase().includes('MSFT')
+            ? [{
+                id: 'company-msft',
+                symbol: 'MSFT',
+                name: 'Microsoft Corporation',
+                market: 'United States',
+                coverageState: 'valuation_ready',
+                sourceLinks: [],
+              }]
+            : [],
+        },
+      });
+    });
+    await page.route('**/api/dcf/history**', (route) => route.fulfill({
+      status: 401,
+      json: { message: 'Unauthorized' },
+    }));
     await page.goto('/library');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('The live library is in the workbench');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pick a company to write a memo on.');
+    await expect(page.getByRole('link', { name: 'Open workbench' })).toHaveCount(0);
     await expect(page.getByText('Apple Inc.', { exact: true })).toHaveCount(0);
-    await page.goto('/history');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saved live memos are in the workbench');
-    await expect(page.getByRole('button', { name: /MSFT|GOOGL/ })).toHaveCount(0);
+    await page.getByLabel('Search companies').fill('MSFT');
+    await page.getByRole('link', { name: 'Write a memo' }).click();
+    await expect(page).toHaveURL(/ticker=MSFT/);
+    await expect(page).not.toHaveURL(/workbench/);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Microsoft');
+    const baseLabel = (await page.getByRole('button', { name: /^Base/ }).innerText()).replace(/\s+/g, ' ').trim();
+    await page.getByRole('button', { name: 'Raise revenue growth', exact: true }).first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
+    await expect(page.getByText('Your case', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: baseLabel, exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Run history' }).click();
+    await expect(page).toHaveURL(/\/history$/);
+    await expect(page.getByRole('link', { name: 'Open workbench' })).toHaveCount(0);
+    await expect(page.getByText('Recent runs are unavailable in this environment.')).toBeVisible();
+    await page.getByRole('button', { name: /Your case/ }).click();
+    await expect(page.getByText('12.5%')).toBeVisible();
+    await page.getByRole('link', { name: 'Open this memo' }).click();
+    await expect(page).not.toHaveURL(/workbench/);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Microsoft');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('$110.00');
+    await expect(page.locator('p').filter({ hasText: 'If revenue grows' }).first()).toContainText('12.5%');
+    await expect(page.getByRole('button', { name: baseLabel, exact: true })).toBeVisible();
+    expect(requests.symbols.at(-1)).toBe('MSFT');
   });
 
   for (const ticker of ['NVDA', 'MSFT']) {

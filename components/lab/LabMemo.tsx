@@ -26,6 +26,7 @@ import {
   demoSensitivityOffsets,
   DEMO_MARKET_PRICE,
   findCatalogCompany,
+  forecastPeriodPhrase,
   formatAssumptionPercent,
   formatBillions,
   formatLabDay,
@@ -37,8 +38,10 @@ import {
   LAB_DISCLAIMER,
   LAB_PATHS,
   parseLabStatus,
+  pinScenarioQuotes,
   projectionYearLabel,
   resolveLabPhase,
+  scenarioChipQuotes,
   stepAssumption,
   type AssumptionKind,
 } from '@/lib/lab/presentation';
@@ -48,6 +51,7 @@ import {
   type Scenario,
 } from '@/lib/workbench/scenarioProfiles';
 import { scenarioValues } from '@/lib/workbench/mockData';
+import { findSessionRun, rememberSessionRun } from '@/lib/lab/sessionRuns';
 import type { CompanySearchResult } from '@/lib/contracts/company';
 import { cn } from '@/lib/utils/cn';
 import { LabFrame } from './LabFrame';
@@ -92,6 +96,8 @@ function LabMemoBody() {
   const requestedName = searchParams.get('name');
 
   const { selectCompany, setScenario, setScenarioAssumptions, setSelectedRunId } = workbench;
+  const chipPin = useRef<Partial<Record<Scenario, number>>>({});
+  const appliedSession = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     if (!isDemo || queryStatus !== 'memo') {
@@ -141,6 +147,38 @@ function LabMemoBody() {
     setSelectedRunId,
   ]);
 
+  useLayoutEffect(() => {
+    if (isDemo || queryStatus !== 'memo' || !requestedRun) {
+      return;
+    }
+    if (appliedSession.current === requestedRun) {
+      return;
+    }
+    appliedSession.current = requestedRun;
+    const sessionRun = findSessionRun(requestedRun);
+    if (!sessionRun) {
+      setSelectedRunId(requestedRun);
+      return;
+    }
+    if (sessionRun.listingId) {
+      selectCompany(sessionRun.listingId, sessionRun.ticker);
+    } else {
+      selectCompany(null, sessionRun.ticker);
+    }
+    setScenario(sessionRun.scenario);
+    setScenarioAssumptions(sessionRun.assumptions);
+    setSelectedRunId(null);
+    chipPin.current = sessionRun.caseQuotes ?? {};
+  }, [
+    isDemo,
+    queryStatus,
+    requestedRun,
+    selectCompany,
+    setScenario,
+    setScenarioAssumptions,
+    setSelectedRunId,
+  ]);
+
   useEffect(() => {
     if (dashboard.import.status !== 'approved' || queryStatus !== 'import') return;
     const params = new URLSearchParams(searchParams.toString());
@@ -161,6 +199,23 @@ function LabMemoBody() {
 
   const details = dashboard.valuation.detailsForDisplay;
   const scenarioMap = readScenarioValues(details, isDemo);
+  const appliedReplay = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (isDemo || !details || isComputeResult(details) || !details.assumptions || !details.runId) {
+      return;
+    }
+    if (appliedReplay.current === details.runId) {
+      return;
+    }
+    appliedReplay.current = details.runId;
+    setScenario(details.scenario ?? 'base');
+    setScenarioAssumptions({
+      bear: details.assumptions.bear ?? scenarioAssumptionDefaults.bear,
+      base: details.assumptions.base ?? scenarioAssumptionDefaults.base,
+      bull: details.assumptions.bull ?? scenarioAssumptionDefaults.bull,
+    });
+  }, [details, isDemo, setScenario, setScenarioAssumptions]);
   const assumptions = dashboard.workspace.assumptions;
   const savedRun = isDemo
     ? buildDemoHistory().find((run) => run.id === workbench.selectedRunId) ?? null
@@ -190,10 +245,19 @@ function LabMemoBody() {
     compact,
     currency,
   });
+  const quotedAssumptionsRef = useRef(workbench.assumptions);
+  const quotedDetailsRef = useRef<typeof details>(null);
+  if (quotedDetailsRef.current !== details) {
+    quotedDetailsRef.current = details;
+    quotedAssumptionsRef.current = workbench.assumptions;
+  }
+  const quotedAssumptions = quotedAssumptionsRef.current;
+  const chipQuotes = scenarioChipQuotes(scenarioMap, quotedAssumptions, chipPin.current);
+  chipPin.current = pinScenarioQuotes(scenarioMap, quotedAssumptions, chipPin.current);
   const field = buildValueMarks({
-    bear: scenarioMap.bear,
-    bull: scenarioMap.bull,
-    memo: fairValue ?? scenarioMap.base,
+    bear: chipQuotes.bear,
+    bull: chipQuotes.bull,
+    memo: fairValue ?? chipQuotes.base,
     price,
     currency,
   });
@@ -218,6 +282,7 @@ function LabMemoBody() {
   };
 
   const changeAssumption = (kind: AssumptionKind, direction: -1 | 1) => {
+    setSelectedRunId(null);
     const next = stepAssumption(assumptions, kind, direction);
     const fieldForKind = assumptionFields().find((item) => item.kind === kind);
     if (!fieldForKind) {
@@ -231,6 +296,47 @@ function LabMemoBody() {
       dashboard.workspace.handleAssumptionChange('discountRate', next.discountRate);
     }
   };
+
+  const assumptionKey = JSON.stringify(workbench.assumptions);
+  const quoteKey = JSON.stringify(chipQuotes);
+  useEffect(() => {
+    if (
+      isDemo ||
+      phase !== 'memo' ||
+      fairValue === null ||
+      dashboard.valuation.isComputing ||
+      dashboard.valuation.isReplayDisplay ||
+      dashboard.valuation.error
+    ) {
+      return;
+    }
+    rememberSessionRun({
+      ticker: dashboard.company.activeTicker,
+      name: companyName,
+      listingId: dashboard.company.activeCompanyId,
+      value: fairValue,
+      currency,
+      scenario,
+      assumptions: workbench.assumptions,
+      caseQuotes: chipQuotes,
+    });
+    // assumptionKey and quoteKey stand in for the object identities.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    assumptionKey,
+    companyName,
+    currency,
+    dashboard.company.activeCompanyId,
+    dashboard.company.activeTicker,
+    dashboard.valuation.error,
+    dashboard.valuation.isComputing,
+    dashboard.valuation.isReplayDisplay,
+    fairValue,
+    isDemo,
+    phase,
+    quoteKey,
+    scenario,
+  ]);
 
   const activeLabel = caseLabel(
     scenario,
@@ -255,8 +361,9 @@ function LabMemoBody() {
     ? `open the last saved ${saved.shortName} memo from ${formatLabDay(saved.at)}`
     : 'open the last saved memo';
 
+  const listingFromQuery = searchParams.get('listingId')?.trim() || null;
   const importTarget: CompanySearchResult = {
-    id: (isDemo ? importCompany?.id : undefined) ?? `import:${importTicker}`,
+    id: listingFromQuery ?? (isDemo ? importCompany?.id : undefined) ?? `import:${importTicker}`,
     symbol: importTicker,
     name: importName,
     coverageState: 'import_required',
@@ -304,7 +411,7 @@ function LabMemoBody() {
           price={price}
           assumptions={assumptions}
           scenario={scenario}
-          scenarioMap={scenarioMap}
+          chipQuotes={chipQuotes}
           field={field}
           bridge={bridge}
           shares={bridgeModel.sharesOutstanding}
@@ -332,7 +439,7 @@ function MemoDocument({
   price,
   assumptions,
   scenario,
-  scenarioMap,
+  chipQuotes,
   field,
   bridge,
   shares,
@@ -354,7 +461,7 @@ function MemoDocument({
   price: number | null;
   assumptions: Assumptions;
   scenario: Scenario;
-  scenarioMap: Record<Scenario, number>;
+  chipQuotes: Record<Scenario, number>;
   field: ReturnType<typeof buildValueMarks>;
   bridge: ReturnType<typeof buildBridgeRows>;
   shares: number | null;
@@ -368,7 +475,7 @@ function MemoDocument({
   onScenario: (scenario: Scenario) => void;
 }) {
   const fairLabel = formatSharePrice(fairValue, 2, currency);
-  const forecastPeriod = projections.length ? `${projections.length} ${projections.length === 1 ? "year" : "years"}` : "the forecast period";
+  const forecastPeriod = forecastPeriodPhrase(projections.length);
   const growth = formatAssumptionPercent(assumptions.revenueGrowth, 'growth');
   const margin = formatAssumptionPercent(assumptions.operatingMargin, 'margin');
   const discount = formatAssumptionPercent(assumptions.discountRate, 'discount');
@@ -429,7 +536,7 @@ function MemoDocument({
                 disabled={readOnly}
                 onClick={() => onScenario(item)}
               >
-                {SCENARIO_LABELS[item]} · {formatSharePrice(scenarioMap[item], 0, currency)}
+                {SCENARIO_LABELS[item]} · {formatSharePrice(chipQuotes[item], 0, currency)}
               </button>
             );
           })}
@@ -680,11 +787,7 @@ export function LabMemo() {
   const status = parseLabStatus(params.get('status'));
   if (isDemo && (status === 'import' || !isDemoMemoAvailable(ticker, runId))) {
     return <LabFeatureUnavailable active="memo" title="This demo memo is unavailable"
-      description="Only Apple has a complete illustrative snapshot. Imports and other companies are available in the live workbench." />;
-  }
-  if (!isDemo && runId) {
-    return <LabFeatureUnavailable active="memo" title="Open saved live memos in the workbench"
-      description="Use the workbench to restore the actual saved result and its original assumptions." />;
+      description="Only Apple has a complete illustrative snapshot." />;
   }
   return (
     <WorkbenchProvider key={`${ticker ?? ''}|${runId ?? ''}|${listingId ?? ''}`} initialState={{

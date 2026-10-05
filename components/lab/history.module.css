@@ -183,7 +183,8 @@
   color: #ffffff;
 }
 
-.secondary {
+.secondary.secondary,
+.secondary.secondary:hover {
   border: 1px solid var(--ink);
   color: var(--ink);
 }

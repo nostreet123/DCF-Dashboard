@@ -15,8 +15,8 @@ export function LabFeatureUnavailable({ active, title, description }: {
           <h1 className={styles.title}>{title}</h1>
           <p className={styles.copy}>{description}</p>
           <div className={styles.actions}>
-            <Link href={LAB_PATHS.workbench} className={styles.primary}>Open workbench</Link>
-            <Link href={LAB_PATHS.memo} className={styles.secondary}>Back to memo</Link>
+            <Link href={LAB_PATHS.memo} className={styles.primary}>Back to memo</Link>
+            <Link href={LAB_PATHS.library} className={styles.secondary}>Library</Link>
           </div>
         </div>
       </section>

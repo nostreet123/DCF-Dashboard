@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
-import { LAB_PATHS } from '@/lib/lab/presentation';
+import { forecastPeriodPhrase, LAB_PATHS } from '@/lib/lab/presentation';
+import { MODEL_FORECAST_YEARS } from '@/lib/workbench/factsPayload';
 import styles from './states.module.css';
 
 export function ComputingMemo({
@@ -33,7 +34,7 @@ export function ComputingMemo({
           </span>
           <span className={styles.step}>
             <span className={styles.dot} />
-            Projecting five years
+            Projecting {forecastPeriodPhrase(MODEL_FORECAST_YEARS)}
           </span>
           <span className={`${styles.step} ${styles.stepPending}`}>
             <span className={`${styles.dot} ${styles.dotPending}`} />
