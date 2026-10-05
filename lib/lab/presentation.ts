@@ -502,8 +502,11 @@ export function buildValueMarks(input: {
   const values = [input.bear, input.bull, input.memo, input.price].filter(
     (value): value is number => value !== null,
   );
-  const lo = Math.min(...values) * 0.85;
-  const hi = Math.max(...values) * 1.08;
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const padding = maximum > minimum ? (maximum - minimum) * 0.25 : Math.max(Math.abs(minimum), 1) * 0.15;
+  const lo = minimum - padding;
+  const hi = maximum + padding;
   const span = hi - lo || 1;
   const pos = (value: number) => ((value - lo) / span) * 100;
   const marks: ValueMark[] = [

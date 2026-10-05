@@ -129,8 +129,23 @@ test.describe('live Lab', () => {
   });
 
   for (const ticker of ['NVDA', 'MSFT']) {
-    test(`${ticker} import approval removes the route status and renders the imported company`, async ({ page }) => {
+    test(`${ticker} import approval preserves its listing through refresh`, async ({ page }) => {
       const requests = await liveFixtures(page);
+      const importedFactsReads: Array<{ listingId: string | null; token: string | null }> = [];
+      await page.addInitScript(() => {
+        window.sessionStorage.setItem('dcf-dashboard:import-context-token', 'context-token');
+      });
+      await page.route('**/api/company/facts/browser?**', async (route) => {
+        const url = new URL(route.request().url());
+        importedFactsReads.push({
+          listingId: url.searchParams.get('listingId'),
+          token: route.request().headers()['x-import-context-token'] ?? null,
+        });
+        await route.fulfill({ json: {
+          symbol: ticker, name: ticker === 'NVDA' ? 'NVIDIA Corp.' : 'Microsoft Corporation',
+          currency: 'USD', filingCurrency: 'USD', statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 250, cash: 10, debt: 50, shares_outstanding: 10 }],
+        } });
+      });
       const company = { id: `import:${ticker}`, symbol: ticker, name: ticker === 'NVDA' ? 'NVIDIA Corp.' : 'Microsoft Corporation', coverageState: 'import_required', sourceLinks: [] };
       await page.route('**/api/company/detail?**', (route) => route.fulfill({ json: company }));
       await page.route('**/api/company/import/parse?**', async (route) => {
@@ -149,10 +164,17 @@ test.describe('live Lab', () => {
       await page.locator('input[type=file]').setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from('revenue\n100') });
       await page.getByRole('button', { name: 'Parse Files' }).click();
       await page.getByRole('button', { name: 'Approve And Compute' }).click();
-      await expect(page).toHaveURL(new RegExp(`\\/\\?ticker=${ticker}$`));
+      await expect.poll(() => {
+        const url = new URL(page.url());
+        return [url.searchParams.get('ticker'), url.searchParams.get('listingId')];
+      }).toEqual([ticker, `import:${ticker}`]);
       await expect(page.getByRole('heading', { level: 1 })).toContainText(ticker === 'NVDA' ? 'NVIDIA' : 'Microsoft');
-      expect(requests.symbols).toEqual([ticker]);
-      expect(requests.count()).toBe(1);
+      expect(importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
+      await page.reload();
+      await expect(page.getByRole('heading', { level: 1 })).toContainText(ticker === 'NVDA' ? 'NVIDIA' : 'Microsoft');
+      expect(importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
+      expect(importedFactsReads).toHaveLength(2);
+      expect(requests.symbols).toEqual([]);
     });
   }
 });
@@ -165,6 +187,14 @@ test.describe('demo Lab', () => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Apple looks worth $145.20');
     await expect(page.getByRole('table').getByRole('cell')).toHaveCount(25);
+    const assumptionSummary = () => page.locator('p').filter({ hasText: 'If revenue grows' }).first();
+    await page.goto('/?ticker=AAPL');
+    for (const assumption of ['8%', '20%', '9.0%', '2.0%']) {
+      await expect(assumptionSummary()).toContainText(assumption);
+    }
+    const tickerAssumptions = await assumptionSummary().innerText();
+    await page.goto('/?run=r1');
+    await expect(assumptionSummary()).toHaveText(tickerAssumptions, { useInnerText: true });
   });
 
   test('the saved demo snapshot keeps assumptions and values fixed on desktop and mobile', async ({ page }) => {

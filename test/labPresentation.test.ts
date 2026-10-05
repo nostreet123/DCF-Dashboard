@@ -41,6 +41,26 @@ describe('lab presentation', () => {
     expect(buildSensitivityGrid({ matrix: [[100]], growthOffsets: [0], waccOffsets: [0], baseGrowth: 12, baseDiscount: 9, price: null, compact: false, currency: 'EUR' }).cells.at(-1)?.text).toBe('€100');
   });
 
+  test('keeps value marks inside the chart for negative, sign-crossing, and degenerate ranges', () => {
+    const charts = [
+      buildValueMarks({ bear: -5, bull: -3, memo: -4, price: null }),
+      buildValueMarks({ bear: -5, bull: 3, memo: 0, price: null }),
+      buildValueMarks({ bear: -4, bull: -4, memo: -4, price: null }),
+    ];
+    for (const chart of charts) {
+      for (const mark of chart.marks) {
+        expect(Number.isFinite(mark.left)).toBe(true);
+        expect(mark.left).toBeGreaterThanOrEqual(0);
+        expect(mark.left).toBeLessThanOrEqual(100);
+      }
+      expect(chart.bandLeft).toBeGreaterThanOrEqual(0);
+      expect(chart.bandLeft + chart.bandWidth).toBeLessThanOrEqual(100);
+    }
+    for (const mark of charts[2]?.marks ?? []) {
+      expect(mark.left).toBeCloseTo(50);
+    }
+  });
+
   test('labels the bridge with the actual forecast horizon', () => {
     const bridge = { pvExplicit: 1e9, pvTerminal: 2e9, cash: 0, debt: 0, equity: 3e9, sharesOutstanding: 1e8 };
     expect(buildBridgeRows(bridge, 10)[0]?.label).toBe('PV of 10-year cash flow');

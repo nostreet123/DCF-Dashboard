@@ -87,7 +87,7 @@ function LabMemoBody() {
   const scenarioAssumptionsRef = useRef(workbench.assumptions);
   scenarioAssumptionsRef.current = workbench.assumptions;
   const queryStatus = parseLabStatus(searchParams.get('status'));
-  const requestedTicker = searchParams.get('ticker');
+  const requestedTicker = searchParams.get('ticker')?.trim().toUpperCase() ?? null;
   const requestedRun = searchParams.get('run');
   const requestedName = searchParams.get('name');
 
@@ -102,11 +102,12 @@ function LabMemoBody() {
       return;
     }
     appliedRoute.current = key;
+    const history = buildDemoHistory();
     const saved = requestedRun
-      ? buildDemoHistory().find((run) => run.id === requestedRun)
+      ? history.find((run) => run.id === requestedRun)
       : requestedTicker
-        ? undefined
-        : buildDemoHistory()[0];
+        ? history.find((run) => run.ticker === requestedTicker && run.assumptions)
+        : history[0];
     if (saved) {
       const company = findCatalogCompany(saved.ticker);
       if (company?.ready) {
@@ -144,9 +145,12 @@ function LabMemoBody() {
     if (dashboard.import.status !== 'approved' || queryStatus !== 'import') return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete('status');
+    if (dashboard.company.activeCompanyId) {
+      params.set('listingId', dashboard.company.activeCompanyId);
+    }
     const query = params.toString();
     router.replace(`${LAB_PATHS.memo}${query ? `?${query}` : ''}`);
-  }, [dashboard.import.status, queryStatus, router, searchParams]);
+  }, [dashboard.company.activeCompanyId, dashboard.import.status, queryStatus, router, searchParams]);
 
   const catalogCompany = findCatalogCompany(dashboard.company.activeTicker);
   const companyName = dashboard.company.companyDetail?.name ?? dashboard.valuation.detailsForDisplay?.provenance?.name ?? catalogCompany?.name ?? dashboard.company.activeTicker;
@@ -672,6 +676,7 @@ export function LabMemo() {
   const isDemo = getDashboardDataMode() === 'demo';
   const ticker = params.get('ticker')?.trim().toUpperCase() ?? null;
   const runId = params.get('run');
+  const listingId = params.get('listingId')?.trim() || null;
   const status = parseLabStatus(params.get('status'));
   if (isDemo && (status === 'import' || !isDemoMemoAvailable(ticker, runId))) {
     return <LabFeatureUnavailable active="memo" title="This demo memo is unavailable"
@@ -682,9 +687,9 @@ export function LabMemo() {
       description="Use the workbench to restore the actual saved result and its original assumptions." />;
   }
   return (
-    <WorkbenchProvider key={`${ticker ?? ''}|${runId ?? ''}`} initialState={{
+    <WorkbenchProvider key={`${ticker ?? ''}|${runId ?? ''}|${listingId ?? ''}`} initialState={{
       selectedSymbol: ticker ?? 'AAPL',
-      selectedCompanyId: isDemo ? '1' : null,
+      selectedCompanyId: isDemo ? '1' : listingId,
     }}>
       <LabMemoBody />
     </WorkbenchProvider>
