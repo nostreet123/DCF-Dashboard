@@ -41,20 +41,20 @@
     "@radix-ui/react-icons": "1.3.2",
     "clsx": "2.1.1",
     "convex": "1.46.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "@types/node": "26.6.3",
+    "@types/node": "26.6.4",
     "@types/react": "18.3.28",
     "@types/react-dom": "18.3.7",
     "bun-types": "1.4.2",
-    "convex-test": "0.0.59",
+    "convex-test": "0.0.60",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.3.8",
     "typescript": "5.9.3"
   },
   "overrides": {
