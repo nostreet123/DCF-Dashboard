@@ -384,7 +384,8 @@ export default defineSchema({
     dryRun: v.boolean(),
     pageLimit: v.number(),
 
-    groupCursor: v.optional(v.string()),
+    // Absent starts the phase; null records that its final group was loaded.
+    groupCursor: v.optional(v.union(v.string(), v.null())),
 
     currentSnapshotGroupId: v.optional(v.id("duplicateSnapshotGroups")),
     snapshotDeleteIds: v.optional(v.array(v.id("snapshots"))),
