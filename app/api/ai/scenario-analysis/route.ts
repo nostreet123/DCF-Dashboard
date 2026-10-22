@@ -23,7 +23,11 @@ import {
   loadConvexAiContext,
   withConvexContext,
 } from "@/lib/ai/scenarioAnalysis/convexContext";
-import { getMaxOutputTokens, isProviderFailure } from "@/lib/ai/scenarioAnalysis/provider";
+import {
+  getMaxOutputTokens,
+  isProviderFailure,
+  type ProviderResult,
+} from "@/lib/ai/scenarioAnalysis/provider";
 import {
   isFinalUnchangedFailure,
   isGroundingFailure,
@@ -34,6 +38,25 @@ import {
   readCurrentAssumptions,
   shouldRetryForUnchangedAssumptions,
 } from "@/lib/ai/scenarioAnalysis/validation";
+
+// Only provider results are shared; auth, context, quotas and responses remain per request.
+const pendingAnalyses = new Map<string, Promise<ProviderResult>>();
+
+const joinScenarioAnalysis = async (
+  key: string,
+  analyze: () => Promise<ProviderResult>,
+): Promise<ProviderResult> => {
+  const pending = pendingAnalyses.get(key);
+  if (pending) return pending;
+
+  const result = analyze();
+  pendingAnalyses.set(key, result);
+  try {
+    return await result;
+  } finally {
+    pendingAnalyses.delete(key);
+  }
+};
 
 const parsePositiveIntegerEnv = (key: string, defaultValue: number): number => {
   const raw = process.env[key];
@@ -94,24 +117,28 @@ export async function POST(request: Request) {
   const currentAssumptions = readCurrentAssumptions(payloadWithConvexContext);
   const activeScenario = readActiveScenario(payloadWithConvexContext);
   const cacheKey = cacheKeyFor(model, payloadWithConvexContext);
-  const cachedAnalysis = defaultScenarioAnalysisCache.get(cacheKey);
-  if (cachedAnalysis) {
+  const readCachedResponse = () => {
+    const cachedAnalysis = defaultScenarioAnalysisCache.get(cacheKey);
+    if (!cachedAnalysis) return null;
     if (
-      !shouldRetryForUnchangedAssumptions(
+      shouldRetryForUnchangedAssumptions(
         cachedAnalysis.analysis,
         currentAssumptions,
         activeScenario,
       )
     ) {
-      return NextResponse.json({
-        analysis: cachedAnalysis.analysis,
-        tokenUsage: cachedAnalysis.tokenUsage,
-        cached: true,
-        admin: isAdmin,
-      });
+      defaultScenarioAnalysisCache.delete(cacheKey);
+      return null;
     }
-    defaultScenarioAnalysisCache.delete(cacheKey);
-  }
+    return NextResponse.json({
+      analysis: cachedAnalysis.analysis,
+      tokenUsage: cachedAnalysis.tokenUsage,
+      cached: true,
+      admin: isAdmin,
+    });
+  };
+  const cachedResponse = readCachedResponse();
+  if (cachedResponse) return cachedResponse;
 
   if (!isAdmin) {
     const perIpDailyLimit = await enforceRateLimit(request, {
@@ -133,20 +160,35 @@ export async function POST(request: Request) {
     }
   }
 
+  // A matching provider run may have completed while this caller awaited its quotas.
+  const completedResponse = readCachedResponse();
+  if (completedResponse) return completedResponse;
+
   try {
     const retryContext = { currentAssumptions, activeScenario };
-    const result = await runScenarioAnalysisWithRetryPolicy(
-      {
-        apiKey,
-        model,
-        payload: payloadWithConvexContext,
-        reasoningEffort: null,
-        currentAssumptions,
-        activeScenario,
-        maxTokens: getMaxOutputTokens(),
-      },
-      retryContext,
-    );
+    const result = await joinScenarioAnalysis(cacheKey, async () => {
+      const result = await runScenarioAnalysisWithRetryPolicy(
+        {
+          apiKey,
+          model,
+          payload: payloadWithConvexContext,
+          reasoningEffort: null,
+          currentAssumptions,
+          activeScenario,
+          maxTokens: getMaxOutputTokens(),
+        },
+        retryContext,
+      );
+      if (result.ok && !isFinalUnchangedFailure(result, retryContext)) {
+        defaultScenarioAnalysisCache.set(
+          cacheKey,
+          result.analysis,
+          result.tokenUsage,
+          AI_CACHE_TTL_MS,
+        );
+      }
+      return result;
+    });
 
     if (isGroundingFailure(result)) {
       return errorResponse(
@@ -172,12 +214,6 @@ export async function POST(request: Request) {
       );
     }
 
-    defaultScenarioAnalysisCache.set(
-      cacheKey,
-      result.analysis,
-      result.tokenUsage,
-      AI_CACHE_TTL_MS,
-    );
     return NextResponse.json({
       analysis: result.analysis,
       tokenUsage: result.tokenUsage,

@@ -5,6 +5,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { POST } from "../app/api/ai/scenario-analysis/route";
 import {
   createMockFetch,
+  defaultConvexQueryMock,
   installAiScenarioTestEnv,
   providerResponseForAnalysis,
   sha256Hex,
@@ -14,16 +15,24 @@ import {
 
 const originalFetch = globalThis.fetch;
 let restoreEnv: (() => void) | null = null;
+let originalPerIpDailyLimit: string | undefined;
+
+const settlePendingRequests = () =>
+  new Promise<void>((resolve) => setImmediate(resolve));
 
 beforeEach(() => {
   const setup = installAiScenarioTestEnv();
   restoreEnv = setup.restore;
+  originalPerIpDailyLimit = process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY;
+  process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY = "5";
 });
 
 afterEach(() => {
   restoreEnv?.();
   restoreEnv = null;
   globalThis.fetch = originalFetch;
+  if (originalPerIpDailyLimit === undefined) delete process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY;
+  else process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY = originalPerIpDailyLimit;
 });
 
 describe("AI scenario analysis route", () => {
@@ -1406,6 +1415,344 @@ describe("AI scenario analysis route", () => {
         }),
       }),
     });
+  });
+
+  test("joins concurrent identical provider work and builds independent responses", async () => {
+    const gate = Promise.withResolvers<void>();
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      await gate.promise;
+      return new Response(validProviderResponse("Concurrent result."), { status: 200 });
+    });
+    const request = () => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.140" },
+      body: JSON.stringify({ symbol: "CONCURRENT" }),
+    });
+
+    const pending = [POST(request()), POST(request())];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const payloads = await Promise.all(responses.map((response) => response.json()));
+    const cached = await POST(request());
+    const cachedPayload = await cached.json();
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(responses[0]).not.toBe(responses[1]);
+    expect(payloads.map((payload) => payload.analysis.base.rationale)).toEqual([
+      "Concurrent result.", "Concurrent result.",
+    ]);
+    expect(payloads.map((payload) => payload.cached)).toEqual([false, false]);
+    expect(cachedPayload.cached).toBe(true);
+    expect(providerCalls).toBe(1);
+  });
+
+  test("preserves each caller's admin and cached metadata when provider work is joined", async () => {
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    const gate = Promise.withResolvers<void>();
+    let providerCalls = 0;
+    let companyReads = 0;
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      if (String(name) === "companies:get") companyReads += 1;
+      return defaultConvexQueryMock(name, args);
+    };
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      await gate.promise;
+      return new Response(validProviderResponse("Caller metadata result."), { status: 200 });
+    });
+    const request = (admin: boolean) => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: {
+        "x-vercel-forwarded-for": "203.0.113.141",
+        ...(admin ? { "x-dcf-admin-token": validAdminToken } : {}),
+      },
+      body: JSON.stringify({ symbol: "CALLERMETADATA" }),
+    });
+
+    const pending = [POST(request(true)), POST(request(false))];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const payloads = await Promise.all(responses.map((response) => response.json()));
+    const cachedPublic = await (await POST(request(false))).json();
+    const cachedAdmin = await (await POST(request(true))).json();
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(payloads.map((payload) => ({ admin: payload.admin, cached: payload.cached }))).toEqual([
+      { admin: true, cached: false }, { admin: false, cached: false },
+    ]);
+    expect({ admin: cachedPublic.admin, cached: cachedPublic.cached }).toEqual({ admin: false, cached: true });
+    expect({ admin: cachedAdmin.admin, cached: cachedAdmin.cached }).toEqual({ admin: true, cached: true });
+    expect(companyReads).toBe(4);
+    expect(providerCalls).toBe(1);
+  });
+
+  test("keeps concurrent imported and admin trace contexts separate from public context", async () => {
+    process.env.VALUATION_HISTORY_BROWSER_READS = "1";
+    process.env.IMPORT_CONTEXT_BROWSER_TOKEN_SHA256 = sha256Hex("flight-import-token");
+    const gate = Promise.withResolvers<void>();
+    const prompts: string[] = [];
+    ConvexHttpClient.prototype.query = async (name, args) => {
+      if (String(name) === "imports:getImportedFacts") {
+        return {
+          listingId: "sec:0000000000:FLIGHTSCOPE",
+          facts: { statements: [{ periodEnd: "2025-12-31", revenue: 7654321 }] },
+        };
+      }
+      if (String(name) === "valuations:listByTicker") {
+        return [{ _id: "flight-run", symbol: "FLIGHTSCOPE", status: "success" }];
+      }
+      if (String(name) === "valuations:get") {
+        return {
+          run: { _id: "flight-run", symbol: "FLIGHTSCOPE" },
+          trace: { trace: { base: { valuation: { fairValuePerShare: 987 } } } },
+        };
+      }
+      return defaultConvexQueryMock(name, args);
+    };
+    globalThis.fetch = createMockFetch(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      const prompt = body.messages.find((message: { role: string }) => message.role === "user").content;
+      prompts.push(prompt);
+      const label = prompt.includes('"fairValuePerShare":987')
+        ? "Saved trace result."
+        : prompt.includes('"revenue":7654321') ? "Import result." : "Public result.";
+      await gate.promise;
+      return new Response(validProviderResponse(label), { status: 200 });
+    });
+    const request = (headers: Record<string, string>) => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.142", ...headers },
+      body: JSON.stringify({ company: { id: "sec:0000000000:FLIGHTSCOPE", symbol: "FLIGHTSCOPE" } }),
+    });
+
+    const pending = [
+      POST(request({ "x-import-context-token": "wrong-token" })),
+      POST(request({ "x-import-context-token": "flight-import-token" })),
+      POST(request({ "x-dcf-admin-token": validAdminToken })),
+    ];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const payloads = await Promise.all(responses.map((response) => response.json()));
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200]);
+    expect(payloads.map((payload) => payload.analysis.base.rationale)).toEqual([
+      "Public result.", "Import result.", "Saved trace result.",
+    ]);
+    expect(prompts).toHaveLength(3);
+  });
+
+  test("keeps concurrent requests for different models separate", async () => {
+    const gate = Promise.withResolvers<void>();
+    const models: string[] = [];
+    globalThis.fetch = createMockFetch(async (_url, init) => {
+      models.push(JSON.parse(String(init?.body)).model);
+      await gate.promise;
+      return new Response(validProviderResponse("Different model result."), { status: 200 });
+    });
+    const request = () => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.143" },
+      body: JSON.stringify({ symbol: "FLIGHTMODEL" }),
+    });
+
+    const first = POST(request());
+    await settlePendingRequests();
+    process.env.HUGGING_FACE_MODEL = "test/another-model";
+    const second = POST(request());
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all([first, second]);
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(models).toEqual(["test/model", "test/another-model"]);
+  });
+
+  test("checks every concurrent caller's daily quotas before joining provider work", async () => {
+    process.env.API_RATE_LIMIT_AI_SCENARIO_DAILY = "2";
+    process.env.API_RATE_LIMIT_AI_SCENARIO_PER_IP_DAILY = "1";
+    const gate = Promise.withResolvers<void>();
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      await gate.promise;
+      return new Response(validProviderResponse("Quota checked result."), { status: 200 });
+    });
+    const request = (ip: string) => new Request("http://preview.example/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": ip },
+      body: JSON.stringify({ symbol: "FLIGHTQUOTA" }),
+    });
+
+    const first = POST(request("203.0.113.144"));
+    await settlePendingRequests();
+    const sameIp = await POST(request("203.0.113.144"));
+    const second = POST(request("203.0.113.145"));
+    await settlePendingRequests();
+    const globalCap = await POST(request("203.0.113.146"));
+    gate.resolve();
+    const responses = await Promise.all([first, second]);
+
+    expect(sameIp.status).toBe(429);
+    expect(globalCap.status).toBe(429);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(providerCalls).toBe(1);
+  });
+
+  test("reuses completed analysis when a concurrent caller finishes its quota checks later", async () => {
+    const providerGate = Promise.withResolvers<void>();
+    const providerStarted = Promise.withResolvers<void>();
+    const quotaGate = Promise.withResolvers<void>();
+    const followerQuotaReached = Promise.withResolvers<void>();
+    let globalQuotaChecks = 0;
+    let providerCalls = 0;
+    const originalMutation = ConvexHttpClient.prototype.mutation;
+    ConvexHttpClient.prototype.mutation = async (name, args) => {
+      const result = await originalMutation(name, args);
+      const bucketKey = (args as unknown as { bucketKey?: string }).bucketKey;
+      if (bucketKey === "api:ai:scenario-analysis:daily:global") {
+        globalQuotaChecks += 1;
+        if (globalQuotaChecks === 2) {
+          followerQuotaReached.resolve();
+          await quotaGate.promise;
+        }
+      }
+      return result;
+    };
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      providerStarted.resolve();
+      await providerGate.promise;
+      return new Response(validProviderResponse("Completed during quota check."), { status: 200 });
+    });
+    const request = (ip: string) => new Request("http://preview.example/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": ip },
+      body: JSON.stringify({ symbol: "FLIGHTHANDOFF" }),
+    });
+
+    const leader = POST(request("203.0.113.150"));
+    await providerStarted.promise;
+    const follower = POST(request("203.0.113.151"));
+    await followerQuotaReached.promise;
+    providerGate.resolve();
+    const leaderResponse = await leader;
+    quotaGate.resolve();
+    const followerResponse = await follower;
+    const leaderPayload = await leaderResponse.json();
+    const followerPayload = await followerResponse.json();
+
+    expect([leaderResponse.status, followerResponse.status]).toEqual([200, 200]);
+    expect(providerCalls).toBe(1);
+    expect(leaderPayload.cached).toBe(false);
+    expect(followerPayload.cached).toBe(true);
+    expect(followerPayload.analysis.base.rationale).toBe("Completed during quota check.");
+    expect(globalQuotaChecks).toBe(2);
+  });
+
+  test("shares the provider retry sequence for concurrent identical context", async () => {
+    const gate = Promise.withResolvers<void>();
+    const providerBodies: Array<Record<string, unknown>> = [];
+    globalThis.fetch = createMockFetch(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      providerBodies.push(body);
+      await gate.promise;
+      return body.reasoning_effort
+        ? new Response(JSON.stringify({ error: { message: "temporary upstream failure" } }), { status: 503 })
+        : new Response(validProviderResponse("Shared retry result."), { status: 200 });
+    });
+    const request = () => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.147" },
+      body: JSON.stringify({ symbol: "FLIGHTRETRY" }),
+    });
+
+    const pending = [POST(request()), POST(request())];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const payloads = await Promise.all(responses.map((response) => response.json()));
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(payloads.map((payload) => payload.analysis.base.rationale)).toEqual([
+      "Shared retry result.", "Shared retry result.",
+    ]);
+    expect(providerBodies.map((body) => body.reasoning_effort)).toEqual(["xhigh", undefined]);
+  });
+
+  test("clears failed concurrent provider work so the same context can succeed later", async () => {
+    const gate = Promise.withResolvers<void>();
+    let failProvider = true;
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      await gate.promise;
+      return failProvider
+        ? new Response(JSON.stringify({ error: { message: "provider rejected request" } }), { status: 401 })
+        : new Response(validProviderResponse("Recovered provider result."), { status: 200 });
+    });
+    const request = () => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.148" },
+      body: JSON.stringify({ symbol: "FLIGHTFAILURE" }),
+    });
+
+    const pending = [POST(request()), POST(request())];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const payloads = await Promise.all(responses.map((response) => response.json()));
+    const failedProviderCalls = providerCalls;
+    failProvider = false;
+    const retry = await POST(request());
+    const retryPayload = await retry.json();
+
+    expect(responses.map((response) => response.status)).toEqual([401, 401]);
+    expect(payloads.map((payload) => payload.code)).toEqual(["AI_PROVIDER_ERROR", "AI_PROVIDER_ERROR"]);
+    expect(failedProviderCalls).toBe(1);
+    expect(retry.status).toBe(200);
+    expect(retryPayload.analysis.base.rationale).toBe("Recovered provider result.");
+    expect(retryPayload.cached).toBe(false);
+    expect(providerCalls).toBe(2);
+  });
+
+  test("clears rejected concurrent provider work so the same context can be retried", async () => {
+    const gate = Promise.withResolvers<void>();
+    let rejectProvider = true;
+    let providerCalls = 0;
+    globalThis.fetch = createMockFetch(async () => {
+      providerCalls += 1;
+      await gate.promise;
+      const response = new Response(validProviderResponse("Recovered rejection result."), { status: 200 });
+      if (rejectProvider) {
+        response.json = () => { throw new Error("Synthetic provider decode exception"); };
+      }
+      return response;
+    });
+    const request = () => new Request("http://localhost/api/ai/scenario-analysis", {
+      method: "POST",
+      headers: { "x-vercel-forwarded-for": "203.0.113.149" },
+      body: JSON.stringify({ symbol: "FLIGHTREJECTION" }),
+    });
+
+    const pending = [POST(request()), POST(request())];
+    await settlePendingRequests();
+    gate.resolve();
+    const responses = await Promise.all(pending);
+    const failedProviderCalls = providerCalls;
+    rejectProvider = false;
+    const retry = await POST(request());
+    const retryPayload = await retry.json();
+
+    expect(responses.map((response) => response.status)).toEqual([502, 502]);
+    expect(failedProviderCalls).toBe(1);
+    expect(retry.status).toBe(200);
+    expect(retryPayload.analysis.base.rationale).toBe("Recovered rejection result.");
+    expect(providerCalls).toBe(2);
   });
 
   test("returns cached analysis for repeated matching valuation context", async () => {
