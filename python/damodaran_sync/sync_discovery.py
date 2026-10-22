@@ -138,6 +138,7 @@ def resolve_assets_for_page(
     from damodaran_sync.sync_timing import maybe_time
 
     resolved_assets: list[ResolvedAsset] = []
+    seen_work: set[tuple[discover.DiscoveredAsset, str, str, str | None, bool]] = set()
     for asset in assets:
         with maybe_time(timing, "resolve_dataset"):
             stem = mapping_resolver.normalize_stem(asset.file_name)
@@ -152,15 +153,25 @@ def resolve_assets_for_page(
                 datasets_map,
                 regions_list,
             )
-        resolved_assets.append(
-            build_resolved_asset(
-                asset,
-                dataset_key,
-                region_code,
-                resolved_ds,
-                region_error,
-            )
+        item = build_resolved_asset(
+            asset,
+            dataset_key,
+            region_code,
+            resolved_ds,
+            region_error,
         )
+        # The frozen asset includes all provenance and allowed-host hints.
+        work_key = (
+            asset,
+            item.dataset_key,
+            item.region_code,
+            item.resolution_error,
+            item.resolved_ds,
+        )
+        if work_key in seen_work:
+            continue
+        seen_work.add(work_key)
+        resolved_assets.append(item)
 
     asset_records = [
         _build_asset_record(

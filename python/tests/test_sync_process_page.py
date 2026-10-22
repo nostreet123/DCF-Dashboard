@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from damodaran_sync import discover, download, excel_parse, sync, sync_upload, transform
 from damodaran_sync.convex_client import SnapshotUpsertResult
@@ -331,3 +334,120 @@ def test_process_page_additive_only_processes_not_ready_snapshot(monkeypatch) ->
 
     assert "upsert_snapshot" in client.events
     assert "insert_rows" in client.events
+
+
+@pytest.mark.parametrize("workers", [1, 3], ids=["serial", "parallel"])
+def test_process_page_skips_exact_duplicate_work(monkeypatch, workers: int) -> None:
+    client = _FakeClient()
+    first = _make_asset()
+    second = replace(first, source_url="https://example.com/other/test_us_2024.xls")
+    assets = [first, second, replace(first), replace(second), replace(first)]
+    downloaded_assets: list[discover.DiscoveredAsset] = []
+    parsed_urls: list[str] = []
+    transformed_tables: list[excel_parse.ParsedTable] = []
+
+    monkeypatch.delenv("DAMODARAN_MIRROR_MANIFEST_URL", raising=False)
+    monkeypatch.delenv("DAMODARAN_SYNC_LIMIT", raising=False)
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", str(workers))
+    discovery = discover.PageDiscovery(
+        page_url="https://example.com/page",
+        page_type="current",
+        page_last_updated="2024-01-01",
+        assets=assets,
+    )
+    monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
+
+    def download_stage(item, _client, **kwargs):
+        downloaded_assets.append(item.asset)
+        kwargs["outcome"].downloaded += 1
+        return _fake_download_result(item.asset), 1
+
+    def parse_stage(result, _timing):
+        parsed_urls.append(result.url)
+        return _make_parsed_table(), 1
+
+    def transform_stage(parsed, _timing):
+        transformed_tables.append(parsed)
+        return _make_transform_result()
+
+    monkeypatch.setattr(sync, "run_download_stage", download_stage)
+    monkeypatch.setattr(sync, "parse_downloaded_asset", parse_stage)
+    monkeypatch.setattr(sync, "transform_parsed_asset", transform_stage)
+
+    sync.process_page("https://example.com/page", "current", client)
+
+    assert len(downloaded_assets) == 2
+    assert {id(asset) for asset in downloaded_assets} == {id(first), id(second)}
+    if workers == 1:
+        assert downloaded_assets[0] is first
+        assert downloaded_assets[1] is second
+    assert sorted(parsed_urls) == sorted([first.source_url, second.source_url])
+    assert len(transformed_tables) == 2
+    assert client.events.count("upsert_snapshot") == 2
+    assert client.events.count("insert_rows") == 2
+    assert client.events.count("finalize_snapshot") == 2
+    assert client.increments[0] == {"assetsDiscovered": 5}
+    assert client.increments[-1] == {
+        "assetsDownloaded": 2,
+        "assetsSkipped": 3,
+        "rowsInserted": 2,
+        "errorCount": 0,
+    }
+    assert client.manifest_upserts[0][3] == 5
+    assert client.finished_statuses == ["success"]
+    assert client.appended_errors == []
+
+
+@pytest.mark.parametrize("workers", [1, 3], ids=["serial", "parallel"])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"source_page_url": "https://example.com/another-page"},
+        {"page_type": "archive"},
+        {"page_last_updated": "2024-02-01"},
+        {"source_url": "https://example.com/other/test_us_2024.xls"},
+        {"file_name": "TEST_US_2024.xls"},
+        {"link_label": "Other label"},
+        {"link_label": "Europe"},
+        {"as_of_date": "2024-02-01"},
+        {"as_of_date_source": "filename"},
+        {"as_of_granularity": "month"},
+        {"resolution_error": "ambiguous_date"},
+        {"allowed_host_hints": ("mirror.example.com",)},
+    ],
+    ids=[
+        "source-page", "page-type", "page-update", "source-url", "file-name",
+        "label", "region", "date", "date-source", "granularity", "error", "host-hints",
+    ],
+)
+def test_process_page_keeps_distinct_work_identity(
+    monkeypatch, workers: int, changes: dict[str, Any]
+) -> None:
+    client = _FakeClient()
+    first = _make_asset()
+    assets = [first, replace(first, **changes)]
+    monkeypatch.delenv("DAMODARAN_MIRROR_MANIFEST_URL", raising=False)
+    monkeypatch.delenv("DAMODARAN_SYNC_LIMIT", raising=False)
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", str(workers))
+    discovery = discover.PageDiscovery(
+        page_url="https://example.com/page",
+        page_type="current",
+        page_last_updated="2024-01-01",
+        assets=assets,
+    )
+    monkeypatch.setattr(discover, "discover_page_assets", lambda *_args, **_kwargs: discovery)
+    _stub_asset_stages(monkeypatch, assets)
+
+    sync.process_page("https://example.com/page", "current", client)
+
+    assert client.events.count("upsert_snapshot") == 2
+    assert client.events.count("insert_rows") == 2
+    assert client.events.count("finalize_snapshot") == 2
+    assert client.increments[0] == {"assetsDiscovered": 2}
+    assert client.increments[-1]["assetsSkipped"] == 0
+    assert client.increments[-1]["rowsInserted"] == 2
+    assert client.manifest_upserts[0][3] == 2
+    assert client.finished_statuses == ["success"]
+    assert client.appended_errors == []

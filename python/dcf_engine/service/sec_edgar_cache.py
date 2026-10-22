@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from copy import deepcopy
 import json
 import os
 import time
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
 CACHE_TTL_SECONDS = 24 * 60 * 60
+_MAX_PARSED_TICKER_FILES = 8
+_PARSED_TICKERS: OrderedDict[
+    Path, tuple[tuple[int, int, int, int, int], list[dict[str, Any]]]
+] = OrderedDict()
+_PARSED_TICKERS_LOCK = threading.Lock()
 
 
 TickerFetcher = Callable[[str], dict[str, Any]]
@@ -44,22 +52,49 @@ def _parse_ticker_payload(payload: Any) -> list[dict[str, Any]] | None:
     return [entry for entry in payload.values() if isinstance(entry, dict)]
 
 
+def _file_identity(stat: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
 def load_cached_tickers(cache_key: str = "exchange") -> list[dict[str, Any]] | None:
-    path = ticker_cache_path(cache_key)
-    if not path.exists():
-        return None
+    path = ticker_cache_path(cache_key).resolve()
+    with _PARSED_TICKERS_LOCK:
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            _PARSED_TICKERS.pop(path, None)
+            return None
+        # TTL is checked even on memory hits; parsing reuse never extends it.
+        if time.time() - stat.st_mtime > CACHE_TTL_SECONDS:
+            _PARSED_TICKERS.pop(path, None)
+            return None
 
-    age_seconds = time.time() - path.stat().st_mtime
-    if age_seconds > CACHE_TTL_SECONDS:
-        return None
+        identity = _file_identity(stat)
+        cached = _PARSED_TICKERS.pop(path, None)
+        if cached is not None and cached[0] == identity:
+            _PARSED_TICKERS[path] = cached
+            return deepcopy(cached[1])
 
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except json.JSONDecodeError:
-        return None
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+                # Do not retain a snapshot that changed while it was read.
+                if _file_identity(os.fstat(handle.fileno())) != identity:
+                    return None
+            if _file_identity(path.stat()) != identity:
+                return None
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
 
-    return _parse_ticker_payload(payload)
+        parsed = _parse_ticker_payload(payload)
+        if parsed is None:
+            return None
+        _PARSED_TICKERS[path] = (identity, parsed)
+        while len(_PARSED_TICKERS) > _MAX_PARSED_TICKER_FILES:
+            _PARSED_TICKERS.popitem(last=False)
+        # Callers historically owned their freshly parsed values, including
+        # nested JSON values and duplicate-symbol order.
+        return deepcopy(parsed)
 
 
 def write_ticker_cache(cache_key: str, payload: dict[str, Any]) -> None:
