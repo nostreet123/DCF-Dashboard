@@ -42,6 +42,7 @@ const INPUTS = {
 
 const FACTS_PAYLOAD = {
   symbol: "AAPL",
+  source: "edgar",
   currency: "USD",
   statements: [
     {
@@ -209,6 +210,7 @@ function setup(debounceMs = 10) {
 
   return {
     refs,
+    cbs,
     compute,
     reset,
     getIsLoading: () => isLoading,
@@ -220,6 +222,7 @@ function setup(debounceMs = 10) {
 describe("useDcfCompute concurrency", () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
+  const originalDateNow = Date.now;
 
   beforeEach(() => {
     globalThis.fetch = originalFetch;
@@ -227,10 +230,357 @@ describe("useDcfCompute concurrency", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    Date.now = originalDateNow;
     Object.defineProperty(globalThis, "window", {
       value: originalWindow,
       configurable: true,
     });
+  });
+
+  test("repeated assumption edits reuse one public SEC facts GET and preview every edit", async () => {
+    let factsGets = 0;
+    const postedGrowth: number[] = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      postedGrowth.push(JSON.parse(String(init?.body)).base.revenueGrowth);
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { refs, cbs } = setup(0);
+    for (const growth of [10, 11, 12, 13, 14]) {
+      const inputs = structuredClone(INPUTS);
+      inputs.assumptions.base.revenueGrowth = growth;
+      // The React hook rebuilds these wrappers around the same refs on each call.
+      const result = await buildComputeFns(refs, cbs, 0).compute(inputs);
+      expect(result.fairValue).toBe(42);
+      expect(result.computedInputs?.assumptions.base.revenueGrowth).toBe(growth);
+    }
+
+    expect(factsGets).toBe(1);
+    expect(postedGrowth).toEqual([0.1, 0.11, 0.12, 0.13, 0.14]);
+  });
+
+  test("reset invalidates successful public facts even when wrappers are rebuilt", async () => {
+    let factsGets = 0;
+    const revenues: number[] = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse({
+          ...FACTS_PAYLOAD,
+          statements: [{ ...FACTS_PAYLOAD.statements[0], revenue: factsGets * 120 }],
+        });
+      }
+      revenues.push(JSON.parse(String(init?.body)).revenueT0);
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { refs, cbs, compute } = setup(0);
+    await compute(INPUTS);
+    buildComputeFns(refs, cbs, 0).reset();
+    await compute(INPUTS);
+    await compute(INPUTS);
+
+    expect(factsGets).toBe(2);
+    expect(revenues).toEqual([120, 240, 240]);
+  });
+
+  test("public facts expire five minutes after loading without extending on reuse", async () => {
+    let now = 1_000_000;
+    Date.now = () => now;
+    let factsGets = 0;
+    const revenues: number[] = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse({
+          ...FACTS_PAYLOAD,
+          statements: [{ ...FACTS_PAYLOAD.statements[0], revenue: factsGets * 120 }],
+        });
+      }
+      revenues.push(JSON.parse(String(init?.body)).revenueT0);
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await compute(INPUTS);
+    now += 299_999;
+    await compute(INPUTS);
+    now += 1;
+    await compute(INPUTS);
+
+    expect(factsGets).toBe(2);
+    expect(revenues).toEqual([120, 120, 240]);
+  });
+
+  test("public facts are bounded to the exact symbol and listing identity", async () => {
+    const factsUrls: string[] = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsUrls.push(String(url));
+        const symbol = new URL(String(url), "https://example.test").searchParams.get("symbol");
+        return jsonResponse({ ...FACTS_PAYLOAD, symbol });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await compute({ ...INPUTS, listingId: "XNAS:AAPL" });
+    await compute({ ...INPUTS, listingId: "XNAS:AAPL" });
+    await compute({ ...INPUTS, listingId: "XNYS:AAPL" });
+    await compute({ ...INPUTS, symbol: "MSFT", listingId: "XNAS:MSFT" });
+    await compute({ ...INPUTS, listingId: "XNAS:AAPL" });
+    await compute(INPUTS);
+
+    expect(factsUrls).toEqual([
+      "/api/company/facts?symbol=AAPL&listingId=XNAS%3AAAPL",
+      "/api/company/facts?symbol=AAPL&listingId=XNYS%3AAAPL",
+      "/api/company/facts?symbol=MSFT&listingId=XNAS%3AMSFT",
+      "/api/company/facts?symbol=AAPL&listingId=XNAS%3AAAPL",
+      "/api/company/facts?symbol=AAPL",
+    ]);
+  });
+
+  test("separate compute instances fetch their own public facts", async () => {
+    let factsGets = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const first = setup(0);
+    const second = setup(0);
+    await first.compute(INPUTS);
+    await second.compute(INPUTS);
+    await first.compute(INPUTS);
+    await second.compute(INPUTS);
+    expect(factsGets).toBe(2);
+  });
+
+  test("changing or removing an import context token invalidates public facts reuse", async () => {
+    let token: string | null = "first-token";
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: { getItem: () => token },
+        localStorage: { getItem: () => null },
+      },
+      configurable: true,
+    });
+    const factsTokens: Array<string | null> = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsTokens.push(new Headers(init?.headers).get("x-import-context-token"));
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await compute(INPUTS);
+    await compute(INPUTS);
+    token = "second-token";
+    await compute(INPUTS);
+    token = null;
+    await compute(INPUTS);
+    await compute(INPUTS);
+
+    expect(factsTokens).toEqual([null, null, null]);
+  });
+
+  test("imported facts always reload within a token context and after token changes", async () => {
+    let token: string | null = "first-token";
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: { getItem: () => token },
+        localStorage: { getItem: () => null },
+      },
+      configurable: true,
+    });
+    const factsTokens: Array<string | null> = [];
+    const revenues: number[] = [];
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsTokens.push(new Headers(init?.headers).get("x-import-context-token"));
+        return jsonResponse({
+          ...FACTS_PAYLOAD, symbol: "SHOP", source: "import",
+          statements: [{ ...FACTS_PAYLOAD.statements[0], revenue: factsTokens.length * 120 }],
+        });
+      }
+      revenues.push(JSON.parse(String(init?.body)).revenueT0);
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    const inputs = { ...INPUTS, symbol: "SHOP", listingId: "XTSE:SHOP" };
+    await compute(inputs);
+    await compute(inputs);
+    token = "second-token";
+    await compute(inputs);
+    token = null;
+    await compute(inputs);
+
+    expect(factsTokens).toEqual(["first-token", "first-token", "second-token", null]);
+    expect(revenues).toEqual([120, 240, 360, 480]);
+  });
+
+  test.each([
+    ["import source", "import", undefined],
+    ["unknown source", undefined, undefined],
+    ["non-SEC listing", "edgar", "XTSE:AAPL"],
+  ])("does not retain facts with %s", async (_label, source, listingId) => {
+    let factsGets = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse({ ...FACTS_PAYLOAD, source });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await compute({ ...INPUTS, listingId });
+    await compute({ ...INPUTS, listingId });
+    expect(factsGets).toBe(2);
+  });
+
+  test("a failed facts load is retried and only the later success is reused", async () => {
+    let factsGets = 0;
+    let previews = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return factsGets === 1
+          ? new Response(JSON.stringify({ message: "Facts unavailable" }), { status: 503 })
+          : jsonResponse(FACTS_PAYLOAD);
+      }
+      previews += 1;
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await expect(compute(INPUTS)).rejects.toThrow("Facts unavailable");
+    await compute(INPUTS);
+    await compute(INPUTS);
+    expect(factsGets).toBe(2);
+    expect(previews).toBe(2);
+  });
+
+  test("invalid facts are not retained after payload validation fails", async () => {
+    let factsGets = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse(factsGets === 1 ? { ...FACTS_PAYLOAD, statements: [] } : FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await expect(compute(INPUTS)).rejects.toThrow("facts do not include annual statements");
+    await compute(INPUTS);
+    await compute(INPUTS);
+    expect(factsGets).toBe(2);
+  });
+
+  test("a failed preview retries the computation using the successful public facts", async () => {
+    let factsGets = 0;
+    let previews = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      previews += 1;
+      return previews === 1
+        ? new Response(JSON.stringify({ message: "Preview unavailable" }), { status: 503 })
+        : jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    await expect(compute(INPUTS)).rejects.toThrow("Preview unavailable");
+    expect((await compute(INPUTS)).fairValue).toBe(42);
+    expect(factsGets).toBe(1);
+    expect(previews).toBe(2);
+  });
+
+  test("an aborted facts load is retried instead of retained", async () => {
+    let factsGets = 0;
+    let firstStarted!: () => void;
+    const started = new Promise<void>((resolve) => { firstStarted = resolve; });
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        if (factsGets === 1) {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+            firstStarted();
+          });
+        }
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute } = setup(0);
+    const aborted = compute(INPUTS).catch((error: Error) => error);
+    await started;
+    const current = compute(INPUTS);
+    expect((await aborted as Error).name).toBe("AbortError");
+    await current;
+    await compute(INPUTS);
+    expect(factsGets).toBe(2);
+  });
+
+  test("a late aborted facts response cannot replace the newer listing cache", async () => {
+    let factsGets = 0;
+    let firstStarted!: () => void;
+    let releaseFirst!: () => void;
+    const started = new Promise<void>((resolve) => { firstStarted = resolve; });
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        if (factsGets === 1) {
+          firstStarted();
+          // Model a transport that delivers the response despite cancellation.
+          await new Promise<void>((resolve) => { releaseFirst = resolve; });
+        }
+        const symbol = new URL(String(url), "https://example.test").searchParams.get("symbol");
+        return jsonResponse({ ...FACTS_PAYLOAD, symbol });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, getResult } = setup(0);
+    const old = compute(INPUTS);
+    await started;
+    const latest = await compute({ ...INPUTS, symbol: "MSFT" });
+    releaseFirst();
+    await old;
+    expect(getResult()).toBe(latest);
+    await compute({ ...INPUTS, symbol: "MSFT" });
+    expect(factsGets).toBe(2);
+  });
+
+  test("reset prevents an ignored abort from warming the public facts cache", async () => {
+    let factsGets = 0;
+    let firstStarted!: () => void;
+    let releaseFirst!: () => void;
+    const started = new Promise<void>((resolve) => { firstStarted = resolve; });
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsGets += 1;
+        if (factsGets === 1) {
+          firstStarted();
+          await new Promise<void>((resolve) => { releaseFirst = resolve; });
+        }
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, reset, getResult } = setup(0);
+    const old = compute(INPUTS);
+    await started;
+    reset();
+    releaseFirst();
+    await old;
+    expect(getResult()).toBeNull();
+    await compute(INPUTS);
+    await compute(INPUTS);
+    expect(factsGets).toBe(2);
   });
 
   test("superseded debounce rejects with AbortError", async () => {
