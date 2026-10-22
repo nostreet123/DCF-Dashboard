@@ -51,7 +51,7 @@ export const backfillAssetKeysPage = mutation({
 
     return {
       updated,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });

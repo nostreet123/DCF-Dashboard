@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from damodaran_sync import discover, mapping_resolver, mirror
@@ -138,7 +138,14 @@ def resolve_assets_for_page(
     from damodaran_sync.sync_timing import maybe_time
 
     resolved_assets: list[ResolvedAsset] = []
+    seen_work: set[str] = set()
     for asset in assets:
+        # Mirror metadata can contain JSON objects/lists. Preserve every field and
+        # JSON scalar type while ignoring object key order in the work identity.
+        work_key = json.dumps(asdict(asset), sort_keys=True, separators=(",", ":"))
+        if work_key in seen_work:
+            continue
+        seen_work.add(work_key)
         with maybe_time(timing, "resolve_dataset"):
             stem = mapping_resolver.normalize_stem(asset.file_name)
             dataset_key, resolved_ds = mapping_resolver.resolve_dataset_key(
@@ -152,15 +159,14 @@ def resolve_assets_for_page(
                 datasets_map,
                 regions_list,
             )
-        resolved_assets.append(
-            build_resolved_asset(
-                asset,
-                dataset_key,
-                region_code,
-                resolved_ds,
-                region_error,
-            )
+        item = build_resolved_asset(
+            asset,
+            dataset_key,
+            region_code,
+            resolved_ds,
+            region_error,
         )
+        resolved_assets.append(item)
 
     asset_records = [
         _build_asset_record(

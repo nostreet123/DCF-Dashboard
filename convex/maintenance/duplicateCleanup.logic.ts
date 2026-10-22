@@ -4,7 +4,7 @@ import type { Id } from "../_generated/dataModel";
 export const DuplicateCleanupStatePatchValidator = v.object({
   status: v.optional(v.union(v.literal("running"), v.literal("complete"), v.literal("error"), v.literal("stopped"))),
   phase: v.optional(v.union(v.literal("snapshots"), v.literal("assets"))),
-  groupCursor: v.optional(v.string()),
+  groupCursor: v.optional(v.union(v.string(), v.null())),
   currentSnapshotGroupId: v.optional(v.id("duplicateSnapshotGroups")),
   snapshotDeleteIds: v.optional(v.array(v.id("snapshots"))),
   currentSnapshotId: v.optional(v.id("snapshots")),
@@ -25,7 +25,7 @@ export const DuplicateCleanupStatePatchValidator = v.object({
 export type DuplicateCleanupStatePatch = {
   status?: "running" | "complete" | "error" | "stopped";
   phase?: "snapshots" | "assets";
-  groupCursor?: string;
+  groupCursor?: string | null;
   currentSnapshotGroupId?: Id<"duplicateSnapshotGroups">;
   snapshotDeleteIds?: Array<Id<"snapshots">>;
   currentSnapshotId?: Id<"snapshots">;
@@ -64,7 +64,7 @@ export const buildSnapshotDryRunGroupPatch = (params: {
   nextCursor: string | null;
   deleteCount: number;
 }): DuplicateCleanupStatePatch => ({
-  groupCursor: params.nextCursor ?? undefined,
+  groupCursor: params.nextCursor,
   snapshotGroupsProcessed: params.state.snapshotGroupsProcessed + 1,
   snapshotsDeleted: params.state.snapshotsDeleted + params.deleteCount,
 });
@@ -77,7 +77,7 @@ export const buildAssetDryRunGroupPatch = (params: {
   nextCursor: string | null;
   deleteCount: number;
 }): DuplicateCleanupStatePatch => ({
-  groupCursor: params.nextCursor ?? undefined,
+  groupCursor: params.nextCursor,
   assetGroupsProcessed: params.state.assetGroupsProcessed + 1,
   assetsDeleted: params.state.assetsDeleted + params.deleteCount,
 });
