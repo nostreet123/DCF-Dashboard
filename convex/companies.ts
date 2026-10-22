@@ -233,7 +233,7 @@ export const backfillSearchTextPage = mutation({
     return {
       processed: result.page.length,
       updated,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });

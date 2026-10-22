@@ -266,7 +266,7 @@ export const listByDatasetRegion = query({
         downloadedAt: snapshot.downloadedAt,
         parsedAt: snapshot.parsedAt,
       })),
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -316,7 +316,7 @@ export const listRebuilding = query({
         downloadedAt: snapshot.downloadedAt,
         parsedAt: snapshot.parsedAt,
       })),
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
