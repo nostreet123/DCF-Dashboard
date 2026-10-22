@@ -344,6 +344,7 @@ def process_page(
             bulk_failed,
             timing,
         )
+        counts.skipped += len(discovery_result.assets) - len(resolved_assets)
         final_status = _finalize_sync_log(
             client,
             sync_log_id,

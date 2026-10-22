@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib
@@ -10,6 +11,7 @@ import re
 import socket
 import threading
 import time
+import weakref
 from typing import Callable, Collection, Any
 from urllib.parse import urlparse, unquote
 
@@ -39,6 +41,7 @@ DEFAULT_ALLOWED_ASSET_HOSTS = {
 # Keep the download cap close to Damodaran workbook sizes; larger mirrors must
 # opt in explicitly through DAMODARAN_DOWNLOAD_MAX_BYTES.
 DEFAULT_MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
+_MAX_PINNED_SESSIONS = 8
 
 
 class TransientHttpError(RuntimeError):
@@ -114,6 +117,20 @@ def _pinned_pool_key(request_context: dict[str, Any]) -> PoolKey:
     return _default_key_normalizer(PoolKey, key_context)
 
 
+def _close_pinned_sessions(sessions: OrderedDict) -> None:
+    for session in sessions.values():
+        session.close()
+    sessions.clear()
+
+
+class _ThreadPinnedSessions:
+    def __init__(self) -> None:
+        self.sessions: OrderedDict[tuple[str, str | None, int, str], requests.Session] = OrderedDict()
+        # The finalizer retains only this thread's sessions, never the holder or
+        # another thread's cache. Thread-local teardown closes the idle pools.
+        weakref.finalize(self, _close_pinned_sessions, self.sessions)
+
+
 class HttpClient:
     def __init__(
         self,
@@ -126,17 +143,41 @@ class HttpClient:
         self._rate_limiter = rate_limiter or RateLimiter()
         self._timeout = timeout
         self._pin_connections = session is None if pin_connections is None else pin_connections
+        self._pinned_sessions = threading.local()
 
     def _request(self, method: str, url: str, **kwargs) -> Response:
         if not self._pin_connections:
             request = getattr(self._session, method)
             return request(url, timeout=self._timeout, **kwargs)
 
+        # Resolve on every request, including a pool hit: a previous safe
+        # connection must not bypass the current DNS safety check.
         pinned_ip = _resolve_pinned_address(url)
-        session = requests.Session()
+        parsed = urlparse(url)
+        key = (parsed.scheme, parsed.hostname, parsed.port or 443, pinned_ip)
+        retained = getattr(self._pinned_sessions, "retained", None)
+        if retained is None:
+            retained = _ThreadPinnedSessions()
+            self._pinned_sessions.retained = retained
+        session = retained.sessions.pop(key, None)
+        if session is None:
+            session = requests.Session()
+            session.mount("https://", _PinnedHTTPSAdapter(pinned_ip))
+        retained.sessions[key] = session
+        while len(retained.sessions) > _MAX_PINNED_SESSIONS:
+            _, evicted = retained.sessions.popitem(last=False)
+            evicted.close()
+
+        # Reuse transports only. Fresh sessions previously carried no response
+        # cookies or request-specific headers into the next request.
+        session.headers.clear()
+        session.headers.update(requests.utils.default_headers())
         session.headers.update(self._session.headers)
-        session.mount("https://", _PinnedHTTPSAdapter(pinned_ip))
-        return session.request(method.upper(), url, timeout=self._timeout, **kwargs)
+        session.cookies.clear()
+        try:
+            return session.request(method.upper(), url, timeout=self._timeout, **kwargs)
+        finally:
+            session.cookies.clear()
 
     @retry(
         retry=retry_if_exception_type((requests.RequestException, TransientHttpError)),
