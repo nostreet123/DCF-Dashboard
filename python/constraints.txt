@@ -38,7 +38,7 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.8.0
 uvicorn==0.41.0
-uvloop==0.22.1
+uvloop==0.23.0
 watchfiles==1.2.0
 websockets==16.0
 xlrd==2.0.2
