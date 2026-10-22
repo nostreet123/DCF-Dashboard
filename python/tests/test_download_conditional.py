@@ -4,6 +4,7 @@ import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
+from typing import NamedTuple
 
 import pytest
 import requests
@@ -868,9 +869,14 @@ def test_pinned_pool_connects_to_ip_and_retains_tls_hostname(monkeypatch: pytest
         addresses.append(address)
         return raw_socket
 
+    # urllib3 2.7 reads attributes; 2.8 unpacks the same two result values.
+    class WrappedSocket(NamedTuple):
+        socket: object
+        is_verified: bool
+
     def wrap_socket(**kwargs):
         tls_calls.append(kwargs)
-        return SimpleNamespace(socket=tls_socket, is_verified=True)
+        return WrappedSocket(tls_socket, True)
 
     monkeypatch.setattr(download.urllib3_connection, "create_connection", connect)
     monkeypatch.setattr(
