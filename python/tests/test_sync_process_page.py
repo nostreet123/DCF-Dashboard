@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from damodaran_sync import discover, download, excel_parse, sync, sync_upload, transform
+from damodaran_sync import discover, download, excel_parse, mirror, sync, sync_upload, transform
+from damodaran_sync.sync_discovery import resolve_assets_for_page
 from damodaran_sync.convex_client import SnapshotUpsertResult
 from damodaran_sync.download import DownloadResult
 
@@ -451,3 +453,180 @@ def test_process_page_keeps_distinct_work_identity(
     assert client.manifest_upserts[0][3] == 2
     assert client.finished_statuses == ["success"]
     assert client.appended_errors == []
+
+
+
+def _parse_mirror_assets(monkeypatch, changes: list[dict[str, Any]]) -> list[discover.DiscoveredAsset]:
+    monkeypatch.setattr(
+        download.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (download.socket.AF_INET, download.socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+    base = {
+        "sourcePageUrl": "https://example.com/page",
+        "pageType": "current",
+        "pageLastUpdated": "2024-01-01",
+        "downloadUrl": "/test_us_2024.xls",
+        "fileName": "test_us_2024.xls",
+        "linkLabel": "Test Label",
+        "asOfDate": None,
+        "asOfDateSource": "label",
+        "asOfGranularity": "day",
+    }
+    return mirror._parse_manifest_payload(
+        {"assets": [{**base, **change} for change in changes]},
+        "https://mirror.example.com/manifest.json",
+        "current",
+    )
+
+
+def test_resolve_assets_skips_exact_duplicates_before_resolution() -> None:
+    client = _FakeClient()
+    refs = client.get_reference()
+    original_refs = deepcopy(refs)
+    first = _make_asset()
+    second = replace(first, source_url="https://example.com/other/test_us_2024.xls")
+
+    class ResolutionTiming:
+        def __init__(self) -> None:
+            self.stages: list[str] = []
+
+        def add_ms(self, stage: str, _elapsed: float) -> None:
+            self.stages.append(stage)
+
+    timing = ResolutionTiming()
+    result = resolve_assets_for_page(
+        [first, second, replace(first), replace(second), replace(first)],
+        refs["datasetMappings"],
+        {item["key"]: item for item in refs["datasets"]},
+        refs["regions"],
+        client,
+        timing,
+        100,
+    )
+
+    assert [item.asset for item in result] == [first, second]
+    assert [(item.dataset_key, item.region_code) for item in result] == [
+        ("test_dataset", "us"), ("test_dataset", "us")
+    ]
+    assert timing.stages == ["resolve_dataset", "resolve_region"] * 2
+    assert refs == original_refs
+
+
+@pytest.mark.parametrize(
+    ("first_value", "second_value", "expected_work"),
+    [
+        ({"unit": "day", "parts": [1, True]}, {"parts": [1, True], "unit": "day"}, 1),
+        (["day", "month"], ["month", "day"], 2),
+        ({"parts": [True]}, {"parts": [1]}, 2),
+        (True, 1, 2),
+        (False, 0, 2),
+        (1, 1.0, 2),
+        (1, "1", 2),
+        (None, "None", 2),
+        (["day"], "['day']", 2),
+        ({"unit": "day"}, "{'unit': 'day'}", 2),
+    ],
+    ids=[
+        "object-key-order", "list-order", "nested-bool-int", "bool-int", "false-zero",
+        "int-float", "int-string", "null-string", "list-string", "object-string",
+    ],
+)
+def test_resolve_mirror_assets_preserves_json_work_identity(
+    monkeypatch, first_value: Any, second_value: Any, expected_work: int
+) -> None:
+    assets = _parse_mirror_assets(
+        monkeypatch,
+        [{"asOfGranularity": first_value}, {"asOfGranularity": second_value}],
+    )
+    client = _FakeClient()
+    refs = client.get_reference()
+
+    result = resolve_assets_for_page(
+        assets,
+        refs["datasetMappings"],
+        {item["key"]: item for item in refs["datasets"]},
+        refs["regions"],
+        client,
+        None,
+        100,
+    )
+
+    assert len(result) == expected_work
+    assert result[0].asset is assets[0]
+    if expected_work == 2:
+        assert result[1].asset is assets[1]
+
+
+@pytest.mark.parametrize("granularity", [{"unexpected": "value"}, ["unexpected"]], ids=["object", "list"])
+def test_process_mirror_page_skips_undated_asset_with_structured_granularity(
+    monkeypatch, granularity: Any
+) -> None:
+    assets = _parse_mirror_assets(monkeypatch, [{"asOfGranularity": granularity}] * 2)
+    client = _FakeClient()
+    monkeypatch.setenv("DAMODARAN_MIRROR_MANIFEST_URL", "https://mirror.example.com/manifest.json")
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", "1")
+    monkeypatch.delenv("DAMODARAN_SYNC_LIMIT", raising=False)
+    manifest = mirror.MirrorManifest("current", "mirror-manifest-hash", assets, "mirror")
+    monkeypatch.setattr(mirror, "fetch_manifest", lambda *_args, **_kwargs: manifest)
+
+    sync.process_page("https://example.com/page", "current", client)
+
+    assert client.finished_statuses == ["success"]
+    assert client.appended_errors == []
+    assert client.increments[0] == {"assetsDiscovered": 2}
+    assert client.increments[-1] == {
+        "assetsDownloaded": 0, "assetsSkipped": 2, "rowsInserted": 0, "errorCount": 0
+    }
+    assert client.manifest_upserts[0][3] == 2
+    assert "upsert_snapshot" not in client.events
+
+
+@pytest.mark.parametrize("granularity", [{"unexpected": "value"}, ["unexpected"]], ids=["object", "list"])
+def test_process_mirror_page_keeps_upload_error_local_to_asset(
+    monkeypatch, granularity: Any
+) -> None:
+    assets = _parse_mirror_assets(
+        monkeypatch,
+        [
+            {"asOfDate": "2024-01-01"},
+            {
+                "downloadUrl": "/other/test_us_2024.xls",
+                "asOfDate": "2024-01-01",
+                "asOfGranularity": granularity,
+            },
+        ],
+    )
+
+    class RejectInvalidGranularityClient(_FakeClient):
+        def upsert_snapshot(self, *args, **kwargs):
+            metadata = args[4]
+            # Mirror the literal validator on convex/snapshots.ts SnapshotMetadata.
+            if metadata["asOfGranularity"] not in ("day", "month"):
+                raise ValueError("invalid asOfGranularity")
+            return super().upsert_snapshot(*args, **kwargs)
+
+    client = RejectInvalidGranularityClient()
+    monkeypatch.setenv("DAMODARAN_MIRROR_MANIFEST_URL", "https://mirror.example.com/manifest.json")
+    monkeypatch.setenv("DAMODARAN_FAST_EXIT_IF_MANIFEST_UNCHANGED", "false")
+    monkeypatch.setenv("DAMODARAN_SYNC_WORKERS", "1")
+    monkeypatch.delenv("DAMODARAN_SYNC_LIMIT", raising=False)
+    manifest = mirror.MirrorManifest("current", "mirror-manifest-hash", assets, "mirror")
+    monkeypatch.setattr(mirror, "fetch_manifest", lambda *_args, **_kwargs: manifest)
+    _stub_asset_stages(monkeypatch, assets)
+
+    sync.process_page("https://example.com/page", "current", client)
+
+    assert client.finished_statuses == ["partial"]
+    assert client.appended_errors == [
+        ("log-1", "test_us_2024.xls", "upload", "ValueError: invalid asOfGranularity")
+    ]
+    assert client.events.count("upsert_snapshot") == 1
+    assert client.events.count("insert_rows") == 1
+    assert client.increments[0] == {"assetsDiscovered": 2}
+    assert client.increments[-1]["rowsInserted"] == 1
+    assert client.increments[-1]["errorCount"] == 1
+    assert client.manifest_upserts[0][3] == 2

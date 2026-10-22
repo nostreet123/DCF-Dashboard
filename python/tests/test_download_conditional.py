@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import pytest
 import requests
+import urllib3.connection
 
 from damodaran_sync import download
 
@@ -858,17 +860,33 @@ def test_http_client_reuses_only_within_thread_and_closes_thread_pools(pinned_re
 
 def test_pinned_pool_connects_to_ip_and_retains_tls_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
     addresses = []
+    tls_calls = []
+    raw_socket = object()
+    tls_socket = SimpleNamespace(selected_alpn_protocol=lambda: "http/1.1", close=lambda: None)
+
+    def connect(address, *args, **kwargs):
+        addresses.append(address)
+        return raw_socket
+
+    def wrap_socket(**kwargs):
+        tls_calls.append(kwargs)
+        return SimpleNamespace(socket=tls_socket, is_verified=True)
+
+    monkeypatch.setattr(download.urllib3_connection, "create_connection", connect)
     monkeypatch.setattr(
-        download.urllib3_connection, "create_connection",
-        lambda address, *args, **kwargs: addresses.append(address),
+        urllib3.connection, "_ssl_wrap_socket_and_match_hostname", wrap_socket,
     )
     adapter = download._PinnedHTTPSAdapter("93.184.216.34")
     pool = adapter.poolmanager.connection_from_url("https://example.com/file.xls")
     connection = pool._new_conn()
-    connection._new_conn()
+    connection.connect()
 
     assert addresses == [("93.184.216.34", 443)]
-    assert connection.host == "example.com"
-    assert connection._dns_host == "example.com"
-    assert connection.assert_hostname is None  # urllib3 verifies the original host by default.
+    assert len(tls_calls) == 1
+    assert tls_calls[0]["sock"] is raw_socket
+    assert tls_calls[0]["server_hostname"] == "example.com"
+    assert tls_calls[0]["assert_hostname"] is None
+    assert connection.sock is tls_socket
+    assert connection.is_verified is True
+    connection.close()
     adapter.close()
