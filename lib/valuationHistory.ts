@@ -58,6 +58,8 @@ export interface ValuationHistoryItem {
   timestamp: Date;
   value: number;
   replayAvailable?: boolean;
+  primaryKeyNorm?: string;
+  regionCode?: string;
 }
 
 export interface ValuationReplaySnapshot {
@@ -367,6 +369,8 @@ export function mapValuationRunsToHistoryItems(runs: ValuationRun[]): ValuationH
           (typeof run.trace === 'object' && run.trace !== null)
         ))
       ),
+      primaryKeyNorm: run.primaryKeyNorm,
+      regionCode: run.regionCode,
     }];
   });
 }

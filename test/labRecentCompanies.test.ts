@@ -2,7 +2,8 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { CompanySearchResult } from '../lib/contracts/company';
-import { readRecentCompanies, rememberRecentCompany, RECENT_COMPANIES_KEY } from '../lib/lab/recentCompanies';
+import { markRecentCompanyReady, readRecentCompanies, rememberRecentCompany, RECENT_COMPANIES_KEY } from '../lib/lab/recentCompanies';
+import { companyFromSearch, libraryAction, withLatestMemo } from '../lib/lab/presentation';
 
 const company: CompanySearchResult = {
   id: 'company-msft',
@@ -20,6 +21,46 @@ const olderCompany: CompanySearchResult = {
 };
 
 describe('recent companies', () => {
+  test('promotes an approved import so a recent valuation opens as a memo', () => {
+    const previousWindow = (globalThis as { window?: unknown }).window;
+    const store = new Map<string, string>();
+    const pendingCompany: CompanySearchResult = {
+      ...company,
+      id: 'XNAS:MSFT',
+      coverageState: 'import_required',
+    };
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          setItem: (key: string, value: string) => { store.set(key, value); },
+        },
+      },
+    });
+    try {
+      rememberRecentCompany(pendingCompany);
+      const promoted = markRecentCompanyReady(pendingCompany);
+      const recent = promoted.find((item) => item.id === pendingCompany.id);
+      expect(recent?.coverageState).toBe('valuation_ready');
+      expect(readRecentCompanies().find((item) => item.id === pendingCompany.id)?.coverageState)
+        .toBe('valuation_ready');
+
+      const libraryEntry = withLatestMemo(companyFromSearch(recent!), {
+        value: 100,
+        at: '2026-10-23T12:00:00.000Z',
+        currency: 'USD',
+      });
+      expect(libraryAction(libraryEntry)).toBe('Open memo');
+    } finally {
+      if (previousWindow === undefined) {
+        delete (globalThis as { window?: unknown }).window;
+      } else {
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+      }
+    }
+  });
+
   test('discards malformed records and tolerates local storage failures', () => {
     const previousWindow = (globalThis as { window?: unknown }).window;
     Object.defineProperty(globalThis, 'window', {

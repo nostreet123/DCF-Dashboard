@@ -61,3 +61,10 @@ export function rememberRecentCompany(
   }
   return next;
 }
+
+export function markRecentCompanyReady(
+  company: CompanySearchResult,
+  current: CompanySearchResult[] = [],
+): CompanySearchResult[] {
+  return rememberRecentCompany({ ...company, coverageState: 'valuation_ready' }, current);
+}

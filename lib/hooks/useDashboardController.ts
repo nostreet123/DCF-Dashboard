@@ -86,6 +86,7 @@ export function useDashboardController({ computeEnabled = true }: { computeEnabl
     selectCompany,
     setWorkspaceMode: discovery.setWorkspaceMode,
     setRetryToken,
+    onImportApproved: discovery.markCompanyReady,
     onImportReset: () => undefined,
   });
 

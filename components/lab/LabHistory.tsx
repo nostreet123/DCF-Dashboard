@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 import { LabFrame } from '@/components/lab/LabFrame';
 import { areBrowserHistoryReadsEnabled, getDashboardDataMode } from '@/lib/dashboardDataMode';
+import { loadHistoryLookups, mapServerHistoryItems, mergeHistoryRuns } from '@/lib/lab/history';
 import {
   buildDemoHistory,
   demoDisclaimer,
@@ -104,7 +105,7 @@ function LiveHistory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolKey]);
 
-  const runs = mergeRuns(mappedSession, serverRuns);
+  const runs = mergeHistoryRuns(mappedSession, serverRuns);
   const [selectedId, setSelectedId] = useState('');
   const selected = runs.find((run) => run.id === selectedId) ?? runs[0];
   const sessionById = new Map(sessionRuns.map((run) => [run.id, run]));
@@ -124,7 +125,7 @@ function LiveHistory() {
         return historyMemoHref({
           id: run.id,
           ticker: run.ticker,
-          listingId: session?.listingId,
+          listingId: session?.listingId ?? run.listingId,
         });
       }}
       rerunHref={(run) => {
@@ -259,12 +260,6 @@ function uniqueSymbols(symbols: string[]): string[] {
   return [...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))].slice(0, 8);
 }
 
-function mergeRuns(sessionRuns: LabHistoryRun[], serverRuns: LabHistoryRun[]): LabHistoryRun[] {
-  const seen = new Set(sessionRuns.map((run) => `${run.ticker}:${run.value}:${run.at.getTime()}`));
-  const extra = serverRuns.filter((run) => !seen.has(`${run.ticker}:${run.value}:${run.at.getTime()}`));
-  return [...sessionRuns, ...extra].sort((left, right) => right.at.getTime() - left.at.getTime());
-}
-
 async function loadServerRuns(
   symbols: string[],
   signal: AbortSignal,
@@ -273,11 +268,10 @@ async function loadServerRuns(
   if (!browserReads) {
     return { runs: [], authMessage: null };
   }
-  const runs: LabHistoryRun[] = [];
-  for (const symbol of symbols) {
+  return loadHistoryLookups(symbols, async (symbol) => {
     const path = buildValuationHistoryPath({ symbol, limit: 10 }, { browserReads });
     if (!path) {
-      continue;
+      return { runs: [], authMessage: null };
     }
     const response = await fetch(path, { method: 'GET', signal });
     const payload = (await response.json().catch(() => ({}))) as {
@@ -286,27 +280,17 @@ async function loadServerRuns(
     };
     if (!response.ok) {
       return {
-        runs,
+        runs: [],
         authMessage: toUserFacingValuationHistoryError({
           status: response.status,
           message: payload.message,
         }).message,
       };
     }
-    for (const item of mapValuationRunsToHistoryItems(payload.runs ?? [])) {
-      runs.push({
-        id: item.id,
-        ticker: item.ticker,
-        name: item.ticker,
-        shortName: item.ticker,
-        value: item.value,
-        at: item.timestamp,
-        currency: null,
-        scenarioLabel: 'Saved result',
-        assumptions: null,
-        replayAvailable: item.replayAvailable,
-      });
-    }
-  }
-  return { runs, authMessage: null };
+    const items = mapValuationRunsToHistoryItems(payload.runs ?? []);
+    return {
+      runs: mapServerHistoryItems(items, readRecentCompanies()),
+      authMessage: null,
+    };
+  });
 }
