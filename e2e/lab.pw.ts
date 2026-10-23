@@ -207,7 +207,11 @@ test.describe('live Lab', () => {
     await page.getByRole('link', { name: 'Run history' }).click();
     await expect(page).toHaveURL(/\/history$/);
     await expect(page.getByRole('link', { name: 'Open workbench' })).toHaveCount(0);
-    expect(historyRequests).toEqual([]);
+    const historyRequestPaths = historyRequests.map((url) => new URL(url).pathname);
+    expect(historyRequestPaths.every((path) => path === '/api/dcf/history/browser')).toBe(true);
+    if (process.env.NEXT_PUBLIC_VALUATION_HISTORY_BROWSER_READS !== '1') {
+      expect(historyRequestPaths).toEqual([]);
+    }
     await expect(page.getByText('Recent runs are unavailable in this environment.')).toHaveCount(0);
     await page.getByRole('button', { name: /Your case/ }).click();
     await expect(page.getByText('12.5%')).toBeVisible();

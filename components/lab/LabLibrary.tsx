@@ -142,7 +142,7 @@ function LiveLibrary() {
 
   return (
     <LibraryPage
-      lede="Companies marked ready have statements loaded and can be valued right away. Anything else can be imported from its SEC filings first."
+      lede="Companies marked ready have statements loaded and can be valued right away. Detail-only records open their source details; other companies can be imported from SEC filings first."
       classificationLabel="Market"
       companies={companies}
       shown={shown}

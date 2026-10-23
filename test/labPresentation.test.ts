@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { scenarioAssumptionDefaults } from '../lib/workbench/scenarioProfiles';
 import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
 import type { SessionMemoRun } from '../lib/lab/sessionRuns';
+import { companyDiscoveryBootstrapFromUrl, workspaceModeForCoverage } from '../lib/hooks/dashboard/useCompanyDiscovery';
 import {
   bridgeFromStatements,
   buildBridgeRows,
@@ -15,6 +16,7 @@ import {
   demoDisclaimer,
   forecastPeriodPhrase,
   historyMemoHref,
+  libraryAction,
   libraryMemoHref,
   pinScenarioQuotes,
   scenarioChipQuotes,
@@ -343,7 +345,7 @@ describe('lab presentation', () => {
     expect(pinScenarioQuotes(edited, assumptions, pinned).base).toBe(98.3);
   });
 
-  test('opens a ready search result in the memo and an import result in the import flow', () => {
+  test('routes ready, detail-only, and import-required library results to their matching flows', () => {
     const ready = companyFromSearch({
       id: 'company-msft',
       symbol: 'msft',
@@ -355,6 +357,21 @@ describe('lab presentation', () => {
     expect(ready.ticker).toBe('MSFT');
     expect(ready.ready).toBe(true);
     expect(libraryMemoHref(ready)).toBe('/?ticker=MSFT&listingId=company-msft');
+    expect(libraryAction(ready)).toBe('Write a memo');
+    const detail = companyFromSearch({
+      id: 'company-detail',
+      symbol: 'DTAIL',
+      name: 'Detail Only Ltd.',
+      coverageState: 'detail_only',
+      sourceLinks: [],
+    });
+    expect(detail.coverageState).toBe('detail_only');
+    expect(libraryMemoHref(detail)).toBe('/workbench?listingId=company-detail');
+    expect(libraryAction(detail)).toBe('View details');
+    expect(companyDiscoveryBootstrapFromUrl('/workbench', '?listingId=company-detail'))
+      .toEqual({ kind: 'listing', listingId: 'company-detail' });
+    expect(companyDiscoveryBootstrapFromUrl('/', '?listingId=company-detail')).toBeNull();
+    expect(workspaceModeForCoverage('detail_only')).toBe('detail');
     const missing = companyFromSearch({
       id: 'company-nvda',
       symbol: 'NVDA',
@@ -364,6 +381,10 @@ describe('lab presentation', () => {
     });
     expect(libraryMemoHref(missing)).toContain('status=import');
     expect(libraryMemoHref(missing)).toContain('listingId=company-nvda');
+    expect(libraryAction(missing)).toBe('Import from SEC');
+    expect(workspaceModeForCoverage('import_required')).toBe('import');
+    expect(workspaceModeForCoverage('valuation_ready')).toBe('valuation');
+    expect(filterLibrary([ready, detail, missing], '', 'import')).toEqual([missing]);
     expect(historyMemoHref({ id: 'session:MSFT:1', ticker: 'MSFT', listingId: 'company-msft', rerun: true }))
       .toBe('/?ticker=MSFT&run=session%3AMSFT%3A1&listingId=company-msft&rerun=1');
   });

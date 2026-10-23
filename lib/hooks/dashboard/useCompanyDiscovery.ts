@@ -15,7 +15,7 @@ const getCompanySearchSymbol = (company: CompanySearchResult): string | null => 
 const getCompanySearchId = (company: CompanySearchResult, symbol: string): string =>
   company.id ?? `search:${symbol}`;
 
-const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageState']): WorkspaceMode => {
+export const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageState']): WorkspaceMode => {
   if (coverageState === 'import_required') {
     return 'import';
   }
@@ -24,6 +24,21 @@ const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageSt
   }
   return 'valuation';
 };
+
+export function companyDiscoveryBootstrapFromUrl(
+  pathname: string,
+  search: string,
+): { kind: 'listing'; listingId: string } | { kind: 'search'; query: string } | null {
+  const params = new URLSearchParams(search);
+  if (pathname === '/workbench') {
+    const listingId = params.get('listingId')?.trim();
+    if (listingId) {
+      return { kind: 'listing', listingId };
+    }
+  }
+  const query = params.get('company-search')?.trim() ?? params.get('symbol')?.trim();
+  return query ? { kind: 'search', query } : null;
+}
 
 export function useCompanyDiscovery({
   isDemoMode,
@@ -220,13 +235,29 @@ export function useCompanyDiscovery({
       return;
     }
 
-    const params = new URLSearchParams(window.location.search);
-    const initialQuery = params.get('company-search')?.trim() ?? params.get('symbol')?.trim();
-    if (!initialQuery) {
+    const bootstrap = companyDiscoveryBootstrapFromUrl(window.location.pathname, window.location.search);
+    if (!bootstrap) {
       return;
     }
 
     didBootstrapUrlSearchRef.current = true;
+    if (bootstrap.kind === 'listing') {
+      setSearchFeedback('Loading company details…');
+      setWorkspaceMode('detail');
+      void fetch(`/api/company/detail?id=${encodeURIComponent(bootstrap.listingId)}`)
+        .then(async (response) => (response.ok ? (await response.json()) as CompanySearchResult : null))
+        .then((company) => {
+          if (company?.id === bootstrap.listingId) {
+            applyCompanySelection(company);
+          } else {
+            setSearchFeedback('Could not load details for this listing.');
+          }
+        })
+        .catch(() => setSearchFeedback('Could not load details for this listing.'));
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
     params.delete('company-search');
     const nextSearch = params.toString();
     window.history.replaceState(
@@ -234,8 +265,8 @@ export function useCompanyDiscovery({
       '',
       `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
     );
-    void handleSearch(initialQuery);
-  }, [handleSearch]);
+    void handleSearch(bootstrap.query);
+  }, [applyCompanySelection, handleSearch]);
 
   const handleSelectCompany = useCallback(
     (id: string, source: RailVariant) => {

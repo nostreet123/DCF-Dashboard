@@ -29,6 +29,7 @@ export interface LabCompany {
   name: string;
   sector: string;
   ready: boolean;
+  coverageState?: CompanySearchResult['coverageState'];
   lastValue: number | null;
   lastAt: Date | null;
   currency?: string | null;
@@ -415,8 +416,9 @@ export function filterLibrary(
       normalized.length === 0 ||
       company.ticker.toLowerCase().includes(normalized) ||
       company.name.toLowerCase().includes(normalized);
+    const needsImport = !company.ready && company.coverageState !== 'detail_only';
     const matchesFilter =
-      filter === 'all' || (filter === 'ready' ? company.ready : !company.ready);
+      filter === 'all' || (filter === 'ready' ? company.ready : needsImport);
     return matchesQuery && matchesFilter;
   });
 }
@@ -428,6 +430,7 @@ export function companyFromSearch(company: CompanySearchResult): LabCompany {
     name: company.name,
     sector: company.market?.trim() || '—',
     ready: company.coverageState === 'valuation_ready',
+    coverageState: company.coverageState,
     lastValue: null,
     lastAt: null,
     currency: company.currency ?? null,
@@ -447,6 +450,10 @@ export function withLatestMemo(
 }
 
 export function libraryMemoHref(company: LabCompany): string {
+  if (company.coverageState === 'detail_only') {
+    const params = new URLSearchParams({ listingId: company.id });
+    return `${LAB_PATHS.workbench}?${params.toString()}`;
+  }
   if (!company.ready) {
     const params = new URLSearchParams({
       status: 'import',
@@ -484,7 +491,10 @@ export function historyMemoHref(input: {
   return `${LAB_PATHS.memo}?${params.toString()}`;
 }
 
-export function libraryAction(company: LabCompany): 'Open memo' | 'Write a memo' | 'Import from SEC' {
+export function libraryAction(company: LabCompany): 'Open memo' | 'Write a memo' | 'Import from SEC' | 'View details' {
+  if (company.coverageState === 'detail_only') {
+    return 'View details';
+  }
   if (!company.ready) {
     return 'Import from SEC';
   }
