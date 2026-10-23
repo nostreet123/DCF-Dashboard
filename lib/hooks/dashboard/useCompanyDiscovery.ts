@@ -257,6 +257,7 @@ export function useCompanyDiscovery({
   const handleSearchPreview = useCallback(
     async (query: string) => {
       const normalizedQuery = query.trim();
+      detailRequestIdRef.current += 1;
       if (normalizedQuery.length < 2) {
         searchRequestIdRef.current += 1;
         setSearchResults([]);
