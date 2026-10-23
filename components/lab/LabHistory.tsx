@@ -266,6 +266,9 @@ async function loadServerRuns(
   signal: AbortSignal,
 ): Promise<{ runs: LabHistoryRun[]; authMessage: string | null }> {
   const browserReads = areBrowserHistoryReadsEnabled();
+  if (!browserReads) {
+    return { runs: [], authMessage: null };
+  }
   const runs: LabHistoryRun[] = [];
   for (const symbol of symbols) {
     const path = buildValuationHistoryPath({ symbol, limit: 10 }, { browserReads });

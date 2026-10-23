@@ -28,7 +28,7 @@ import {
   findCatalogCompany,
   forecastPeriodPhrase,
   formatAssumptionPercent,
-  formatBillions,
+  formatNullableBillions,
   formatLabDay,
   formatShareCount,
   formatSharePrice,
@@ -205,6 +205,9 @@ function LabMemoBody() {
   const importName = importCompany?.name ?? requestedName ?? importTicker;
 
   const details = dashboard.valuation.detailsForDisplay;
+  const replayAssumptionsUnavailable = Boolean(
+    !isDemo && details && !isComputeResult(details) && !details.assumptions,
+  );
   const scenarioMap = readScenarioValues(details, isDemo);
   const appliedReplay = useRef<string | null>(null);
 
@@ -327,6 +330,7 @@ function LabMemoBody() {
       return;
     }
     const inputs = details.computedInputs;
+    const caseQuotes = scenarioChipQuotes(readScenarioValues(details, false), inputs.assumptions, chipPin.current);
     rememberSessionRun({
       ticker: inputs.symbol,
       name: details.provenance.name ?? findCatalogCompany(inputs.symbol)?.name ?? inputs.symbol,
@@ -335,7 +339,7 @@ function LabMemoBody() {
       currency: details.provenance.currency ?? currency,
       scenario: inputs.scenario,
       assumptions: inputs.assumptions,
-      caseQuotes: scenarioChipQuotes(readScenarioValues(details, false), inputs.assumptions, chipPin.current),
+      caseQuotes: definedScenarioQuotes(caseQuotes),
     });
     rememberedResult.current = details;
   }, [
@@ -430,7 +434,8 @@ function LabMemoBody() {
           projections={projections}
           startingRevenue={statement?.revenue ?? null}
           disclaimer={isDemo ? demoDisclaimer('Illustrative demo data. The bridge is scaled to the demo equity value.') : LAB_DISCLAIMER}
-          readOnly={isDemo}
+          readOnly={isDemo || replayAssumptionsUnavailable}
+          assumptionsUnavailable={replayAssumptionsUnavailable}
           onStep={changeAssumption}
           onScenario={pickScenario}
         />
@@ -459,6 +464,7 @@ function MemoDocument({
   startingRevenue,
   disclaimer,
   readOnly,
+  assumptionsUnavailable,
   onStep,
   onScenario,
 }: {
@@ -466,12 +472,12 @@ function MemoDocument({
   name: string;
   shortName: string;
   label: string;
-  fairValue: number;
+  fairValue: number | null;
   currency: string;
   price: number | null;
   assumptions: Assumptions;
   scenario: Scenario;
-  chipQuotes: Record<Scenario, number>;
+  chipQuotes: Record<Scenario, number | null>;
   field: ReturnType<typeof buildValueMarks>;
   bridge: ReturnType<typeof buildBridgeRows>;
   shares: number | null;
@@ -481,10 +487,11 @@ function MemoDocument({
   startingRevenue: number | null;
   disclaimer: string;
   readOnly: boolean;
+  assumptionsUnavailable: boolean;
   onStep: (kind: AssumptionKind, direction: -1 | 1) => void;
   onScenario: (scenario: Scenario) => void;
 }) {
-  const fairLabel = formatSharePrice(fairValue, 2, currency);
+  const fairLabel = fairValue === null ? '—' : formatSharePrice(fairValue, 2, currency);
   const forecastPeriod = forecastPeriodPhrase(projections.length);
   const growth = formatAssumptionPercent(assumptions.revenueGrowth, 'growth');
   const margin = formatAssumptionPercent(assumptions.operatingMargin, 'margin');
@@ -511,30 +518,40 @@ function MemoDocument({
           <span className={styles.compactOnly}>· {label}</span>
         </div>
         <h1 className={styles.headline}>
-          {shortName} looks worth <strong>{fairLabel}</strong> a share
-          {price !== null ? <>, {gapPhrase(fairValue, price)} where it trades today.</> : '.'}
+          {fairValue === null ? `${shortName} has no available fair value for this case.` : (
+            <>
+              {shortName} looks worth <strong>{fairLabel}</strong> a share
+              {price !== null ? <>, {gapPhrase(fairValue, price)} where it trades today.</> : '.'}
+            </>
+          )}
         </h1>
-        <p className={styles.lede}>
-          If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} disabled={readOnly} /> a year for {forecastPeriod} at a{' '}
-          <Stepper kind="margin" shown={margin} onStep={onStep} disabled={readOnly} /> operating margin, and cash flows are discounted at{' '}
-          <Stepper kind="discount" shown={discount} onStep={onStep} disabled={readOnly} /> with{' '}
-          <Stepper kind="terminal" shown={terminal} onStep={onStep} disabled={readOnly} /> growth forever after.
-        </p>
-        <p className={styles.phoneLede}>
-          If revenue grows <strong>{growth}</strong> a year at a <strong>{margin}</strong> margin, discounted at{' '}
-          <strong>{discount}</strong>, with <strong>{terminal}</strong> growth forever after.
-        </p>
-        <div className={styles.stepList}>
-          {assumptionFields().map((fieldItem) => (
-            <div key={fieldItem.kind} className={styles.stepRow}>
-              <span className={styles.stepName}>{fieldItem.label}</span>
-              <Stepper kind={fieldItem.kind} shown={shown[fieldItem.kind]} onStep={onStep} disabled={readOnly} />
+        {assumptionsUnavailable ? (
+          <p className={styles.blockCopy}>Assumptions were not saved with this result. Rerun the valuation to create an editable memo.</p>
+        ) : (
+          <>
+            <p className={styles.lede}>
+              If revenue grows <Stepper kind="growth" shown={growth} onStep={onStep} disabled={readOnly} /> a year for {forecastPeriod} at a{' '}
+              <Stepper kind="margin" shown={margin} onStep={onStep} disabled={readOnly} /> operating margin, and cash flows are discounted at{' '}
+              <Stepper kind="discount" shown={discount} onStep={onStep} disabled={readOnly} /> with{' '}
+              <Stepper kind="terminal" shown={terminal} onStep={onStep} disabled={readOnly} /> growth forever after.
+            </p>
+            <p className={styles.phoneLede}>
+              If revenue grows <strong>{growth}</strong> a year at a <strong>{margin}</strong> margin, discounted at{' '}
+              <strong>{discount}</strong>, with <strong>{terminal}</strong> growth forever after.
+            </p>
+            <div className={styles.stepList}>
+              {assumptionFields().map((fieldItem) => (
+                <div key={fieldItem.kind} className={styles.stepRow}>
+                  <span className={styles.stepName}>{fieldItem.label}</span>
+                  <Stepper kind={fieldItem.kind} shown={shown[fieldItem.kind]} onStep={onStep} disabled={readOnly} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {readOnly ? <p className={styles.blockCopy}>Demo snapshot: assumptions and values are fixed.</p> : null}
+            {readOnly ? <p className={styles.blockCopy}>Demo snapshot: assumptions and values are fixed.</p> : null}
+          </>
+        )}
         <div className={styles.cases}>
-          <span className={styles.caseLabel}>{readOnly ? 'Saved demo case' : 'Start from a case'}</span>
+          <span className={styles.caseLabel}>{assumptionsUnavailable ? 'Saved scenarios' : readOnly ? 'Saved demo case' : 'Start from a case'}</span>
           {SCENARIOS.map((item) => {
             const selected = scenario === item && label !== 'Your case';
             return (
@@ -546,7 +563,7 @@ function MemoDocument({
                 disabled={readOnly}
                 onClick={() => onScenario(item)}
               >
-                {SCENARIO_LABELS[item]} · {formatSharePrice(chipQuotes[item], 0, currency)}
+                {SCENARIO_LABELS[item]} · {chipQuotes[item] === null ? '—' : formatSharePrice(chipQuotes[item], 0, currency)}
               </button>
             );
           })}
@@ -682,9 +699,9 @@ function MemoDocument({
                     <span className={styles.fullOnly}>{projectionYearLabel(row.year, false)}</span>
                     <span className={styles.compactOnly}>{projectionYearLabel(row.year, true)}</span>
                   </span>
-                  <span>{formatBillions(row.revenue ?? 0)}</span>
-                  <span>{formatBillions(row.ebit ?? 0)}</span>
-                  <span className={styles.fcf}>{formatBillions(row.freeCashFlow ?? 0)}</span>
+                  <span>{formatNullableBillions(row.revenue)}</span>
+                  <span>{formatNullableBillions(row.ebit)}</span>
+                  <span className={styles.fcf}>{formatNullableBillions(row.freeCashFlow)}</span>
                 </div>
               ))}
             </div>
@@ -747,8 +764,8 @@ function barClass(tone: ReturnType<typeof buildBridgeRows>[number]['tone']): str
 function readScenarioValues(
   details: DcfResult | ValuationReplaySnapshot | null,
   isDemo: boolean,
-): Record<Scenario, number> {
-  const fallback = isDemo ? scenarioValues : { base: 0, bull: 0, bear: 0 };
+): Record<Scenario, number | null> {
+  const fallback = isDemo ? scenarioValues : { base: null, bull: null, bear: null };
   if (!details) {
     return fallback;
   }
@@ -764,6 +781,17 @@ function readScenarioValues(
     bull: details.scenarios.bull.fairValue,
     bear: details.scenarios.bear.fairValue,
   };
+}
+
+function definedScenarioQuotes(quotes: Record<Scenario, number | null>): Partial<Record<Scenario, number>> {
+  const defined: Partial<Record<Scenario, number>> = {};
+  for (const scenario of SCENARIOS) {
+    const value = quotes[scenario];
+    if (value !== null && Number.isFinite(value)) {
+      defined[scenario] = value;
+    }
+  }
+  return defined;
 }
 
 function readProjections(details: DcfResult | ValuationReplaySnapshot | null): ProjectionRow[] {

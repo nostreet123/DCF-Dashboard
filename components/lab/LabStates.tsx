@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
-import { forecastPeriodPhrase, LAB_PATHS } from '@/lib/lab/presentation';
+import { companyShortName, forecastPeriodPhrase, LAB_PATHS } from '@/lib/lab/presentation';
 import { MODEL_FORECAST_YEARS } from '@/lib/workbench/factsPayload';
 import styles from './states.module.css';
 
@@ -59,7 +59,7 @@ export function ImportMemo({
   reviewing?: boolean;
   review?: ReactNode;
 }) {
-  const shortName = name.replace(/\s+(Inc\.|Corp\.|Corporation)$/i, '');
+  const shortName = companyShortName(name);
   return (
     <section className={styles.page} aria-label="Import needed">
       <span className={styles.eyebrow}>02 · Company not in the library yet</span>

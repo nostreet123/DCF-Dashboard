@@ -63,12 +63,12 @@
   cursor: pointer;
 }
 
-.shell a {
+.shell :where(a) {
   color: var(--ink-2);
   text-decoration: none;
 }
 
-.shell a:hover {
+.shell :where(a:hover) {
   color: var(--ink);
 }
 
