@@ -21,7 +21,7 @@ import {
   type LibraryFilter,
 } from '@/lib/lab/presentation';
 import { readRecentCompanies, rememberRecentCompany } from '@/lib/lab/recentCompanies';
-import { getServerSessionRuns, readSessionRuns, subscribeSessionRuns } from '@/lib/lab/sessionRuns';
+import { findSessionRunForCompany, getServerSessionRuns, readSessionRuns, subscribeSessionRuns } from '@/lib/lab/sessionRuns';
 import { cn } from '@/lib/utils/cn';
 import styles from './library.module.css';
 
@@ -49,6 +49,7 @@ function DemoLibrary() {
   return (
     <LibraryPage
       lede="Apple has a complete illustrative memo. Other names in this demo list do not have snapshots."
+      classificationLabel="Sector"
       companies={companies}
       shown={shown}
       query={query}
@@ -90,6 +91,7 @@ function LiveLibrary() {
       setFeedback(null);
       return;
     }
+    setResults([]);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       setSearching(true);
@@ -130,7 +132,7 @@ function LiveLibrary() {
   const source = trimmed.length >= 2 ? results : recent;
   const companies = source.map((company) => {
     const entry = companyFromSearch(company);
-    const latest = sessionRuns.find((run) => run.ticker === entry.ticker);
+    const latest = findSessionRunForCompany(sessionRuns, entry.id, entry.ticker);
     if (!latest) {
       return entry;
     }
@@ -141,6 +143,7 @@ function LiveLibrary() {
   return (
     <LibraryPage
       lede="Companies marked ready have statements loaded and can be valued right away. Anything else can be imported from its SEC filings first."
+      classificationLabel="Market"
       companies={companies}
       shown={shown}
       query={query}
@@ -166,6 +169,7 @@ function LiveLibrary() {
 
 function LibraryPage({
   lede,
+  classificationLabel,
   companies,
   shown,
   query,
@@ -183,6 +187,7 @@ function LibraryPage({
   onOpen,
 }: {
   lede: string;
+  classificationLabel: string;
   companies: LabCompany[];
   shown: LabCompany[];
   query: string;
@@ -244,7 +249,7 @@ function LibraryPage({
           <div className={styles.head}>
             <span>Ticker</span>
             <span>Company</span>
-            <span className={styles.hideSmall}>Sector</span>
+            <span className={styles.hideSmall}>{classificationLabel}</span>
             <span className={styles.hideSmall}>Last memo</span>
             <span>Status</span>
           </div>

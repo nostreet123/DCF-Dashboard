@@ -194,6 +194,10 @@ export function formatBillions(dollars: number): string {
   });
 }
 
+export function formatNullableBillions(dollars: number | null): string {
+  return dollars === null ? '—' : formatBillions(dollars);
+}
+
 export function formatStartingRevenue(dollars: number, currency = 'USD'): string {
   if (Math.abs(dollars) < 1_000_000) {
     return formatSharePrice(dollars, 1, currency);
@@ -264,11 +268,11 @@ export function forecastPeriodPhrase(years: number): string {
 }
 
 export function scenarioChipQuotes(
-  reported: Record<Scenario, number>,
+  reported: Record<Scenario, number | null>,
   assumptions: Record<Scenario, Assumptions>,
   pinned: Partial<Record<Scenario, number>>,
-): Record<Scenario, number> {
-  const quotes: Record<Scenario, number> = { ...reported };
+): Record<Scenario, number | null> {
+  const quotes: Record<Scenario, number | null> = { ...reported };
   for (const scenario of ['bear', 'base', 'bull'] as const) {
     const reportedValue = reported[scenario];
     const matchesPreset = assumptionsMatch(
@@ -276,7 +280,7 @@ export function scenarioChipQuotes(
       scenarioAssumptionDefaults[scenario],
     );
     const pinnedValue = pinned[scenario];
-    if (matchesPreset && reportedValue > 0 && Number.isFinite(reportedValue)) {
+    if (matchesPreset && reportedValue !== null && Number.isFinite(reportedValue)) {
       quotes[scenario] = reportedValue;
     } else if (pinnedValue !== undefined && Number.isFinite(pinnedValue)) {
       quotes[scenario] = pinnedValue;
@@ -286,7 +290,7 @@ export function scenarioChipQuotes(
 }
 
 export function pinScenarioQuotes(
-  reported: Record<Scenario, number>,
+  reported: Record<Scenario, number | null>,
   assumptions: Record<Scenario, Assumptions>,
   pinned: Partial<Record<Scenario, number>>,
 ): Partial<Record<Scenario, number>> {
@@ -295,7 +299,7 @@ export function pinScenarioQuotes(
     const reportedValue = reported[scenario];
     if (
       assumptionsMatch(assumptions[scenario], scenarioAssumptionDefaults[scenario]) &&
-      reportedValue > 0 &&
+      reportedValue !== null &&
       Number.isFinite(reportedValue)
     ) {
       next[scenario] = reportedValue;
@@ -651,16 +655,19 @@ export function buildBridgeRows(bridge: ValueBridge, forecastYears?: number): Br
 }
 
 export function buildValueMarks(input: {
-  bear: number;
-  bull: number;
-  memo: number;
+  bear: number | null;
+  bull: number | null;
+  memo: number | null;
   price: number | null;
   compact?: boolean;
   currency?: string;
 }): { marks: ValueMark[]; bandLeft: number; bandWidth: number; alt: string } {
   const values = [input.bear, input.bull, input.memo, input.price].filter(
-    (value): value is number => value !== null,
+    (value): value is number => value !== null && Number.isFinite(value),
   );
+  if (values.length === 0) {
+    return { marks: [], bandLeft: 0, bandWidth: 0, alt: 'Valuation unavailable' };
+  }
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   const padding = maximum > minimum ? (maximum - minimum) * 0.25 : Math.max(Math.abs(minimum), 1) * 0.15;
@@ -668,8 +675,8 @@ export function buildValueMarks(input: {
   const hi = maximum + padding;
   const span = hi - lo || 1;
   const pos = (value: number) => ((value - lo) / span) * 100;
-  const marks: ValueMark[] = [
-    {
+  const marks: ValueMark[] = [];
+  if (input.bear !== null && Number.isFinite(input.bear)) marks.push({
       label: 'Bear',
       compactLabel: 'Bear',
       value: formatSharePrice(input.bear, 0, input.currency),
@@ -677,8 +684,8 @@ export function buildValueMarks(input: {
       left: pos(input.bear),
       placement: 'above',
       emphasis: false,
-    },
-    {
+    });
+  if (input.bull !== null && Number.isFinite(input.bull)) marks.push({
       label: 'Bull',
       compactLabel: 'Bull',
       value: formatSharePrice(input.bull, 0, input.currency),
@@ -686,9 +693,8 @@ export function buildValueMarks(input: {
       left: pos(input.bull),
       placement: 'above',
       emphasis: false,
-    },
-  ];
-  if (input.price !== null) {
+    });
+  if (input.price !== null && Number.isFinite(input.price)) {
     marks.push({
       label: 'Price',
       compactLabel: 'Price',
@@ -699,7 +705,7 @@ export function buildValueMarks(input: {
       emphasis: false,
     });
   }
-  marks.push({
+  if (input.memo !== null && Number.isFinite(input.memo)) marks.push({
     label: 'This memo',
     compactLabel: 'Memo',
     value: formatSharePrice(input.memo, 2, input.currency),
@@ -708,18 +714,19 @@ export function buildValueMarks(input: {
     placement: 'below',
     emphasis: true,
   });
-  const altParts = [
-    `Bear ${formatSharePrice(input.bear, 2, input.currency)}`,
-    `this memo ${formatSharePrice(input.memo, 2, input.currency)}`,
-    `bull ${formatSharePrice(input.bull, 2, input.currency)}`,
-  ];
-  if (input.price !== null) {
+  const altParts: string[] = [];
+  if (input.bear !== null && Number.isFinite(input.bear)) altParts.push(`Bear ${formatSharePrice(input.bear, 2, input.currency)}`);
+  if (input.memo !== null && Number.isFinite(input.memo)) altParts.push(`this memo ${formatSharePrice(input.memo, 2, input.currency)}`);
+  if (input.bull !== null && Number.isFinite(input.bull)) altParts.push(`bull ${formatSharePrice(input.bull, 2, input.currency)}`);
+  if (input.price !== null && Number.isFinite(input.price)) {
     altParts.push(`price ${formatSharePrice(input.price, 2, input.currency)}`);
   }
   return {
     marks,
-    bandLeft: pos(Math.min(input.bear, input.bull)),
-    bandWidth: Math.abs(pos(input.bull) - pos(input.bear)),
+    bandLeft: input.bear !== null && Number.isFinite(input.bear) && input.bull !== null && Number.isFinite(input.bull)
+      ? pos(Math.min(input.bear, input.bull)) : 0,
+    bandWidth: input.bear !== null && Number.isFinite(input.bear) && input.bull !== null && Number.isFinite(input.bull)
+      ? Math.abs(pos(input.bull) - pos(input.bear)) : 0,
     alt: altParts.join(', '),
   };
 }

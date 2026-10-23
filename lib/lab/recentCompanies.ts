@@ -7,7 +7,22 @@ function isCompany(value: unknown): value is CompanySearchResult {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return typeof record.id === 'string' && typeof record.symbol === 'string' && typeof record.name === 'string';
+  return (
+    typeof record.id === 'string' &&
+    typeof record.symbol === 'string' &&
+    typeof record.name === 'string' &&
+    (record.coverageState === 'valuation_ready' ||
+      record.coverageState === 'import_required' ||
+      record.coverageState === 'detail_only') &&
+    Array.isArray(record.sourceLinks) &&
+    record.sourceLinks.every((link) => {
+      if (!link || typeof link !== 'object') {
+        return false;
+      }
+      const source = link as Record<string, unknown>;
+      return typeof source.title === 'string' && typeof source.url === 'string';
+    })
+  );
 }
 
 export function readRecentCompanies(): CompanySearchResult[] {
@@ -28,7 +43,11 @@ export function readRecentCompanies(): CompanySearchResult[] {
 export function rememberRecentCompany(company: CompanySearchResult): CompanySearchResult[] {
   const next = [company, ...readRecentCompanies().filter((item) => item.id !== company.id)].slice(0, 8);
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(RECENT_COMPANIES_KEY, JSON.stringify(next));
+    try {
+      window.localStorage.setItem(RECENT_COMPANIES_KEY, JSON.stringify(next));
+    } catch {
+      // Recent history is optional and must not interrupt navigation.
+    }
   }
   return next;
 }

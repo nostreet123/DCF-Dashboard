@@ -21,7 +21,14 @@ let cachedRaw: string | null = null;
 let cachedRuns: SessionMemoRun[] = EMPTY_SESSION_RUNS;
 
 function canUseStorage(): boolean {
-  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    return typeof window.sessionStorage !== 'undefined';
+  } catch {
+    return false;
+  }
 }
 
 function isAssumptions(value: unknown): value is Assumptions {
@@ -31,9 +38,13 @@ function isAssumptions(value: unknown): value is Assumptions {
   const record = value as Record<string, unknown>;
   return (
     typeof record.revenueGrowth === 'number' &&
+    Number.isFinite(record.revenueGrowth) &&
     typeof record.operatingMargin === 'number' &&
+    Number.isFinite(record.operatingMargin) &&
     typeof record.discountRate === 'number' &&
+    Number.isFinite(record.discountRate) &&
     typeof record.terminalGrowth === 'number'
+    && Number.isFinite(record.terminalGrowth)
   );
 }
 
@@ -49,8 +60,11 @@ function isSessionRun(value: unknown): value is SessionMemoRun {
     typeof record.name === 'string' &&
     (record.listingId === null || typeof record.listingId === 'string') &&
     typeof record.value === 'number' &&
+    Number.isFinite(record.value) &&
     typeof record.currency === 'string' &&
+    /^[A-Za-z]{3}$/.test(record.currency) &&
     typeof record.at === 'string' &&
+    Number.isFinite(Date.parse(record.at)) &&
     (record.scenario === 'bear' || record.scenario === 'base' || record.scenario === 'bull') &&
     Boolean(assumptions) &&
     isAssumptions(assumptions?.bear) &&
@@ -63,7 +77,12 @@ export function readSessionRuns(): SessionMemoRun[] {
   if (!canUseStorage()) {
     return EMPTY_SESSION_RUNS;
   }
-  const raw = window.sessionStorage.getItem(STORAGE_KEY);
+  let raw: string | null;
+  try {
+    raw = window.sessionStorage.getItem(STORAGE_KEY);
+  } catch {
+    return EMPTY_SESSION_RUNS;
+  }
   if (raw === cachedRaw) {
     return cachedRuns;
   }
@@ -92,6 +111,19 @@ export function findSessionRun(id: string | null | undefined): SessionMemoRun | 
   return readSessionRuns().find((run) => run.id === id) ?? null;
 }
 
+export function findSessionRunForCompany(
+  runs: SessionMemoRun[],
+  listingId: string | null,
+  ticker: string,
+): SessionMemoRun | null {
+  if (listingId) {
+    return runs.find((run) => run.listingId === listingId) ??
+      runs.find((run) => run.ticker === ticker && run.listingId === null) ??
+      null;
+  }
+  return runs.find((run) => run.ticker === ticker && run.listingId === null) ?? null;
+}
+
 function sameCase(left: SessionMemoRun, right: SessionMemoRun): boolean {
   return (
     left.ticker === right.ticker &&
@@ -112,8 +144,12 @@ export function rememberSessionRun(run: Omit<SessionMemoRun, 'id' | 'at'> & { id
   const withoutMatch = stored.filter((item) => item.id !== nextRun.id && !sameCase(item, nextRun));
   const next = [nextRun, ...withoutMatch].slice(0, MAX_RUNS);
   if (canUseStorage()) {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    window.dispatchEvent(new Event(CHANGE_EVENT));
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      window.dispatchEvent(new Event(CHANGE_EVENT));
+    } catch {
+      // Keep the computed result usable when session storage is unavailable.
+    }
   }
   return nextRun;
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CompanySearchResult } from '@/lib/contracts/company';
 import type { CoverageFilter, WorkspaceMode } from '@/lib/dashboard/viewModel';
 import { resolveActiveCompany, type RailVariant } from '@/lib/hooks/useWorkbenchViewState';
+import { readRecentCompanies, rememberRecentCompany } from '@/lib/lab/recentCompanies';
 import { mockDatasets } from '@/lib/workbench/mockData';
 
 const getCompanySearchSymbol = (company: CompanySearchResult): string | null => {
@@ -51,33 +52,11 @@ export function useCompanyDiscovery({
   const didBootstrapUrlSearchRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const raw = window.localStorage.getItem('dcf-dashboard:recent-companies');
-    if (!raw) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        setRecentCompanies(parsed.filter((item): item is CompanySearchResult => {
-          return Boolean(item && typeof item === 'object' && 'id' in item && 'symbol' in item);
-        }).slice(0, 8));
-      }
-    } catch {
-      setRecentCompanies([]);
-    }
+    setRecentCompanies(readRecentCompanies());
   }, []);
 
   const rememberCompany = useCallback((company: CompanySearchResult) => {
-    setRecentCompanies((current) => {
-      const next = [company, ...current.filter((item) => item.id !== company.id)].slice(0, 8);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('dcf-dashboard:recent-companies', JSON.stringify(next));
-      }
-      return next;
-    });
+    setRecentCompanies(rememberRecentCompany(company));
   }, []);
 
   const applyCompanySelection = useCallback(

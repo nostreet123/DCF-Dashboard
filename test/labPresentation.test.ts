@@ -23,6 +23,7 @@ import {
   formatAssumptionPercent,
   gapPhrase,
   formatBillions,
+  formatNullableBillions,
   formatLastMemo,
   formatSharePrice,
   formatSharePriceWhenCurrencyKnown,
@@ -44,6 +45,8 @@ describe('lab presentation', () => {
     expect(formatBillions(-500_000)).toBe('-0.0005');
     expect(formatBillions(1_000_000_000)).toBe('1.0');
     expect(formatBillions(0)).toBe('0.0');
+    expect(formatNullableBillions(null)).toBe('—');
+    expect(formatNullableBillions(0)).toBe('0.0');
   });
 
   test('formats memo values and accessible marks in their result currency', () => {
@@ -116,6 +119,38 @@ describe('lab presentation', () => {
     for (const mark of charts[2]?.marks ?? []) {
       expect(mark.left).toBeCloseTo(50);
     }
+  });
+
+  test('pins finite negative scenario values instead of losing the saved quote', () => {
+    const assumptions = {
+      bear: scenarioAssumptionDefaults.bear,
+      base: scenarioAssumptionDefaults.base,
+      bull: scenarioAssumptionDefaults.bull,
+    };
+    const reported = { bear: -5, base: -4, bull: -3 };
+    const pinned = pinScenarioQuotes(reported, assumptions, {});
+
+    expect(pinned).toEqual(reported);
+    expect(scenarioChipQuotes(
+      { bear: -1, base: -2, bull: -3 },
+      assumptions,
+      pinned,
+    )).toEqual({ bear: -1, base: -2, bull: -3 });
+    const edited = { ...assumptions, base: { ...assumptions.base, revenueGrowth: 14 } };
+    expect(scenarioChipQuotes(reported, edited, pinned).base).toBe(-4);
+  });
+
+  test('leaves missing scenario values unavailable in quotes and chart marks', () => {
+    const assumptions = {
+      bear: scenarioAssumptionDefaults.bear,
+      base: scenarioAssumptionDefaults.base,
+      bull: scenarioAssumptionDefaults.bull,
+    };
+    const quotes = scenarioChipQuotes({ bear: null, base: null, bull: 120 }, assumptions, { base: -2 });
+    expect(quotes).toEqual({ bear: null, base: -2, bull: 120 });
+    const field = buildValueMarks({ bear: null, bull: 120, memo: 100, price: null });
+    expect(field.marks.map((mark) => mark.label)).toEqual(['Bull', 'This memo']);
+    expect(field.alt).not.toContain('Bear');
   });
 
   test('labels the bridge with the actual forecast horizon', () => {

@@ -62,7 +62,7 @@ export function LabFrame({
               aria-current={item.id === active ? 'page' : undefined}
             >
               <Icon />
-              {item.label}
+              {item.id === 'history' ? 'Run history' : item.label}
             </Link>
           );
         })}

@@ -168,6 +168,7 @@ test.describe('live Lab', () => {
 
   test('live library search opens a memo and history restores that case', async ({ page }) => {
     const requests = await liveFixtures(page);
+    const historyRequests: string[] = [];
     await page.route('**/api/company/search?**', async (route) => {
       const query = new URL(route.request().url()).searchParams.get('q') ?? '';
       await route.fulfill({
@@ -185,10 +186,10 @@ test.describe('live Lab', () => {
         },
       });
     });
-    await page.route('**/api/dcf/history**', (route) => route.fulfill({
-      status: 401,
-      json: { message: 'Unauthorized' },
-    }));
+    await page.route('**/api/dcf/history**', (route) => {
+      historyRequests.push(route.request().url());
+      return route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+    });
     await page.goto('/library');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pick a company to write a memo on.');
     await expect(page.getByRole('link', { name: 'Open workbench' })).toHaveCount(0);
@@ -206,7 +207,8 @@ test.describe('live Lab', () => {
     await page.getByRole('link', { name: 'Run history' }).click();
     await expect(page).toHaveURL(/\/history$/);
     await expect(page.getByRole('link', { name: 'Open workbench' })).toHaveCount(0);
-    await expect(page.getByText('Recent runs are unavailable in this environment.')).toBeVisible();
+    expect(historyRequests).toEqual([]);
+    await expect(page.getByText('Recent runs are unavailable in this environment.')).toHaveCount(0);
     await page.getByRole('button', { name: /Your case/ }).click();
     await expect(page.getByText('12.5%')).toBeVisible();
     await page.getByRole('link', { name: 'Open this memo' }).click();
