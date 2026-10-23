@@ -72,6 +72,25 @@ test.describe('live Lab', () => {
     expect(requests.count()).toBe(4);
   });
 
+  test('a failed URL company search keeps its error instead of showing no matches', async ({ page }) => {
+    await liveFixtures(page);
+    let searchRequests = 0;
+    await page.route('**/api/company/search?**', async (route) => {
+      searchRequests += 1;
+      await route.fulfill({
+        status: 503,
+        json: { message: 'Fixture company search failed.' },
+      });
+    });
+
+    await page.goto('/workbench?company-search=FAIL');
+    await expect.poll(() => searchRequests).toBe(1);
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Fixture company search failed.' }),
+    ).toBeVisible();
+    await expect(page.getByText('No matching company found for "FAIL".', { exact: true })).toHaveCount(0);
+  });
+
   test('EUR memo labels ten years and uses consistent billions throughout', async ({ page }) => {
     await liveFixtures(page, 'EUR');
     await page.goto('/?ticker=MSFT');
