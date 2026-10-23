@@ -370,7 +370,7 @@ erDiagram
         string scanId FK
         boolean dryRun
         number pageLimit
-        string? groupCursor
+        string_or_null? groupCursor
         string? currentSnapshotGroupId FK
         string[]? snapshotDeleteIds
         string? currentSnapshotId FK
@@ -1259,3 +1259,5 @@ Conceptual entities and which layer(s) they appear in.
 | Audit log | `auditLogs` | — | — |
 | UI workbench state | — | — | `WorkbenchState`, `WorkbenchViewState` |
 | UI scenario chip | — | — | `ScenarioChip` |
+
+For duplicate cleanup, an omitted `groupCursor` starts the phase, a string continues it, and `null` records exhaustion after the final group has been loaded. The pending group is processed before advancing phases.

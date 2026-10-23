@@ -34,7 +34,7 @@ describe("maintenance snapshot cleanup logic", () => {
       nextCursor: null,
       deleteCount: 2,
     });
-    expect(patch.groupCursor).toBeUndefined();
+    expect(patch.groupCursor).toBeNull();
     expect(patch.assetGroupsProcessed).toBe(5);
     expect(patch.assetsDeleted).toBe(11);
   });

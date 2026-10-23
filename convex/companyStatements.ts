@@ -49,7 +49,7 @@ export const listBySymbol = query({
       });
     return {
       statements: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });

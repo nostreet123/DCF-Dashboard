@@ -5,10 +5,12 @@ import os
 import time
 from pathlib import Path
 from typing import Any
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Event, Lock
 
 import pytest
 
-from dcf_engine.service import sec_edgar
+from dcf_engine.service import sec_edgar, sec_edgar_cache
 from dcf_engine.service.sec_edgar_cache import (
     CACHE_TTL_SECONDS,
     load_company_tickers as load_company_tickers_cached,
@@ -617,3 +619,316 @@ def test_fetch_company_facts_derives_berkshire_class_b_equivalent_shares(
     company = sec_edgar.fetch_company_facts("BRK-B")
 
     assert company.statements[0].shares_outstanding == 1438223.426 * 1500
+
+
+@pytest.fixture
+def ticker_parses(monkeypatch: pytest.MonkeyPatch):
+    calls = []
+    original_load = json.load
+
+    def load(handle, *args, **kwargs):
+        calls.append(handle.name)
+        return original_load(handle, *args, **kwargs)
+
+    monkeypatch.setattr(sec_edgar_cache.json, "load", load)
+    return calls
+
+
+def test_ticker_file_is_parsed_once_for_repeated_search_and_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    payload = {
+        "fields": ["cik", "name", "ticker", "exchange", "metadata"],
+        "data": [
+            [2, "Second listing", "DUP", "NYSE", {"tags": ["original"]}],
+            [1, "First listing", "DUP", "Nasdaq", {"tags": ["original"]}],
+        ],
+    }
+    sec_edgar_cache.write_ticker_cache("exchange", payload)
+    monkeypatch.setattr(sec_edgar, "get_json", lambda _: pytest.fail("fresh cache must not fetch"))
+
+    first = sec_edgar.load_company_tickers()
+    first[0]["ticker"] = "MUTATED"
+    first[0]["metadata"]["tags"].append("mutated")
+    first.reverse()
+    results = sec_edgar.search_companies("DUP")
+    again = sec_edgar.load_company_tickers()
+    sec_edgar.load_company_tickers()
+
+    assert len(ticker_parses) == 1
+    assert [result.name for result in results] == ["Second listing", "First listing"]
+    assert [entry["cik"] for entry in again] == [2, 1]
+    assert again[0]["metadata"] == {"tags": ["original"]}
+
+
+def test_ticker_memory_hit_still_checks_ttl_each_time(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    sec_edgar_cache.write_ticker_cache("exchange", _load_fixture("company_tickers.json"))
+    now = ticker_cache_path().stat().st_mtime
+    monkeypatch.setattr(sec_edgar_cache.time, "time", lambda: now)
+    assert sec_edgar_cache.load_cached_tickers() is not None
+    monkeypatch.setattr(sec_edgar_cache.time, "time", lambda: now + CACHE_TTL_SECONDS)
+    assert sec_edgar_cache.load_cached_tickers() is not None
+    monkeypatch.setattr(sec_edgar_cache.time, "time", lambda: now + CACHE_TTL_SECONDS + 1)
+    assert sec_edgar_cache.load_cached_tickers() is None
+    assert len(ticker_parses) == 1
+
+
+def test_ticker_memory_observes_replacement_corruption_and_recovery(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    old = {"0": {"ticker": "OLD"}}
+    new = {"0": {"ticker": "NEW"}}
+    sec_edgar_cache.write_ticker_cache("exchange", old)
+    path = ticker_cache_path()
+    assert sec_edgar_cache.load_cached_tickers() == list(old.values())
+    previous = path.stat()
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text(json.dumps(new), encoding="utf-8")
+    os.utime(replacement, ns=(previous.st_atime_ns, previous.st_mtime_ns))
+    replacement.replace(path)
+    assert sec_edgar_cache.load_cached_tickers() == list(new.values())
+    path.write_text("broken json", encoding="utf-8")
+    assert sec_edgar_cache.load_cached_tickers() is None
+    sec_edgar_cache.write_ticker_cache("exchange", old)
+    assert sec_edgar_cache.load_cached_tickers() == list(old.values())
+    path.unlink()
+    assert sec_edgar_cache.load_cached_tickers() is None
+    assert len(ticker_parses) == 4
+
+
+def test_ticker_memory_separates_directories_and_exchange_legacy_keys(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    for directory, symbol in [(tmp_path / "one", "ONE"), (tmp_path / "two", "TWO")]:
+        monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(directory))
+        for key in ["exchange", "legacy"]:
+            payload = {"0": {"ticker": f"{symbol}-{key}"}}
+            sec_edgar_cache.write_ticker_cache(key, payload)
+            assert sec_edgar_cache.load_cached_tickers(key) == list(payload.values())
+            assert sec_edgar_cache.load_cached_tickers(key) == list(payload.values())
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path / "one"))
+    assert sec_edgar_cache.load_cached_tickers()[0]["ticker"] == "ONE-exchange"
+    assert len(ticker_parses) == 4
+
+
+def test_ticker_memory_bounds_retained_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(sec_edgar_cache, "_MAX_PARSED_TICKER_FILES", 2, raising=False)
+    for key in ["one", "two", "three"]:
+        sec_edgar_cache.write_ticker_cache(key, {"0": {"ticker": key}})
+        assert sec_edgar_cache.load_cached_tickers(key)[0]["ticker"] == key
+        sec_edgar_cache.load_cached_tickers(key)
+    assert len(ticker_parses) == 3
+    assert sec_edgar_cache.load_cached_tickers("one")[0]["ticker"] == "one"
+    assert len(ticker_parses) == 4
+
+
+def test_ticker_memory_shares_one_parse_across_threads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    sec_edgar_cache.write_ticker_cache("exchange", _load_fixture("company_tickers.json"))
+    start = Barrier(5)
+    parsing = Event()
+    another_parse = Event()
+    release = Event()
+    calls_lock = Lock()
+    calls = []
+    original_load = json.load
+
+    def load(handle, *args, **kwargs):
+        with calls_lock:
+            calls.append(handle.name)
+            if len(calls) > 1:
+                another_parse.set()
+        parsing.set()
+        assert release.wait(5), "test did not release the first parser"
+        return original_load(handle, *args, **kwargs)
+
+    def read():
+        start.wait(timeout=5)
+        return sec_edgar_cache.load_cached_tickers()
+
+    monkeypatch.setattr(sec_edgar_cache.json, "load", load)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(read) for _ in range(4)]
+        try:
+            start.wait(timeout=5)
+            assert parsing.wait(5)
+            # Keep the first miss in the parser while the other workers access
+            # the same cold file. Removing synchronization triggers this event.
+            assert not another_parse.wait(0.2)
+        finally:
+            release.set()
+        entries = [future.result(timeout=5) for future in futures]
+    assert all(rows[0]["ticker"] == "AAPL" for rows in entries)
+    assert len(calls) == 1
+
+
+def test_ticker_cold_fetch_seeds_an_owned_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ticker_parses,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    payload = {"0": {"ticker": "FIRST", "metadata": [{"tags": ["original"]}]}}
+    first = load_company_tickers_cached(lambda _: payload, "https://example.test/tickers")
+    first[0]["ticker"] = "CALLER"
+    first[0]["metadata"][0]["tags"].append("caller")
+    payload["0"]["metadata"][0]["tags"].append("fetcher")
+    again = sec_edgar_cache.load_cached_tickers()
+
+    assert again == [{"ticker": "FIRST", "metadata": [{"tags": ["original"]}]}]
+    assert ticker_parses == []
+
+
+def test_ticker_cold_snapshot_matches_serialized_bytes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    payload = {"0": {"ticker": "ORIGINAL", "metadata": {"tags": ["original"]}}}
+    original_dumps = json.dumps
+    original_dump = json.dump
+
+    def mutate():
+        payload["0"]["ticker"] = "CHANGED"
+        payload["0"]["metadata"]["tags"].append("changed")
+
+    def dumps(value, *args, **kwargs):
+        serialized = original_dumps(value, *args, **kwargs)
+        mutate()
+        return serialized
+
+    def dump(value, handle, *args, **kwargs):
+        original_dump(value, handle, *args, **kwargs)
+        mutate()
+
+    monkeypatch.setattr(sec_edgar_cache.json, "dumps", dumps)
+    monkeypatch.setattr(sec_edgar_cache.json, "dump", dump)
+    first = load_company_tickers_cached(lambda _: payload, "https://example.test/tickers")
+
+    assert first == [{"ticker": "ORIGINAL", "metadata": {"tags": ["original"]}}]
+    assert sec_edgar_cache.load_cached_tickers() == first
+    assert json.loads(ticker_cache_path().read_text()) == {
+        "0": {"ticker": "ORIGINAL", "metadata": {"tags": ["original"]}}
+    }
+
+
+def test_ticker_slow_file_does_not_block_an_independent_cached_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    sec_edgar_cache.write_ticker_cache("slow", {"0": {"ticker": "SLOW"}})
+    sec_edgar_cache.write_ticker_cache("fast", {"0": {"ticker": "FAST"}})
+    assert sec_edgar_cache.load_cached_tickers("fast") == [{"ticker": "FAST"}]
+    parsing = Event()
+    release = Event()
+    completed = Event()
+    original_load = json.load
+
+    def load(handle, *args, **kwargs):
+        if Path(handle.name) == ticker_cache_path("slow").resolve():
+            parsing.set()
+            assert release.wait(5), "test did not release the slow parser"
+        return original_load(handle, *args, **kwargs)
+
+    def read_fast():
+        result = sec_edgar_cache.load_cached_tickers("fast")
+        completed.set()
+        return result
+
+    monkeypatch.setattr(sec_edgar_cache.json, "load", load)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        slow = executor.submit(sec_edgar_cache.load_cached_tickers, "slow")
+        try:
+            assert parsing.wait(5)
+            fast = executor.submit(read_fast)
+            assert completed.wait(1), "an unrelated cache hit waited for the slow parser"
+        finally:
+            release.set()
+        assert fast.result(timeout=5) == [{"ticker": "FAST"}]
+        assert slow.result(timeout=5) == [{"ticker": "SLOW"}]
+
+
+@pytest.mark.parametrize("replace_file", [False, True])
+@pytest.mark.parametrize("change_on_flush", [False, True])
+def test_ticker_cold_write_does_not_seed_a_racing_file_change(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, replace_file: bool,
+    change_on_flush: bool,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    path = ticker_cache_path()
+    original_open = Path.open
+    raced = Event()
+    fresh = '{"0": {"ticker": "RACED"}}'
+
+    class RacingWriter:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def __enter__(self):
+            self.handle.__enter__()
+            return self
+
+        def flush(self):
+            self.handle.flush()
+            if change_on_flush:
+                self.change_file()
+
+        def __exit__(self, *args):
+            result = self.handle.__exit__(*args)
+            if not change_on_flush:
+                self.change_file()
+            return result
+
+        def change_file(self):
+            if replace_file:
+                replacement = tmp_path / "racing.json"
+                replacement.write_text(fresh, encoding="utf-8")
+                replacement.replace(path)
+            else:
+                with original_open(path, "w", encoding="utf-8") as handle:
+                    handle.write(fresh)
+            raced.set()
+
+    def open_path(candidate, mode="r", *args, **kwargs):
+        handle = original_open(candidate, mode, *args, **kwargs)
+        if candidate == path and mode in {"w", "w+"}:
+            return RacingWriter(handle)
+        return handle
+
+    monkeypatch.setattr(Path, "open", open_path)
+    first = load_company_tickers_cached(
+        lambda _: {"0": {"ticker": "FETCHED"}}, "https://example.test/tickers",
+    )
+
+    assert raced.is_set()
+    assert first == [{"ticker": "FETCHED"}]
+    assert sec_edgar_cache.load_cached_tickers() == [{"ticker": "RACED"}]
+
+
+def test_ticker_path_locks_release_after_a_parser_exception(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DCF_ENGINE_CACHE_DIR", str(tmp_path))
+    sec_edgar_cache.write_ticker_cache("exchange", {"0": {"ticker": "AAPL"}})
+    original_load = json.load
+
+    def fail(handle):
+        raise OSError("simulated read failure")
+
+    monkeypatch.setattr(sec_edgar_cache.json, "load", fail)
+    with pytest.raises(OSError, match="simulated read failure"):
+        sec_edgar_cache.load_cached_tickers()
+    assert not sec_edgar_cache._TICKER_PATH_LOCKS
+    monkeypatch.setattr(sec_edgar_cache.json, "load", original_load)
+    assert sec_edgar_cache.load_cached_tickers() == [{"ticker": "AAPL"}]
+    assert not sec_edgar_cache._TICKER_PATH_LOCKS

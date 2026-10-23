@@ -399,7 +399,7 @@ export const listBySnapshot = query({
 
     return {
       rows: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -463,7 +463,7 @@ export const deleteNonActiveRowsPage = mutation({
 
     return {
       deleted,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -506,7 +506,7 @@ export const backfillPrimaryKeyNormPage = mutation({
 
     return {
       updated,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -565,7 +565,7 @@ export const backfillMissingPrimaryKeyNormPage = mutation({
 
     return {
       updated,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
       seenSnapshots: Array.from(seenSnapshots.values()),
     };
   },

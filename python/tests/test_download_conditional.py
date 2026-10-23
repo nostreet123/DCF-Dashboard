@@ -3,9 +3,12 @@ from __future__ import annotations
 import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
+from typing import NamedTuple
 
 import pytest
 import requests
+import urllib3.connection
 
 from damodaran_sync import download
 
@@ -723,3 +726,176 @@ def test_file_name_from_url_dotdot_raises(tmp_path) -> None:
             http_client=DummyClient([]),
             cache_dir=tmp_path,
         )
+
+
+@pytest.fixture
+def pinned_requests(monkeypatch: pytest.MonkeyPatch):
+    calls = []
+    closed = []
+    original_close = requests.Session.close
+    monkeypatch.setattr(download.socket, "getaddrinfo", _safe_example_resolution)
+
+    def fake_request(session, method, url, **kwargs):
+        calls.append({
+            "session": session,
+            "thread": threading.get_ident(),
+            "url": url,
+            "headers": dict(session.headers),
+            "cookies": session.cookies.get_dict(),
+            "ip": session.adapters["https://"]._pinned_ip,
+            "kwargs": kwargs,
+        })
+        session.cookies.set("response-cookie", "private")
+        session.headers["X-Previous-Request"] = "private"
+        return DummyResponse(200)
+
+    def close(session):
+        if any(call["session"] is session for call in calls):
+            closed.append(session)
+        original_close(session)
+
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+    monkeypatch.setattr(requests.Session, "close", close)
+    return calls, closed
+
+
+def test_http_client_reuses_same_origin_and_address_without_request_state(
+    monkeypatch: pytest.MonkeyPatch, pinned_requests,
+) -> None:
+    calls, _ = pinned_requests
+    resolutions = []
+
+    def resolve(*args, **kwargs):
+        resolutions.append(args[0])
+        return _safe_example_resolution()
+
+    monkeypatch.setattr(download.socket, "getaddrinfo", resolve)
+    limiter = DummyRateLimiter()
+    base = requests.Session()
+    base.headers["X-Client"] = "configured"
+    base.cookies.set("base-cookie", "private")
+    client = download.HttpClient(session=base, pin_connections=True, rate_limiter=limiter)
+    for index in range(3):
+        client.get(f"https://example.com/{index}.xls", headers={"If-None-Match": str(index)})
+
+    assert len({id(call["session"]) for call in calls}) == 1
+    assert resolutions == ["example.com"] * 3
+    assert limiter.calls == 3
+    assert all(call["headers"]["X-Client"] == "configured" for call in calls)
+    assert all("X-Previous-Request" not in call["headers"] for call in calls)
+    assert all(call["cookies"] == {} for call in calls)
+    assert [call["kwargs"]["headers"] for call in calls] == [
+        {"If-None-Match": str(index)} for index in range(3)
+    ]
+
+
+def test_http_client_separates_changed_address_origin_and_port(
+    monkeypatch: pytest.MonkeyPatch, pinned_requests,
+) -> None:
+    calls, _ = pinned_requests
+    addresses = iter(["93.184.216.34", "93.184.216.35", "93.184.216.34", "93.184.216.34", "93.184.216.34"])
+    monkeypatch.setattr(download, "_resolve_pinned_address", lambda _: next(addresses))
+    client = download.HttpClient(rate_limiter=DummyRateLimiter())
+    for url in [
+        "https://example.com/a.xls", "https://example.com/b.xls",
+        "https://mirror.example.com/a.xls", "https://example.com:444/a.xls",
+        "https://example.com:443/c.xls",
+    ]:
+        client.get(url)
+
+    assert len({id(call["session"]) for call in calls}) == 4
+    assert calls[0]["session"] is calls[4]["session"]
+    assert [call["ip"] for call in calls[:2]] == ["93.184.216.34", "93.184.216.35"]
+
+
+def test_http_client_revalidates_dns_before_reusing_pool(
+    monkeypatch: pytest.MonkeyPatch, pinned_requests,
+) -> None:
+    calls, _ = pinned_requests
+    client = download.HttpClient(rate_limiter=DummyRateLimiter())
+    client.get("https://example.com/a.xls")
+    monkeypatch.setattr(download.socket, "getaddrinfo", _private_example_resolution)
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        client.get("https://example.com/b.xls")
+
+    assert len(calls) == 1
+
+
+def test_http_client_bounds_retained_sessions_and_closes_evictions(
+    monkeypatch: pytest.MonkeyPatch, pinned_requests,
+) -> None:
+    calls, closed = pinned_requests
+    monkeypatch.setattr(download, "_MAX_PINNED_SESSIONS", 2, raising=False)
+    client = download.HttpClient(rate_limiter=DummyRateLimiter())
+    for host in ["first.example.com", "second.example.com", "first.example.com", "third.example.com"]:
+        client.get(f"https://{host}/a.xls")
+
+    assert calls[0]["session"] is calls[2]["session"]
+    assert closed == [calls[1]["session"]]
+    client.get("https://second.example.com/b.xls")
+    assert calls[4]["session"] is not calls[1]["session"]
+    assert closed == [calls[1]["session"], calls[0]["session"]]
+
+
+def test_http_client_reuses_only_within_thread_and_closes_thread_pools(pinned_requests) -> None:
+    calls, closed = pinned_requests
+    limiter = DummyRateLimiter()
+    client = download.HttpClient(rate_limiter=limiter)
+    barrier = threading.Barrier(2)
+
+    def request_twice(_):
+        client.get("https://example.com/a.xls")
+        barrier.wait(timeout=5)
+        client.get("https://example.com/b.xls")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(request_twice, range(2)))
+
+    by_thread = {}
+    for call in calls:
+        by_thread.setdefault(call["thread"], []).append(call["session"])
+    assert len(by_thread) == 2
+    assert all(sessions[0] is sessions[1] for sessions in by_thread.values())
+    assert len({id(call["session"]) for call in calls}) == 2
+    assert {id(session) for session in closed} == {id(call["session"]) for call in calls}
+    assert limiter.calls == 4
+
+
+def test_pinned_pool_connects_to_ip_and_retains_tls_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
+    addresses = []
+    tls_calls = []
+    raw_socket = object()
+    tls_socket = SimpleNamespace(selected_alpn_protocol=lambda: "http/1.1", close=lambda: None)
+
+    def connect(address, *args, **kwargs):
+        addresses.append(address)
+        return raw_socket
+
+    # urllib3 2.7 reads attributes; 2.8 unpacks the same two result values.
+    class WrappedSocket(NamedTuple):
+        socket: object
+        is_verified: bool
+
+    def wrap_socket(**kwargs):
+        tls_calls.append(kwargs)
+        return WrappedSocket(tls_socket, True)
+
+    monkeypatch.setattr(download.urllib3_connection, "create_connection", connect)
+    monkeypatch.setattr(
+        urllib3.connection, "_ssl_wrap_socket_and_match_hostname", wrap_socket,
+    )
+    adapter = download._PinnedHTTPSAdapter("93.184.216.34")
+    pool = adapter.poolmanager.connection_from_url("https://example.com/file.xls")
+    connection = pool._new_conn()
+    connection.connect()
+
+    assert addresses == [("93.184.216.34", 443)]
+    assert len(tls_calls) == 1
+    assert tls_calls[0]["sock"] is raw_socket
+    assert tls_calls[0]["server_hostname"] == "example.com"
+    assert tls_calls[0]["assert_hostname"] is None
+    assert connection.sock is tls_socket
+    assert connection.is_verified is True
+    connection.close()
+    adapter.close()
