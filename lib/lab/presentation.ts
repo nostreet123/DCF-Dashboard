@@ -38,6 +38,9 @@ export interface LabCompany {
 export interface LabHistoryRun {
   id: string;
   ticker: string;
+  listingId?: string | null;
+  primaryKeyNorm?: string;
+  regionCode?: string;
   name: string;
   shortName: string;
   value: number;
@@ -332,6 +335,7 @@ export function sessionRunToHistoryRun(run: SessionMemoRun): LabHistoryRun {
   return {
     id: run.id,
     ticker: run.ticker,
+    listingId: run.listingId,
     name: run.name,
     shortName: companyShortName(run.name),
     value: run.value,

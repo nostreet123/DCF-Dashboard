@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CompanySearchResult } from '@/lib/contracts/company';
 import type { CoverageFilter, WorkspaceMode } from '@/lib/dashboard/viewModel';
 import { resolveActiveCompany, type RailVariant } from '@/lib/hooks/useWorkbenchViewState';
-import { readRecentCompanies, rememberRecentCompany } from '@/lib/lab/recentCompanies';
+import { markRecentCompanyReady, readRecentCompanies, rememberRecentCompany } from '@/lib/lab/recentCompanies';
 import { mockDatasets } from '@/lib/workbench/mockData';
 
 const getCompanySearchSymbol = (company: CompanySearchResult): string | null => {
@@ -61,6 +61,30 @@ export async function applyLatestRequest<T>(
   }
 }
 
+export function applyLatestSearchSelection<T>(
+  requestId: number,
+  currentRequestId: () => number,
+  request: () => Promise<T[]>,
+  choose: (results: T[]) => T | null,
+  onSelect: (result: T) => void,
+  onEmpty: () => void,
+): Promise<void> {
+  return applyLatestRequest(
+    requestId,
+    currentRequestId,
+    request,
+    (results) => {
+      const selected = choose(results);
+      if (selected !== null) {
+        onSelect(selected);
+      } else {
+        onEmpty();
+      }
+    },
+    () => undefined,
+  );
+}
+
 export function useCompanyDiscovery({
   isDemoMode,
   selectCompany,
@@ -100,6 +124,12 @@ export function useCompanyDiscovery({
     setRecentCompanies(next);
   }, []);
 
+  const markCompanyReady = useCallback((company: CompanySearchResult) => {
+    const next = markRecentCompanyReady(company, recentCompaniesRef.current);
+    recentCompaniesRef.current = next;
+    setRecentCompanies(next);
+  }, []);
+
   const applyCompanySelection = useCallback(
     (company: CompanySearchResult): boolean => {
       const symbol = getCompanySearchSymbol(company);
@@ -124,6 +154,7 @@ export function useCompanyDiscovery({
   const handleSelectSearchResult = useCallback(
     (company: CompanySearchResult) => {
       const detailRequestId = ++detailRequestIdRef.current;
+      searchRequestIdRef.current += 1;
       if (!applyCompanySelection(company)) {
         return;
       }
@@ -247,16 +278,17 @@ export function useCompanyDiscovery({
       }
 
       setSearchFeedback('Searching companies...');
-      const candidates = await fetchSearchResults(normalizedQuery, 10);
-      const company =
-        coverageFilter === 'all'
-          ? candidates.find((item) => item.coverageState === 'valuation_ready') ?? candidates[0]
-          : candidates.find((item) => item.coverageState === coverageFilter);
-      if (!company) {
-        setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
-        return;
-      }
-      handleSelectSearchResult(company);
+      const detailRequestId = ++detailRequestIdRef.current;
+      await applyLatestSearchSelection(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        () => fetchSearchResults(normalizedQuery, 10),
+        (candidates) => coverageFilter === 'all'
+          ? candidates.find((item) => item.coverageState === 'valuation_ready') ?? candidates[0] ?? null
+          : candidates.find((item) => item.coverageState === coverageFilter) ?? null,
+        handleSelectSearchResult,
+        () => setSearchFeedback(`No matching company found for "${normalizedQuery}".`),
+      );
     },
     [coverageFilter, fetchSearchResults, handleSelectSearchResult],
   );
@@ -311,6 +343,7 @@ export function useCompanyDiscovery({
       const company = isDemoMode ? resolveActiveCompany(mockDatasets, id) : null;
       const recent = recentCompanies.find((item) => item.id === id) ?? null;
       const detailRequestId = ++detailRequestIdRef.current;
+      searchRequestIdRef.current += 1;
       if (!isDemoMode && recent) {
         onCompanyChange();
         void (async () => {
@@ -372,6 +405,7 @@ export function useCompanyDiscovery({
     workspaceMode,
     setWorkspaceMode,
     recentCompanies,
+    markCompanyReady,
     handleSearch,
     handleSearchPreview,
     handleSelectSearchResult,

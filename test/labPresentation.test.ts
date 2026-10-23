@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { scenarioAssumptionDefaults } from '../lib/workbench/scenarioProfiles';
 import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
 import type { SessionMemoRun } from '../lib/lab/sessionRuns';
-import { applyLatestRequest, companyDiscoveryBootstrapFromUrl, workspaceModeForCoverage } from '../lib/hooks/dashboard/useCompanyDiscovery';
+import { applyLatestRequest, applyLatestSearchSelection, companyDiscoveryBootstrapFromUrl, workspaceModeForCoverage } from '../lib/hooks/dashboard/useCompanyDiscovery';
 import {
   bridgeFromStatements,
   buildBridgeRows,
@@ -74,6 +74,34 @@ describe('lab presentation', () => {
     await selectionCompletion;
     bootstrapResponse.resolve('stale-listing');
     await bootstrapCompletion;
+
+    expect(selectedCompanyId).toBe('manual-selection');
+  });
+
+  test('a newer company selection prevents a delayed URL search from applying', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>((resolvePromise) => {
+        resolve = resolvePromise;
+      });
+      return { promise, resolve };
+    };
+    const searchResponse = deferred<string[]>();
+    let selectionRequestId = 1;
+    let selectedCompanyId: string | null = null;
+    const bootstrapSearch = applyLatestSearchSelection(
+      selectionRequestId,
+      () => selectionRequestId,
+      () => searchResponse.promise,
+      (results) => results[0] ?? null,
+      (companyId) => { selectedCompanyId = companyId ?? null; },
+      () => { selectedCompanyId = 'search-empty'; },
+    );
+
+    selectionRequestId += 1;
+    selectedCompanyId = 'manual-selection';
+    searchResponse.resolve(['stale-url-search-result']);
+    await bootstrapSearch;
 
     expect(selectedCompanyId).toBe('manual-selection');
   });

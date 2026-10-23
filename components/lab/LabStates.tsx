@@ -79,7 +79,7 @@ export function ImportMemo({
         </p>
         <div className={styles.actions}>
           {onImport ? (
-            <button type="button" className={styles.primary} onClick={onImport}>
+            <button type="button" className={styles.primary} onClick={onImport} disabled={reviewing}>
               Import and review
             </button>
           ) : (
