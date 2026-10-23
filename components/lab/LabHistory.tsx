@@ -118,7 +118,7 @@ function LiveHistory() {
       onSelect={setSelectedId}
       footer="For financial modeling and education only; not investment advice."
       note={loading ? 'Checking saved runs…' : authMessage}
-      canOpen={() => true}
+      canOpen={(run) => Boolean(sessionById.has(run.id) || run.replayAvailable)}
       openHref={(run) => {
         const session = sessionById.get(run.id);
         return historyMemoHref({
@@ -221,7 +221,11 @@ function HistoryPage({
                   That memo assumed revenue growth of <span className={styles.accent}>{formatAssumptionPercent(selected.assumptions.revenueGrowth, 'growth')}</span> a year at a <span className={styles.accent}>{formatAssumptionPercent(selected.assumptions.operatingMargin, 'margin')}</span> operating margin, discounted at <span className={styles.accent}>{formatAssumptionPercent(selected.assumptions.discountRate, 'discount')}</span>, with <span className={styles.accent}>{formatAssumptionPercent(selected.assumptions.terminalGrowth, 'terminal')}</span> terminal growth.
                 </p>
               ) : (
-                <p className={styles.previewCopy}>{unavailableCopy}</p>
+                <p className={styles.previewCopy}>
+                  {selected.replayAvailable === false
+                    ? 'Result only. No replayable valuation trace is available, so this memo cannot be reopened.'
+                    : unavailableCopy}
+                </p>
               )}
               {canOpen(selected) ? (
                 <div className={styles.actions}>
@@ -300,6 +304,7 @@ async function loadServerRuns(
         currency: null,
         scenarioLabel: 'Saved result',
         assumptions: null,
+        replayAvailable: item.replayAvailable,
       });
     }
   }

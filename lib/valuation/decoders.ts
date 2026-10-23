@@ -69,6 +69,9 @@ export const sanitizeBrowserHistoryRuns = (runs: unknown): unknown[] => {
       createdAt: record.createdAt,
       status: record.status,
       symbol: record.symbol,
+      replayAvailable:
+        record.traceStorage === 'inline' ||
+        (record.traceStorage === 'external' && typeof record.traceId === 'string'),
       resultSummary: sanitizeResultSummary(record.resultSummary),
     }];
   });

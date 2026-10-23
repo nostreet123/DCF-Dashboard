@@ -56,6 +56,10 @@
   line-height: 1.15;
 }
 
+.computing h1.computingTitle {
+  color: var(--ink-2);
+}
+
 .bar {
   height: 22px;
   border-radius: 4px;

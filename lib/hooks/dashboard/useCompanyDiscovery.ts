@@ -82,17 +82,22 @@ export function useCompanyDiscovery({
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>('all');
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('valuation');
   const [recentCompanies, setRecentCompanies] = useState<CompanySearchResult[]>([]);
+  const recentCompaniesRef = useRef<CompanySearchResult[]>([]);
 
   const searchRequestIdRef = useRef(0);
   const detailRequestIdRef = useRef(0);
   const didBootstrapUrlSearchRef = useRef(false);
 
   useEffect(() => {
-    setRecentCompanies(readRecentCompanies());
+    const recent = readRecentCompanies();
+    recentCompaniesRef.current = recent;
+    setRecentCompanies(recent);
   }, []);
 
   const rememberCompany = useCallback((company: CompanySearchResult) => {
-    setRecentCompanies(rememberRecentCompany(company));
+    const next = rememberRecentCompany(company, recentCompaniesRef.current);
+    recentCompaniesRef.current = next;
+    setRecentCompanies(next);
   }, []);
 
   const applyCompanySelection = useCallback(

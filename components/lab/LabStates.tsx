@@ -21,9 +21,11 @@ export function ComputingMemo({
           <span aria-hidden="true">·</span>
           <span>{companyLabel}</span>
         </div>
-        <p className={styles.computingTitle} role="status">
-          Working out what {shortName} is worth…
-        </p>
+        <h1 className={styles.computingTitle}>
+          <span role="status" aria-live="polite">
+            Working out what {shortName} is worth…
+          </span>
+        </h1>
         <div className={`${styles.bar} ${styles.barWide}`} />
         <div className={`${styles.bar} ${styles.barMid}`} />
         <div className={`${styles.bar} ${styles.barShort}`} />
