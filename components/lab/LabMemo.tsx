@@ -35,6 +35,7 @@ import {
   formatStartingRevenue,
   gapPhrase,
   isDemoMemoAvailable,
+  isLiveMemoRunPending,
   LAB_DISCLAIMER,
   LAB_PATHS,
   parseLabStatus,
@@ -85,19 +86,22 @@ function LabMemoBody() {
   const isDemo = getDashboardDataMode() === 'demo';
   const workbench = useWorkbench();
   const rawStatus = parseLabStatus(searchParams.get('status'));
-  const dashboard = useDashboardController({ computeEnabled: rawStatus === 'memo' });
+  const requestedRun = searchParams.get('run');
+  const [appliedRun, setAppliedRun] = useState<string | null>(null);
+  const appliedSession = useRef<string | null>(null);
+  const dashboard = useDashboardController({
+    computeEnabled: rawStatus === 'memo' && !isLiveMemoRunPending(isDemo, requestedRun, appliedRun),
+  });
   const [reviewing, setReviewing] = useState(false);
   const appliedRoute = useRef<string | null>(null);
   const scenarioAssumptionsRef = useRef(workbench.assumptions);
   scenarioAssumptionsRef.current = workbench.assumptions;
   const queryStatus = parseLabStatus(searchParams.get('status'));
   const requestedTicker = searchParams.get('ticker')?.trim().toUpperCase() ?? null;
-  const requestedRun = searchParams.get('run');
   const requestedName = searchParams.get('name');
 
   const { selectCompany, setScenario, setScenarioAssumptions, setSelectedRunId } = workbench;
   const chipPin = useRef<Partial<Record<Scenario, number>>>({});
-  const appliedSession = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     if (!isDemo || queryStatus !== 'memo') {
@@ -158,6 +162,7 @@ function LabMemoBody() {
     const sessionRun = findSessionRun(requestedRun);
     if (!sessionRun) {
       setSelectedRunId(requestedRun);
+      setAppliedRun(requestedRun);
       return;
     }
     if (sessionRun.listingId) {
@@ -168,6 +173,7 @@ function LabMemoBody() {
     setScenario(sessionRun.scenario);
     setScenarioAssumptions(sessionRun.assumptions);
     setSelectedRunId(null);
+    setAppliedRun(requestedRun);
     chipPin.current = sessionRun.caseQuotes ?? {};
   }, [
     isDemo,
@@ -177,6 +183,7 @@ function LabMemoBody() {
     setScenario,
     setScenarioAssumptions,
     setSelectedRunId,
+    setAppliedRun,
   ]);
 
   useEffect(() => {

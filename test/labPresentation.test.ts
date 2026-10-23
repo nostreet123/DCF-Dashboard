@@ -31,6 +31,7 @@ import {
   LAB_DISCLAIMER,
   LAB_PATHS,
   isDemoMemoAvailable,
+  isLiveMemoRunPending,
   resolveLabPhase,
   sessionRunToHistoryRun,
   withLatestMemo,
@@ -166,6 +167,13 @@ describe('lab presentation', () => {
       queryStatus: 'import', workspaceMode: 'valuation', hasError: false,
       hasValue: true, importApproved: true,
     })).toBe('memo');
+  });
+
+  test('waits for a live saved-run route to restore its inputs before computing', () => {
+    expect(isLiveMemoRunPending(false, 'session:MSFT:1', null)).toBe(true);
+    expect(isLiveMemoRunPending(false, 'session:MSFT:1', 'session:MSFT:1')).toBe(false);
+    expect(isLiveMemoRunPending(false, null, null)).toBe(false);
+    expect(isLiveMemoRunPending(true, 'r1', null)).toBe(false);
   });
 
   test('describes the demo price gap and keeps the education disclaimer', () => {

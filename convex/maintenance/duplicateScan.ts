@@ -103,12 +103,12 @@ const findDuplicateSnapshotsPageInternalImpl = async (
           ids: args.carry.ids,
         }
       : null,
-    Boolean(result.continueCursor),
+    !result.isDone,
   );
 
   return {
     duplicates: grouped.duplicates,
-    nextCursor: result.continueCursor ?? null,
+    nextCursor: result.isDone ? null : result.continueCursor,
     carry: grouped.carry,
   };
 };
@@ -132,12 +132,12 @@ const findDuplicateAssetsPageInternalImpl = async (
   const grouped = groupAssetDuplicatesPage(
     result.page,
     args.carry ? { assetKey: args.carry.assetKey, ids: args.carry.ids } : null,
-    Boolean(result.continueCursor),
+    !result.isDone,
   );
 
   return {
     duplicates: grouped.duplicates,
-    nextCursor: result.continueCursor ?? null,
+    nextCursor: result.isDone ? null : result.continueCursor,
     carry: grouped.carry,
   };
 };
@@ -234,6 +234,7 @@ export const listDuplicateSnapshotGroups = query({
     groups: v.array(
       v.object({
         _id: v.id("duplicateSnapshotGroups"),
+        _creationTime: v.number(),
         scanId: v.id("duplicateScanState"),
         datasetKey: v.string(),
         regionCode: v.string(),
@@ -254,7 +255,7 @@ export const listDuplicateSnapshotGroups = query({
       .paginate({ cursor: args.cursor ?? null, numItems: limit });
     return {
       groups: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -270,6 +271,7 @@ export const listDuplicateAssetGroups = query({
     groups: v.array(
       v.object({
         _id: v.id("duplicateAssetGroups"),
+        _creationTime: v.number(),
         scanId: v.id("duplicateScanState"),
         assetKey: v.string(),
         count: v.number(),
@@ -288,7 +290,7 @@ export const listDuplicateAssetGroups = query({
       .paginate({ cursor: args.cursor ?? null, numItems: limit });
     return {
       groups: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -303,6 +305,7 @@ export const listDuplicateSnapshotGroupsPageInternal = internalQuery({
     groups: v.array(
       v.object({
         _id: v.id("duplicateSnapshotGroups"),
+        _creationTime: v.number(),
         scanId: v.id("duplicateScanState"),
         datasetKey: v.string(),
         regionCode: v.string(),
@@ -322,7 +325,7 @@ export const listDuplicateSnapshotGroupsPageInternal = internalQuery({
       .paginate({ cursor: args.cursor ?? null, numItems: limit });
     return {
       groups: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -337,6 +340,7 @@ export const listDuplicateAssetGroupsPageInternal = internalQuery({
     groups: v.array(
       v.object({
         _id: v.id("duplicateAssetGroups"),
+        _creationTime: v.number(),
         scanId: v.id("duplicateScanState"),
         assetKey: v.string(),
         count: v.number(),
@@ -354,7 +358,7 @@ export const listDuplicateAssetGroupsPageInternal = internalQuery({
       .paginate({ cursor: args.cursor ?? null, numItems: limit });
     return {
       groups: result.page,
-      nextCursor: result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -582,6 +586,12 @@ export const updateDuplicateScanStateInternal = internalMutation({
   args: {
     stateId: v.id("duplicateScanState"),
     patch: DuplicateScanStatePatchValidator,
+    clearFields: v.optional(v.array(v.union(
+      v.literal("snapshotCursor"),
+      v.literal("snapshotCarry"),
+      v.literal("assetCursor"),
+      v.literal("assetCarry"),
+    ))),
 
     // Optional: if provided and the state has a runId, only patch when it matches.
     runId: v.optional(v.string()),
@@ -595,7 +605,11 @@ export const updateDuplicateScanStateInternal = internalMutation({
     if (state.runId && args.runId !== state.runId) {
       return null;
     }
-    await ctx.db.patch(args.stateId, { ...args.patch, updatedAt: Date.now() });
+    const patch = { ...args.patch };
+    for (const field of args.clearFields ?? []) {
+      Object.assign(patch, { [field]: undefined });
+    }
+    await ctx.db.patch(args.stateId, { ...patch, updatedAt: Date.now() });
     return null;
   },
 });
@@ -857,6 +871,7 @@ export const runDuplicateScanChunk = internalAction({
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
           patch,
+          clearFields: res.nextCursor === null ? ["snapshotCursor", "snapshotCarry"] : [],
           runId: effectiveRunId,
         });
       } else {
@@ -893,6 +908,7 @@ export const runDuplicateScanChunk = internalAction({
         await ctx.runMutation(internal.maintenance.updateDuplicateScanStateInternal, {
           stateId: state._id,
           patch,
+          clearFields: res.nextCursor === null ? ["assetCursor", "assetCarry"] : [],
           runId: effectiveRunId,
         });
       }

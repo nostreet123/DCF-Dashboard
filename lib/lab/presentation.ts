@@ -136,6 +136,14 @@ export function isDemoMemoAvailable(ticker: string | null, runId: string | null)
   return (!ticker || ticker.trim().toUpperCase() === 'AAPL') && (!runId || runId === 'r1');
 }
 
+export function isLiveMemoRunPending(
+  isDemo: boolean,
+  requestedRun: string | null,
+  appliedRun: string | null,
+): boolean {
+  return !isDemo && Boolean(requestedRun) && requestedRun !== appliedRun;
+}
+
 export function companyShortName(name: string): string {
   return name.replace(/\s+(Inc\.|Corp\.|Corporation|Incorporated|Ltd\.|Limited|Co\.)$/i, '').trim();
 }
