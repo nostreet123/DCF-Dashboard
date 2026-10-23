@@ -160,7 +160,7 @@ function LiveLibrary() {
       onOpen={(company) => {
         const match = source.find((item) => item.id === company.id);
         if (match) {
-          setRecent(rememberRecentCompany(match));
+          setRecent(rememberRecentCompany(match, recent));
         }
       }}
     />

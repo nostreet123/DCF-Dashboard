@@ -12,6 +12,13 @@ const company: CompanySearchResult = {
   sourceLinks: [{ title: 'Filing', url: 'https://example.test/filing' }],
 };
 
+const olderCompany: CompanySearchResult = {
+  ...company,
+  id: 'company-aapl',
+  symbol: 'AAPL',
+  name: 'Apple Inc.',
+};
+
 describe('recent companies', () => {
   test('discards malformed records and tolerates local storage failures', () => {
     const previousWindow = (globalThis as { window?: unknown }).window;
@@ -35,6 +42,8 @@ describe('recent companies', () => {
       });
       expect(readRecentCompanies()).toEqual([]);
       expect(() => rememberRecentCompany(company)).not.toThrow();
+      expect(rememberRecentCompany(company, [olderCompany])).toEqual([company, olderCompany]);
+      expect(rememberRecentCompany(company, [company, olderCompany])).toEqual([company, olderCompany]);
     } finally {
       if (previousWindow === undefined) {
         delete (globalThis as { window?: unknown }).window;

@@ -70,12 +70,15 @@ describe("valuation history hook helpers", () => {
         {
           _id: "run-2",
           createdAt: 1700000001000,
-          status: "error",
+          status: "success",
           symbol: "AAPL",
           traceStorage: "none",
           inputs: {},
           engineVersion: "workbench-v1",
           _creationTime: 1700000001001,
+          resultSummary: {
+            base: { fairValuePerShare: 155.5 },
+          },
         },
       ]),
     ).toEqual([
@@ -84,6 +87,14 @@ describe("valuation history hook helpers", () => {
         ticker: "AAPL",
         timestamp: new Date(1700000000000),
         value: 145.25,
+        replayAvailable: true,
+      },
+      {
+        id: "run-2",
+        ticker: "AAPL",
+        timestamp: new Date(1700000001000),
+        value: 155.5,
+        replayAvailable: false,
       },
     ]);
   });

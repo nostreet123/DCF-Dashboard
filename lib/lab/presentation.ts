@@ -45,6 +45,7 @@ export interface LabHistoryRun {
   currency?: string | null;
   scenarioLabel: string;
   assumptions: Assumptions | null;
+  replayAvailable?: boolean;
 }
 
 export interface BridgeRowModel {

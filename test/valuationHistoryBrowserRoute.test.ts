@@ -114,6 +114,13 @@ describe("browser valuation history routes", () => {
       traceStorage: "external",
       traceId: "trace-123",
       traceByteSize: 12345,
+    }, {
+      _id: "run-2",
+      createdAt: 1700000001000,
+      symbol: "AAPL",
+      status: "success",
+      traceStorage: "none",
+      resultSummary: { base: { fairValuePerShare: 99 } },
     }];
     let capturedName: string | undefined;
     let capturedArgs: Record<string, unknown> | undefined;
@@ -142,11 +149,19 @@ describe("browser valuation history routes", () => {
         createdAt: 1700000000000,
         symbol: "AAPL",
         status: "success",
+        replayAvailable: true,
         resultSummary: {
           base: { fairValuePerShare: 145.12 },
           bull: { fair_value_per_share: 188.5 },
           bear: { fairValue: 101.25 },
         },
+      }, {
+        _id: "run-2",
+        createdAt: 1700000001000,
+        symbol: "AAPL",
+        status: "success",
+        replayAvailable: false,
+        resultSummary: { base: { fairValuePerShare: 99 } },
       }],
     });
   });

@@ -40,8 +40,18 @@ export function readRecentCompanies(): CompanySearchResult[] {
   }
 }
 
-export function rememberRecentCompany(company: CompanySearchResult): CompanySearchResult[] {
-  const next = [company, ...readRecentCompanies().filter((item) => item.id !== company.id)].slice(0, 8);
+export function rememberRecentCompany(
+  company: CompanySearchResult,
+  current: CompanySearchResult[] = [],
+): CompanySearchResult[] {
+  const seen = new Set<string>();
+  const next = [company, ...readRecentCompanies(), ...current].filter((item) => {
+    if (seen.has(item.id)) {
+      return false;
+    }
+    seen.add(item.id);
+    return true;
+  }).slice(0, 8);
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(RECENT_COMPANIES_KEY, JSON.stringify(next));

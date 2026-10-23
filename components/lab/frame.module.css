@@ -59,7 +59,7 @@
   color: inherit;
 }
 
-.shell button {
+.shell button:not(:disabled) {
   cursor: pointer;
 }
 
