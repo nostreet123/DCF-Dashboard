@@ -59,13 +59,26 @@ export async function loadHistoryLookups<T>(
   keys: string[],
   lookup: (key: string) => Promise<HistoryLookupResult<T>>,
 ): Promise<HistoryLookupResult<T>> {
-  const results = await Promise.all(keys.map((key) => lookup(key)));
+  const results = await Promise.allSettled(keys.map(async (key) => lookup(key)));
   const runs: T[] = [];
-  for (const result of results) {
+  let authMessage: string | null = null;
+  for (const settled of results) {
+    if (settled.status === 'rejected') {
+      const error = settled.reason as { name?: unknown; message?: unknown } | null;
+      if (error?.name === 'AbortError') {
+        throw settled.reason;
+      }
+      authMessage ??= typeof error?.message === 'string' && error.message
+        ? error.message
+        : 'Unable to load recent runs.';
+      continue;
+    }
+    const result = settled.value;
     if (result.authMessage) {
-      return { runs, authMessage: result.authMessage };
+      authMessage ??= result.authMessage;
+      continue;
     }
     runs.push(...result.runs);
   }
-  return { runs, authMessage: null };
+  return { runs, authMessage };
 }

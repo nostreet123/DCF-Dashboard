@@ -85,4 +85,21 @@ describe('Lab history helpers', () => {
 
     await expect(loading).resolves.toEqual({ runs: ['msft-run'], authMessage: 'History unavailable.' });
   });
+
+  test('keeps successful history runs when another symbol lookup rejects', async () => {
+    const result = await loadHistoryLookups(['MSFT', 'AAPL'], async (symbol) => {
+      if (symbol === 'AAPL') {
+        throw new Error('AAPL lookup failed.');
+      }
+      return { runs: ['msft-run'], authMessage: null };
+    });
+
+    expect(result).toEqual({ runs: ['msft-run'], authMessage: 'AAPL lookup failed.' });
+  });
+
+  test('keeps abort errors observable to the history loader', async () => {
+    const abort = new DOMException('History lookup aborted.', 'AbortError');
+
+    await expect(loadHistoryLookups(['MSFT'], async () => { throw abort; })).rejects.toBe(abort);
+  });
 });
