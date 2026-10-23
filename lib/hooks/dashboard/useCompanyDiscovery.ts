@@ -40,6 +40,27 @@ export function companyDiscoveryBootstrapFromUrl(
   return query ? { kind: 'search', query } : null;
 }
 
+export async function applyLatestRequest<T>(
+  requestId: number,
+  currentRequestId: () => number,
+  request: () => Promise<T>,
+  onSuccess: (result: T) => void,
+  onError: () => void,
+): Promise<void> {
+  let result: T;
+  try {
+    result = await request();
+  } catch {
+    if (requestId === currentRequestId()) {
+      onError();
+    }
+    return;
+  }
+  if (requestId === currentRequestId()) {
+    onSuccess(result);
+  }
+}
+
 export function useCompanyDiscovery({
   isDemoMode,
   selectCompany,
@@ -97,22 +118,27 @@ export function useCompanyDiscovery({
 
   const handleSelectSearchResult = useCallback(
     (company: CompanySearchResult) => {
+      const detailRequestId = ++detailRequestIdRef.current;
       if (!applyCompanySelection(company)) {
         return;
       }
-      const detailRequestId = detailRequestIdRef.current + 1;
-      detailRequestIdRef.current = detailRequestId;
-      void fetch(`/api/company/detail?id=${encodeURIComponent(company.id)}`)
-        .then(async (detailResponse) => (detailResponse.ok ? detailResponse.json() : null))
-        .then((detail: CompanySearchResult | null) => {
-          if (detailRequestId === detailRequestIdRef.current && detail?.id === company.id) {
+      void applyLatestRequest(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        async () => {
+          const response = await fetch(`/api/company/detail?id=${encodeURIComponent(company.id)}`);
+          return response.ok ? (await response.json()) as CompanySearchResult : null;
+        },
+        (detail) => {
+          if (detail?.id === company.id) {
             setCompanyDetail(detail);
             setSelectedSearchCompany(detail);
             rememberCompany(detail);
             setWorkspaceMode(workspaceModeForCoverage(detail.coverageState));
           }
-        })
-        .catch(() => undefined);
+        },
+        () => undefined,
+      );
     },
     [applyCompanySelection, rememberCompany],
   );
@@ -242,18 +268,25 @@ export function useCompanyDiscovery({
 
     didBootstrapUrlSearchRef.current = true;
     if (bootstrap.kind === 'listing') {
+      const detailRequestId = ++detailRequestIdRef.current;
       setSearchFeedback('Loading company details…');
       setWorkspaceMode('detail');
-      void fetch(`/api/company/detail?id=${encodeURIComponent(bootstrap.listingId)}`)
-        .then(async (response) => (response.ok ? (await response.json()) as CompanySearchResult : null))
-        .then((company) => {
+      void applyLatestRequest(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        async () => {
+          const response = await fetch(`/api/company/detail?id=${encodeURIComponent(bootstrap.listingId)}`);
+          return response.ok ? (await response.json()) as CompanySearchResult : null;
+        },
+        (company) => {
           if (company?.id === bootstrap.listingId) {
             applyCompanySelection(company);
           } else {
             setSearchFeedback('Could not load details for this listing.');
           }
-        })
-        .catch(() => setSearchFeedback('Could not load details for this listing.'));
+        },
+        () => setSearchFeedback('Could not load details for this listing.'),
+      );
       return;
     }
 
@@ -272,16 +305,15 @@ export function useCompanyDiscovery({
     (id: string, source: RailVariant) => {
       const company = isDemoMode ? resolveActiveCompany(mockDatasets, id) : null;
       const recent = recentCompanies.find((item) => item.id === id) ?? null;
+      const detailRequestId = ++detailRequestIdRef.current;
       if (!isDemoMode && recent) {
-        const detailRequestId = detailRequestIdRef.current + 1;
-        detailRequestIdRef.current = detailRequestId;
         onCompanyChange();
         void (async () => {
           let selected = recent;
           try {
             const response = await fetch(`/api/company/detail?id=${encodeURIComponent(recent.id)}`);
             const detail = (await response.json().catch(() => null)) as CompanySearchResult | null;
-            if (response.ok && detail && detailRequestId === detailRequestIdRef.current && detail.id === recent.id) {
+            if (response.ok && detail && detail.id === recent.id && detailRequestId === detailRequestIdRef.current) {
               selected = detail;
               rememberCompany(detail);
             }

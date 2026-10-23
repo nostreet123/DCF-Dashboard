@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { scenarioAssumptionDefaults } from '../lib/workbench/scenarioProfiles';
 import { mockDemoReplaySnapshot, mockProjectionRows, mockSensitivityMatrix, mockStatementHistory } from '../lib/workbench/mockData';
 import type { SessionMemoRun } from '../lib/lab/sessionRuns';
-import { companyDiscoveryBootstrapFromUrl, workspaceModeForCoverage } from '../lib/hooks/dashboard/useCompanyDiscovery';
+import { applyLatestRequest, companyDiscoveryBootstrapFromUrl, workspaceModeForCoverage } from '../lib/hooks/dashboard/useCompanyDiscovery';
 import {
   bridgeFromStatements,
   buildBridgeRows,
@@ -41,6 +41,43 @@ import {
 } from '../lib/lab/presentation';
 
 describe('lab presentation', () => {
+  test('a newer company selection prevents a delayed listing bootstrap from applying', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>((resolvePromise) => {
+        resolve = resolvePromise;
+      });
+      return { promise, resolve };
+    };
+    const bootstrapResponse = deferred<string>();
+    const selectionResponse = deferred<string>();
+    let latestRequestId = 0;
+    let selectedCompanyId: string | null = null;
+
+    const bootstrapRequestId = ++latestRequestId;
+    const bootstrapCompletion = applyLatestRequest(
+      bootstrapRequestId,
+      () => latestRequestId,
+      () => bootstrapResponse.promise,
+      (companyId) => { selectedCompanyId = companyId; },
+      () => { selectedCompanyId = 'bootstrap-error'; },
+    );
+    const selectionRequestId = ++latestRequestId;
+    const selectionCompletion = applyLatestRequest(
+      selectionRequestId,
+      () => latestRequestId,
+      () => selectionResponse.promise,
+      (companyId) => { selectedCompanyId = companyId; },
+      () => { selectedCompanyId = 'selection-error'; },
+    );
+    selectionResponse.resolve('manual-selection');
+    await selectionCompletion;
+    bootstrapResponse.resolve('stale-listing');
+    await bootstrapCompletion;
+
+    expect(selectedCompanyId).toBe('manual-selection');
+  });
+
   test('uses one billions scale above and below a million, preserving signs', () => {
     expect(formatBillions(500_000)).toBe('0.0005');
     expect(formatBillions(1_000_000)).toBe('0.001');
