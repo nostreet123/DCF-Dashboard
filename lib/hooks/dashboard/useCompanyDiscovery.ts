@@ -64,7 +64,7 @@ export async function applyLatestRequest<T>(
 export function applyLatestSearchSelection<T>(
   requestId: number,
   currentRequestId: () => number,
-  request: () => Promise<T[]>,
+  request: () => Promise<T[] | null>,
   choose: (results: T[]) => T | null,
   onSelect: (result: T) => void,
   onEmpty: () => void,
@@ -74,6 +74,9 @@ export function applyLatestSearchSelection<T>(
     currentRequestId,
     request,
     (results) => {
+      if (results === null) {
+        return;
+      }
       const selected = choose(results);
       if (selected !== null) {
         onSelect(selected);
@@ -180,7 +183,7 @@ export function useCompanyDiscovery({
   );
 
   const fetchSearchResults = useCallback(
-    async (query: string, limit: number): Promise<CompanySearchResult[]> => {
+    async (query: string, limit: number): Promise<CompanySearchResult[] | null> => {
       const normalizedQuery = query.trim();
       if (!normalizedQuery) {
         setSearchResults([]);
@@ -228,7 +231,7 @@ export function useCompanyDiscovery({
           results?: CompanySearchResult[];
         };
         if (requestId !== searchRequestIdRef.current) {
-          return [];
+          return null;
         }
         if (!response.ok) {
           throw new Error(payload.message ?? `Search failed (${response.status})`);
@@ -238,13 +241,13 @@ export function useCompanyDiscovery({
         return results;
       } catch (searchError) {
         if (requestId !== searchRequestIdRef.current) {
-          return [];
+          return null;
         }
         setSearchResults([]);
         setSearchFeedback(
           searchError instanceof Error ? searchError.message : 'Company search failed.',
         );
-        return [];
+        return null;
       } finally {
         if (requestId === searchRequestIdRef.current) {
           setIsSearching(false);

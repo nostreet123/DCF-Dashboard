@@ -106,6 +106,28 @@ describe('lab presentation', () => {
     expect(selectedCompanyId).toBe('manual-selection');
   });
 
+  test('a failed company search preserves its request error instead of reporting no matches', async () => {
+    let feedback = 'Searching companies...';
+
+    await applyLatestSearchSelection(
+      1,
+      () => 1,
+      async () => {
+        try {
+          throw new Error('Company search unavailable.');
+        } catch (error) {
+          feedback = error instanceof Error ? error.message : 'Company search failed.';
+          return null;
+        }
+      },
+      (results) => results[0] ?? null,
+      () => { feedback = 'Company selected'; },
+      () => { feedback = 'No matching company found.'; },
+    );
+
+    expect(feedback).toBe('Company search unavailable.');
+  });
+
   test('uses one billions scale above and below a million, preserving signs', () => {
     expect(formatBillions(500_000)).toBe('0.0005');
     expect(formatBillions(1_000_000)).toBe('0.001');
