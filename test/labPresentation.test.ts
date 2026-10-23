@@ -106,26 +106,27 @@ describe('lab presentation', () => {
     expect(selectedCompanyId).toBe('manual-selection');
   });
 
-  test('a failed company search preserves its request error instead of reporting no matches', async () => {
-    let feedback = 'Searching companies...';
-
+  test('only a successful empty search result triggers no-match feedback', async () => {
+    let feedback: string | null = null;
     await applyLatestSearchSelection(
       1,
       () => 1,
-      async () => {
-        try {
-          throw new Error('Company search unavailable.');
-        } catch (error) {
-          feedback = error instanceof Error ? error.message : 'Company search failed.';
-          return null;
-        }
-      },
+      async () => null,
       (results) => results[0] ?? null,
       () => { feedback = 'Company selected'; },
       () => { feedback = 'No matching company found.'; },
     );
+    expect(feedback).toBeNull();
 
-    expect(feedback).toBe('Company search unavailable.');
+    await applyLatestSearchSelection(
+      2,
+      () => 2,
+      async () => [],
+      (results) => results[0] ?? null,
+      () => { feedback = 'Company selected'; },
+      () => { feedback = 'No matching company found.'; },
+    );
+    expect(feedback).toBe('No matching company found.');
   });
 
   test('uses one billions scale above and below a million, preserving signs', () => {
