@@ -136,6 +136,12 @@ export interface ComputeRefs {
   debounceTimer: ReturnType<typeof setTimeout> | null;
   requestId: number;
   pendingReject: ((reason?: unknown) => void) | null;
+  publicFactsCache?: {
+    key: string;
+    importFactsToken: string | null;
+    expiresAt: number;
+    facts: EdgarFacts;
+  } | null;
 }
 
 /** Callbacks the engine uses to push state outward. */
@@ -151,6 +157,7 @@ export function createComputeRefs(): ComputeRefs {
     debounceTimer: null,
     requestId: 0,
     pendingReject: null,
+    publicFactsCache: null,
   };
 }
 
@@ -196,6 +203,7 @@ const readErrorMessage = (payload: unknown): string | null => {
 };
 
 const DCF_FETCH_TIMEOUT_MS = 30_000;
+const PUBLIC_SEC_FACTS_TTL_MS = 5 * 60_000;
 
 const fetchJson = async <T>(url: string, init: RequestInit, label: string): Promise<T> => {
   const timeoutController = new AbortController();
@@ -518,6 +526,7 @@ export const normalizeDcfComputeResponse = (
 const computeDcf = async (
   inputs: DcfInputs,
   signal: AbortSignal,
+  refs: ComputeRefs,
 ): Promise<DcfResult> => {
   const searchParams = new URLSearchParams({ symbol: inputs.symbol });
   if (inputs.listingId) {
@@ -528,7 +537,21 @@ const computeDcf = async (
   const factsUrl = useBrowserFactsRead
     ? `/api/company/facts/browser?${searchParams.toString()}`
     : `/api/company/facts?${searchParams.toString()}`;
-  const facts = await fetchJson<EdgarFacts>(
+  const micPrefix = listingMicPrefix(inputs.listingId);
+  const isPublicSecRead = !useBrowserFactsRead &&
+    (micPrefix === null || SEC_LISTING_MIC_PREFIXES.has(micPrefix));
+  const cachedFacts = refs.publicFactsCache;
+  if (
+    cachedFacts && (
+      !isPublicSecRead ||
+      cachedFacts.key !== factsUrl ||
+      cachedFacts.importFactsToken !== importFactsToken ||
+      cachedFacts.expiresAt <= Date.now()
+    )
+  ) {
+    refs.publicFactsCache = null;
+  }
+  const facts = refs.publicFactsCache?.facts ?? await fetchJson<EdgarFacts>(
     factsUrl,
     {
       method: 'GET',
@@ -540,6 +563,22 @@ const computeDcf = async (
     'Company facts request',
   );
   const payload = buildWorkbenchPayload(inputs, facts);
+  if (
+    !refs.publicFactsCache &&
+    isPublicSecRead &&
+    facts.source === 'edgar' &&
+    facts.symbol.trim().toUpperCase() === inputs.symbol.trim().toUpperCase() &&
+    !signal.aborted &&
+    readBrowserImportFactsToken() === importFactsToken
+  ) {
+    // Keep one validated public response; reuse never extends its freshness window.
+    refs.publicFactsCache = {
+      key: factsUrl,
+      importFactsToken,
+      expiresAt: Date.now() + PUBLIC_SEC_FACTS_TTL_MS,
+      facts,
+    };
+  }
   const result = await fetchJson<unknown>(
     '/api/dcf/preview?mc=default',
     {
@@ -606,7 +645,7 @@ export function buildComputeFns(
 
         try {
           const data = {
-            ...await computeDcf(inputSnapshot, controller.signal),
+            ...await computeDcf(inputSnapshot, controller.signal, refs),
             computedInputs: inputSnapshot,
           };
 
@@ -632,6 +671,7 @@ export function buildComputeFns(
   };
 
   const reset = () => {
+    refs.publicFactsCache = null;
     cbs.setResult(null);
     cbs.setError(null);
     cbs.setIsLoading(false);
