@@ -47,6 +47,8 @@ export interface ValuationRun {
   regionCode?: string;
   asOfDate?: string;
   traceStorage: 'none' | 'inline' | 'external';
+  replayAvailable?: boolean;
+  traceId?: string;
   trace?: unknown;
 }
 
@@ -55,6 +57,9 @@ export interface ValuationHistoryItem {
   ticker: string;
   timestamp: Date;
   value: number;
+  replayAvailable?: boolean;
+  primaryKeyNorm?: string;
+  regionCode?: string;
 }
 
 export interface ValuationReplaySnapshot {
@@ -357,6 +362,15 @@ export function mapValuationRunsToHistoryItems(runs: ValuationRun[]): ValuationH
       ticker: run.symbol ?? 'N/A',
       timestamp: new Date(run.createdAt),
       value: baseValue,
+      replayAvailable: run.replayAvailable ?? (
+        run.traceStorage === 'inline' ||
+        (run.traceStorage === 'external' && (
+          typeof run.traceId === 'string' ||
+          (typeof run.trace === 'object' && run.trace !== null)
+        ))
+      ),
+      primaryKeyNorm: run.primaryKeyNorm,
+      regionCode: run.regionCode,
     }];
   });
 }

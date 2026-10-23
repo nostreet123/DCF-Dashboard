@@ -1,0 +1,19 @@
+.root {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  color: #121417;
+  color-scheme: light;
+}
+
+.root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #ffffff;
+  pointer-events: none;
+}

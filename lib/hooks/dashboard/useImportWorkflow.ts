@@ -15,6 +15,7 @@ export function useImportWorkflow({
   selectCompany,
   setWorkspaceMode,
   setRetryToken,
+  onImportApproved,
   onImportReset,
 }: {
   selectedSearchCompany: CompanySearchResult | null;
@@ -24,6 +25,7 @@ export function useImportWorkflow({
   selectCompany: (id: string, symbol: string | null) => void;
   setWorkspaceMode: (mode: WorkspaceMode) => void;
   setRetryToken: (updater: (value: number) => number) => void;
+  onImportApproved: (company: CompanySearchResult) => void;
   onImportReset: () => void;
 }) {
   const [importParseResult, setImportParseResult] = useState<ImportParseResult | null>(null);
@@ -123,6 +125,7 @@ export function useImportWorkflow({
       if (activeCompanyIdRef.current !== requestCompanyId) {
         return;
       }
+      onImportApproved(requestCompany);
       reset();
       setWorkspaceMode('valuation');
       setImportStatus('approved');
@@ -137,6 +140,7 @@ export function useImportWorkflow({
     }
   }, [
     importParseResult,
+    onImportApproved,
     reset,
     scenarioAssumptions,
     selectCompany,

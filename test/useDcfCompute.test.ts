@@ -125,6 +125,68 @@ const jsonResponse = (payload: unknown) =>
     headers: { "Content-Type": "application/json" },
   });
 
+test('uses filing currency for provenance when listing currency differs', () => {
+  const result = normalizeDcfComputeResponse({ base: { valuation: { fairValuePerShare: 100 } }, sensitivity: { values: [[100]] } }, 'base', {
+    symbol: 'TEST', currency: 'USD', filingCurrency: 'EUR',
+    statements: [{ period_end: '2025-12-31', period_type: 'FY', revenue: 500_000, shares_outstanding: 1000 }],
+  });
+  expect(result.provenance.currency).toBe('EUR');
+});
+
+test('normalizes the same reported currency for provenance and compute inputs', () => {
+  const result = normalizeDcfComputeResponse(COMPUTE_PAYLOAD, 'base', {
+    ...FACTS_PAYLOAD, filingCurrency: ' ', currency: '',
+    statements: FACTS_PAYLOAD.statements.map((statement) => ({ ...statement, currency: ' eur ' })),
+  });
+  expect(result.provenance.currency).toBe('EUR');
+});
+
+describe('value bridge normalization', () => {
+  test('reads snake_case bridge fields and sums signed discounted cash flows', () => {
+    const result = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: {
+        valuation: { fair_value_per_share: 30.94 },
+        trace: {
+          discounting: { pv_fcff: [-31.8, -31.8], pv_terminal: 413 },
+          bridge: { cash: 10, debt: 50, equity_value: 309.4, shares_outstanding: 10 },
+        },
+      },
+    }, 'base');
+    expect(result.valueBridge).toEqual({
+      pvExplicit: -63.6, pvTerminal: 413, cash: 10, debt: 50, equity: 309.4, sharesOutstanding: 10,
+    });
+  });
+
+  test('prefers valuation totals and supports camelCase trace fields', () => {
+    const result = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: {
+        valuation: { fairValuePerShare: 42, pvFcff: 100, pvTerminal: 400, equityValue: 460 },
+        trace: { discounting: { pvFcff: [1, 2] }, bridge: { cash: 10, debt: 50, sharesOutstanding: 10 } },
+      },
+    }, 'base');
+    expect(result.valueBridge).toEqual({
+      pvExplicit: 100, pvTerminal: 400, cash: 10, debt: 50, equity: 460, sharesOutstanding: 10,
+    });
+  });
+
+  test('keeps zero totals and leaves absent or invalid bridge data undefined', () => {
+    expect(normalizeDcfComputeResponse(COMPUTE_PAYLOAD, 'base').valueBridge).toBeUndefined();
+    const withZero = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: { valuation: { fairValuePerShare: 0, pv_fcff: 0, pv_terminal: 0 }, trace: { bridge: { cash: 0, debt: 0, equity_value: 0, shares_outstanding: 10 } } },
+    }, 'base');
+    expect(withZero.valueBridge?.pvExplicit).toBe(0);
+    expect(withZero.valueBridge?.equity).toBe(0);
+    const invalid = normalizeDcfComputeResponse({
+      ...COMPUTE_PAYLOAD,
+      base: { valuation: { fairValuePerShare: 42 }, trace: { discounting: { pv_fcff: [null, NaN, Infinity] } } },
+    }, 'base');
+    expect(invalid.valueBridge).toBeUndefined();
+  });
+});
+
 function setup(debounceMs = 10) {
   const refs = createComputeRefs();
   let isLoading = false;
@@ -260,6 +322,85 @@ describe("useDcfCompute concurrency", () => {
     expect(result.fairValue).toBe(42);
     expect(result.range).toEqual([30, 55]);
     expect(getIsLoading()).toBe(false);
+  });
+
+  test("a completed result carries the inputs captured before debounce and later edits", async () => {
+    const inputs = structuredClone(INPUTS);
+    const expectedInputs = structuredClone(inputs);
+    let postedGrowth: number | undefined;
+    let factsUrl = "";
+    globalThis.fetch = mock(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        factsUrl = String(url);
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      postedGrowth = JSON.parse(String(init?.body)).base.revenueGrowth;
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+
+    const { compute, getResult } = setup();
+    const pending = compute(inputs);
+    inputs.symbol = "MSFT";
+    inputs.assumptions.base.revenueGrowth = 12.5;
+    const result = await pending;
+
+    expect(factsUrl).toBe("/api/company/facts?symbol=AAPL");
+    expect(postedGrowth).toBe(0.1);
+    expect(result.computedInputs).toEqual(expectedInputs);
+    expect(getResult()).toBe(result);
+  });
+
+  test("a failed edit preserves only the previous successful result and its input snapshot", async () => {
+    let fail = false;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      return fail
+        ? new Response(JSON.stringify({ message: "Engine unavailable" }), { status: 503 })
+        : jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, getResult } = setup();
+    const original = await compute(INPUTS);
+    fail = true;
+    const edited = structuredClone(INPUTS);
+    edited.assumptions.base.revenueGrowth = 12.5;
+    await expect(compute(edited)).rejects.toThrow("Engine unavailable");
+    expect(getResult()).toBe(original);
+    expect(getResult().computedInputs.assumptions.base.revenueGrowth).toBe(10);
+    fail = false;
+    const retried = await compute(edited);
+    expect(getResult()).toBe(retried);
+    expect(retried.computedInputs?.assumptions.base.revenueGrowth).toBe(12.5);
+  });
+
+  test("an older response cannot replace the newer result or its saved assumptions", async () => {
+    let releaseOld!: () => void;
+    let oldStarted!: () => void;
+    const started = new Promise<void>((resolve) => { oldStarted = resolve; });
+    let calls = 0;
+    globalThis.fetch = mock(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith("/api/company/facts")) {
+        return jsonResponse(FACTS_PAYLOAD);
+      }
+      calls += 1;
+      if (calls === 1) {
+        oldStarted();
+        // Deliberately ignore abort to simulate a late response from the old request.
+        await new Promise<void>((resolve) => { releaseOld = resolve; });
+      }
+      return jsonResponse(COMPUTE_PAYLOAD);
+    }) as any;
+    const { compute, getResult } = setup(0);
+    const old = compute(INPUTS);
+    await started;
+    const edited = structuredClone(INPUTS);
+    edited.assumptions.base.revenueGrowth = 12.5;
+    const latest = await compute(edited);
+    releaseOld();
+    await old;
+    expect(getResult()).toBe(latest);
+    expect(getResult().computedInputs.assumptions.base.revenueGrowth).toBe(12.5);
   });
 
   test("uses signed browser facts route for imported non-SEC listings when a context token exists", async () => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CompanySearchResult } from '@/lib/contracts/company';
 import type { CoverageFilter, WorkspaceMode } from '@/lib/dashboard/viewModel';
 import { resolveActiveCompany, type RailVariant } from '@/lib/hooks/useWorkbenchViewState';
+import { markRecentCompanyReady, readRecentCompanies, rememberRecentCompany } from '@/lib/lab/recentCompanies';
 import { mockDatasets } from '@/lib/workbench/mockData';
 
 const getCompanySearchSymbol = (company: CompanySearchResult): string | null => {
@@ -14,7 +15,7 @@ const getCompanySearchSymbol = (company: CompanySearchResult): string | null => 
 const getCompanySearchId = (company: CompanySearchResult, symbol: string): string =>
   company.id ?? `search:${symbol}`;
 
-const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageState']): WorkspaceMode => {
+export const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageState']): WorkspaceMode => {
   if (coverageState === 'import_required') {
     return 'import';
   }
@@ -23,6 +24,69 @@ const workspaceModeForCoverage = (coverageState: CompanySearchResult['coverageSt
   }
   return 'valuation';
 };
+
+export function companyDiscoveryBootstrapFromUrl(
+  pathname: string,
+  search: string,
+): { kind: 'listing'; listingId: string } | { kind: 'search'; query: string } | null {
+  const params = new URLSearchParams(search);
+  if (pathname === '/workbench') {
+    const listingId = params.get('listingId')?.trim();
+    if (listingId) {
+      return { kind: 'listing', listingId };
+    }
+  }
+  const query = params.get('company-search')?.trim() ?? params.get('symbol')?.trim();
+  return query ? { kind: 'search', query } : null;
+}
+
+export async function applyLatestRequest<T>(
+  requestId: number,
+  currentRequestId: () => number,
+  request: () => Promise<T>,
+  onSuccess: (result: T) => void,
+  onError: () => void,
+): Promise<void> {
+  let result: T;
+  try {
+    result = await request();
+  } catch {
+    if (requestId === currentRequestId()) {
+      onError();
+    }
+    return;
+  }
+  if (requestId === currentRequestId()) {
+    onSuccess(result);
+  }
+}
+
+export function applyLatestSearchSelection<T>(
+  requestId: number,
+  currentRequestId: () => number,
+  request: () => Promise<T[] | null>,
+  choose: (results: T[]) => T | null,
+  onSelect: (result: T) => void,
+  onEmpty: () => void,
+): Promise<void> {
+  return applyLatestRequest(
+    requestId,
+    currentRequestId,
+    request,
+    (results) => {
+      if (results === null) {
+        return;
+      }
+      const selected = choose(results);
+      if (selected !== null) {
+        onSelect(selected);
+      } else {
+        onEmpty();
+      }
+    },
+    () => undefined,
+  );
+}
 
 export function useCompanyDiscovery({
   isDemoMode,
@@ -45,39 +109,28 @@ export function useCompanyDiscovery({
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>('all');
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('valuation');
   const [recentCompanies, setRecentCompanies] = useState<CompanySearchResult[]>([]);
+  const recentCompaniesRef = useRef<CompanySearchResult[]>([]);
 
   const searchRequestIdRef = useRef(0);
   const detailRequestIdRef = useRef(0);
   const didBootstrapUrlSearchRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const raw = window.localStorage.getItem('dcf-dashboard:recent-companies');
-    if (!raw) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        setRecentCompanies(parsed.filter((item): item is CompanySearchResult => {
-          return Boolean(item && typeof item === 'object' && 'id' in item && 'symbol' in item);
-        }).slice(0, 8));
-      }
-    } catch {
-      setRecentCompanies([]);
-    }
+    const recent = readRecentCompanies();
+    recentCompaniesRef.current = recent;
+    setRecentCompanies(recent);
   }, []);
 
   const rememberCompany = useCallback((company: CompanySearchResult) => {
-    setRecentCompanies((current) => {
-      const next = [company, ...current.filter((item) => item.id !== company.id)].slice(0, 8);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('dcf-dashboard:recent-companies', JSON.stringify(next));
-      }
-      return next;
-    });
+    const next = rememberRecentCompany(company, recentCompaniesRef.current);
+    recentCompaniesRef.current = next;
+    setRecentCompanies(next);
+  }, []);
+
+  const markCompanyReady = useCallback((company: CompanySearchResult) => {
+    const next = markRecentCompanyReady(company, recentCompaniesRef.current);
+    recentCompaniesRef.current = next;
+    setRecentCompanies(next);
   }, []);
 
   const applyCompanySelection = useCallback(
@@ -103,28 +156,34 @@ export function useCompanyDiscovery({
 
   const handleSelectSearchResult = useCallback(
     (company: CompanySearchResult) => {
+      const detailRequestId = ++detailRequestIdRef.current;
+      searchRequestIdRef.current += 1;
       if (!applyCompanySelection(company)) {
         return;
       }
-      const detailRequestId = detailRequestIdRef.current + 1;
-      detailRequestIdRef.current = detailRequestId;
-      void fetch(`/api/company/detail?id=${encodeURIComponent(company.id)}`)
-        .then(async (detailResponse) => (detailResponse.ok ? detailResponse.json() : null))
-        .then((detail: CompanySearchResult | null) => {
-          if (detailRequestId === detailRequestIdRef.current && detail?.id === company.id) {
+      void applyLatestRequest(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        async () => {
+          const response = await fetch(`/api/company/detail?id=${encodeURIComponent(company.id)}`);
+          return response.ok ? (await response.json()) as CompanySearchResult : null;
+        },
+        (detail) => {
+          if (detail?.id === company.id) {
             setCompanyDetail(detail);
             setSelectedSearchCompany(detail);
             rememberCompany(detail);
             setWorkspaceMode(workspaceModeForCoverage(detail.coverageState));
           }
-        })
-        .catch(() => undefined);
+        },
+        () => undefined,
+      );
     },
     [applyCompanySelection, rememberCompany],
   );
 
   const fetchSearchResults = useCallback(
-    async (query: string, limit: number): Promise<CompanySearchResult[]> => {
+    async (query: string, limit: number): Promise<CompanySearchResult[] | null> => {
       const normalizedQuery = query.trim();
       if (!normalizedQuery) {
         setSearchResults([]);
@@ -172,7 +231,7 @@ export function useCompanyDiscovery({
           results?: CompanySearchResult[];
         };
         if (requestId !== searchRequestIdRef.current) {
-          return [];
+          return null;
         }
         if (!response.ok) {
           throw new Error(payload.message ?? `Search failed (${response.status})`);
@@ -182,13 +241,13 @@ export function useCompanyDiscovery({
         return results;
       } catch (searchError) {
         if (requestId !== searchRequestIdRef.current) {
-          return [];
+          return null;
         }
         setSearchResults([]);
         setSearchFeedback(
           searchError instanceof Error ? searchError.message : 'Company search failed.',
         );
-        return [];
+        return null;
       } finally {
         if (requestId === searchRequestIdRef.current) {
           setIsSearching(false);
@@ -201,6 +260,7 @@ export function useCompanyDiscovery({
   const handleSearchPreview = useCallback(
     async (query: string) => {
       const normalizedQuery = query.trim();
+      detailRequestIdRef.current += 1;
       if (normalizedQuery.length < 2) {
         searchRequestIdRef.current += 1;
         setSearchResults([]);
@@ -222,16 +282,17 @@ export function useCompanyDiscovery({
       }
 
       setSearchFeedback('Searching companies...');
-      const candidates = await fetchSearchResults(normalizedQuery, 10);
-      const company =
-        coverageFilter === 'all'
-          ? candidates.find((item) => item.coverageState === 'valuation_ready') ?? candidates[0]
-          : candidates.find((item) => item.coverageState === coverageFilter);
-      if (!company) {
-        setSearchFeedback(`No matching company found for "${normalizedQuery}".`);
-        return;
-      }
-      handleSelectSearchResult(company);
+      const detailRequestId = ++detailRequestIdRef.current;
+      await applyLatestSearchSelection(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        () => fetchSearchResults(normalizedQuery, 10),
+        (candidates) => coverageFilter === 'all'
+          ? candidates.find((item) => item.coverageState === 'valuation_ready') ?? candidates[0] ?? null
+          : candidates.find((item) => item.coverageState === coverageFilter) ?? null,
+        handleSelectSearchResult,
+        () => setSearchFeedback(`No matching company found for "${normalizedQuery}".`),
+      );
     },
     [coverageFilter, fetchSearchResults, handleSelectSearchResult],
   );
@@ -241,13 +302,36 @@ export function useCompanyDiscovery({
       return;
     }
 
-    const params = new URLSearchParams(window.location.search);
-    const initialQuery = params.get('company-search')?.trim() ?? params.get('symbol')?.trim();
-    if (!initialQuery) {
+    const bootstrap = companyDiscoveryBootstrapFromUrl(window.location.pathname, window.location.search);
+    if (!bootstrap) {
       return;
     }
 
     didBootstrapUrlSearchRef.current = true;
+    if (bootstrap.kind === 'listing') {
+      const detailRequestId = ++detailRequestIdRef.current;
+      setSearchFeedback('Loading company details…');
+      setWorkspaceMode('detail');
+      void applyLatestRequest(
+        detailRequestId,
+        () => detailRequestIdRef.current,
+        async () => {
+          const response = await fetch(`/api/company/detail?id=${encodeURIComponent(bootstrap.listingId)}`);
+          return response.ok ? (await response.json()) as CompanySearchResult : null;
+        },
+        (company) => {
+          if (company?.id === bootstrap.listingId) {
+            applyCompanySelection(company);
+          } else {
+            setSearchFeedback('Could not load details for this listing.');
+          }
+        },
+        () => setSearchFeedback('Could not load details for this listing.'),
+      );
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
     params.delete('company-search');
     const nextSearch = params.toString();
     window.history.replaceState(
@@ -255,23 +339,23 @@ export function useCompanyDiscovery({
       '',
       `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
     );
-    void handleSearch(initialQuery);
-  }, [handleSearch]);
+    void handleSearch(bootstrap.query);
+  }, [applyCompanySelection, handleSearch]);
 
   const handleSelectCompany = useCallback(
     (id: string, source: RailVariant) => {
       const company = isDemoMode ? resolveActiveCompany(mockDatasets, id) : null;
       const recent = recentCompanies.find((item) => item.id === id) ?? null;
+      const detailRequestId = ++detailRequestIdRef.current;
+      searchRequestIdRef.current += 1;
       if (!isDemoMode && recent) {
-        const detailRequestId = detailRequestIdRef.current + 1;
-        detailRequestIdRef.current = detailRequestId;
         onCompanyChange();
         void (async () => {
           let selected = recent;
           try {
             const response = await fetch(`/api/company/detail?id=${encodeURIComponent(recent.id)}`);
             const detail = (await response.json().catch(() => null)) as CompanySearchResult | null;
-            if (response.ok && detail && detailRequestId === detailRequestIdRef.current && detail.id === recent.id) {
+            if (response.ok && detail && detail.id === recent.id && detailRequestId === detailRequestIdRef.current) {
               selected = detail;
               rememberCompany(detail);
             }
@@ -325,6 +409,7 @@ export function useCompanyDiscovery({
     workspaceMode,
     setWorkspaceMode,
     recentCompanies,
+    markCompanyReady,
     handleSearch,
     handleSearchPreview,
     handleSelectSearchResult,
