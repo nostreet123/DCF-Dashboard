@@ -162,6 +162,8 @@ test.describe('live Lab', () => {
     const requests = await liveFixtures(page);
     await page.goto('/?ticker=MSFT&rerun=1');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Microsoft');
+    await expect.poll(() => requests.symbols).toEqual(['MSFT']);
+    await expect.poll(() => requests.count()).toBe(1);
     expect(requests.symbols).toEqual(['MSFT']);
     expect(requests.count()).toBe(1);
   });
@@ -269,9 +271,12 @@ test.describe('live Lab', () => {
         return [url.searchParams.get('ticker'), url.searchParams.get('listingId')];
       }).toEqual([ticker, `import:${ticker}`]);
       await expect(page.getByRole('heading', { level: 1 })).toContainText(ticker === 'NVDA' ? 'NVIDIA' : 'Microsoft');
+      await expect.poll(() => importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
       expect(importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
       await page.reload();
       await expect(page.getByRole('heading', { level: 1 })).toContainText(ticker === 'NVDA' ? 'NVIDIA' : 'Microsoft');
+      await expect.poll(() => importedFactsReads).toHaveLength(2);
+      await expect.poll(() => importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
       expect(importedFactsReads.at(-1)).toEqual({ listingId: `import:${ticker}`, token: 'context-token' });
       expect(importedFactsReads).toHaveLength(2);
       expect(requests.symbols).toEqual([]);
