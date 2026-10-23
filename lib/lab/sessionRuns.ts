@@ -95,6 +95,7 @@ export function findSessionRun(id: string | null | undefined): SessionMemoRun | 
 function sameCase(left: SessionMemoRun, right: SessionMemoRun): boolean {
   return (
     left.ticker === right.ticker &&
+    left.listingId === right.listingId &&
     left.scenario === right.scenario &&
     JSON.stringify(left.assumptions) === JSON.stringify(right.assumptions)
   );
