@@ -187,7 +187,11 @@ test.describe('live Lab', () => {
       });
     });
     await page.route('**/api/dcf/history**', (route) => {
-      historyRequests.push(route.request().url());
+      const url = new URL(route.request().url());
+      historyRequests.push(url.toString());
+      if (url.pathname === '/api/dcf/history/browser') {
+        return route.fulfill({ json: { runs: [] } });
+      }
       return route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
     });
     await page.goto('/library');
