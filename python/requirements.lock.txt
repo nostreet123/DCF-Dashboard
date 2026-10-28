@@ -261,9 +261,9 @@ et-xmlfile==2.0.0 \
     # via
     #   -c python/constraints.txt
     #   openpyxl
-fastapi==0.141.1 \
-    --hash=sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3 \
-    --hash=sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1
+fastapi==0.149.0 \
+    --hash=sha256:aba5779358d0c5233759ddcddd84fe7269d71f775fd754b653b608f770558a41 \
+    --hash=sha256:fc4a5cf7e14f607a48eb1ab98147e9140943e88ccd0c8791d72c0a89b1159a35
     # via
     #   -c python/constraints.txt
     #   -r python/requirements.txt
