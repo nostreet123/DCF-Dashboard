@@ -23,7 +23,7 @@ openpyxl==3.1.5
 packaging==26.3
 pandas==3.0.6
 pluggy==1.6.0
-pydantic==2.12.5
+pydantic==2.14.1
 pydantic_core==2.41.5
 pypdf==6.21.2
 pytest==9.1.1
