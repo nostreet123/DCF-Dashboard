@@ -41,17 +41,17 @@ def _cached_sec_company_facts_for_bucket(symbol: str, ttl_bucket: int) -> EdgarC
     return fetch_company_facts(symbol)
 
 
-def _cached_sec_company_facts(symbol: str) -> EdgarCompanyFacts:
+def get_cached_sec_company_facts(symbol: str) -> EdgarCompanyFacts:
     ttl_bucket = int(time.time() // SEC_FACTS_CACHE_TTL_SECONDS)
     return _cached_sec_company_facts_for_bucket(symbol, ttl_bucket)
 
 
-_cached_sec_company_facts.cache_clear = _cached_sec_company_facts_for_bucket.cache_clear  # type: ignore[attr-defined]
+get_cached_sec_company_facts.cache_clear = _cached_sec_company_facts_for_bucket.cache_clear  # type: ignore[attr-defined]
 
 
 def _sec_coverage_for_symbol(symbol: str) -> tuple[str, str]:
     try:
-        facts = _cached_sec_company_facts(symbol)
+        facts = get_cached_sec_company_facts(symbol)
     except (RuntimeError, ValueError, requests.RequestException):
         return (
             "import_required",
