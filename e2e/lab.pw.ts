@@ -72,6 +72,28 @@ test.describe('live Lab', () => {
     expect(requests.count()).toBe(4);
   });
 
+  test('Library waits for the current search before showing an empty result', async ({ page }) => {
+    let completeSearch = () => {};
+    const pendingSearch = new Promise<void>((resolve) => { completeSearch = resolve; });
+    await page.route('**/api/company/search?**', async (route) => {
+      await pendingSearch;
+      await route.fulfill({ json: { results: [] } });
+    });
+    await page.goto('/library');
+    const search = page.getByRole('searchbox', { name: 'Search companies' });
+    const empty = page.getByText('Nothing in the library matches “AAPL”.', { exact: true });
+    await search.fill('A');
+    await expect(page.getByText(/Nothing in the library matches/)).toHaveCount(0);
+    await search.fill('AAPL');
+    try {
+      await expect(page.getByRole('status')).toHaveText('Searching companies…');
+      await expect(empty).toHaveCount(0);
+    } finally {
+      completeSearch();
+    }
+    await expect(empty).toBeVisible();
+  });
+
   test('a failed URL company search keeps its error instead of showing no matches', async ({ page }) => {
     await liveFixtures(page);
     let searchRequests = 0;
