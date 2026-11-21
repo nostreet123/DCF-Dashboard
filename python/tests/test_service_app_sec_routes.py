@@ -68,7 +68,7 @@ def test_sec_facts_wraps_requests_exception(
     def raise_requests_error(_: str):
         raise requests.RequestException("timeout")
 
-    monkeypatch.setattr(service_app, "fetch_company_facts", raise_requests_error)
+    monkeypatch.setattr(service_app, "get_cached_sec_company_facts", raise_requests_error)
 
     response = client.get("/sec/facts", params={"symbol": "AAPL"})
     assert response.status_code == 500
@@ -81,7 +81,7 @@ def test_sec_facts_keeps_not_found_mapping(
     def raise_unknown_ticker(_: str):
         raise ValueError("Unknown ticker: BAD")
 
-    monkeypatch.setattr(service_app, "fetch_company_facts", raise_unknown_ticker)
+    monkeypatch.setattr(service_app, "get_cached_sec_company_facts", raise_unknown_ticker)
 
     response = client.get("/sec/facts", params={"symbol": "BAD"})
     assert response.status_code == 404
