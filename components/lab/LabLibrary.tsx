@@ -74,10 +74,12 @@ function LiveLibrary() {
   const sessionRuns = useSyncExternalStore(subscribeSessionRuns, readSessionRuns, getServerSessionRuns);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('all');
-  const [results, setResults] = useState<CompanySearchResult[]>([]);
+  const [completedSearch, setCompletedSearch] = useState<{
+    query: string;
+    results: CompanySearchResult[];
+    error: string | null;
+  } | null>(null);
   const [recent, setRecent] = useState<CompanySearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const trimmed = query.trim();
 
   useEffect(() => {
@@ -86,16 +88,10 @@ function LiveLibrary() {
 
   useEffect(() => {
     if (trimmed.length < 2) {
-      setResults([]);
-      setSearching(false);
-      setFeedback(null);
       return;
     }
-    setResults([]);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
-      setSearching(true);
-      setFeedback(null);
       void fetch(`/api/company/search?q=${encodeURIComponent(trimmed)}&limit=20`, {
         method: 'GET',
         signal: controller.signal,
@@ -108,18 +104,17 @@ function LiveLibrary() {
           if (!response.ok) {
             throw new Error(payload.message ?? `Search failed (${response.status})`);
           }
-          setResults(payload.results ?? []);
+          if (!controller.signal.aborted) {
+            setCompletedSearch({ query: trimmed, results: payload.results ?? [], error: null });
+          }
         })
         .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            return;
-          }
-          setResults([]);
-          setFeedback(error instanceof Error ? error.message : 'Company search failed.');
-        })
-        .finally(() => {
           if (!controller.signal.aborted) {
-            setSearching(false);
+            setCompletedSearch({
+              query: trimmed,
+              results: [],
+              error: error instanceof Error ? error.message : 'Company search failed.',
+            });
           }
         });
     }, 250);
@@ -129,7 +124,10 @@ function LiveLibrary() {
     };
   }, [trimmed]);
 
-  const source = trimmed.length >= 2 ? results : recent;
+  const validQuery = trimmed.length >= 2;
+  const currentSearch = completedSearch?.query === trimmed ? completedSearch : null;
+  const searching = validQuery && currentSearch === null;
+  const source = validQuery ? currentSearch?.results ?? [] : recent;
   const companies = source.map((company) => {
     const entry = companyFromSearch(company);
     const latest = findSessionRunForCompany(sessionRuns, entry.id, entry.ticker);
@@ -149,13 +147,19 @@ function LiveLibrary() {
       query={query}
       trimmed={trimmed}
       filter={filter}
-      onQuery={setQuery}
+      onQuery={(value) => {
+        if (value.trim() !== trimmed) {
+          setCompletedSearch(null);
+        }
+        setQuery(value);
+      }}
       onFilter={setFilter}
       footer="Search uses the same company coverage as the valuation engine. For financial modeling and education only; not investment advice."
       hrefFor={libraryMemoHref}
       actionFor={libraryAction}
       linkAction={() => true}
-      status={searching ? 'Searching companies…' : feedback}
+      status={searching ? 'Searching companies…' : currentSearch?.error}
+      canShowEmpty={validQuery}
       emptyPrompt={trimmed.length < 2 ? 'Search by ticker or name. Recent companies you have opened show up here.' : null}
       onOpen={(company) => {
         const match = source.find((item) => item.id === company.id);
@@ -184,6 +188,7 @@ function LibraryPage({
   linkAction,
   status,
   emptyPrompt,
+  canShowEmpty = true,
   onOpen,
 }: {
   lede: string;
@@ -202,6 +207,7 @@ function LibraryPage({
   linkAction: (company: LabCompany) => boolean;
   status?: string | null;
   emptyPrompt?: string | null;
+  canShowEmpty?: boolean;
   onOpen?: (company: LabCompany) => void;
 }) {
   return (
@@ -253,7 +259,7 @@ function LibraryPage({
             <span className={styles.hideSmall}>Last memo</span>
             <span>Status</span>
           </div>
-          {status ? <p className={styles.emptyCopy}>{status}</p> : null}
+          {status ? <p role="status" className={styles.emptyCopy}>{status}</p> : null}
           {shown.map((company) => {
             const action = actionFor(company);
             const href = hrefFor(company);
@@ -275,7 +281,7 @@ function LibraryPage({
               </div>
             );
           })}
-          {shown.length === 0 && trimmed.length > 0 && !status ? (
+          {shown.length === 0 && canShowEmpty && trimmed.length > 0 && !status ? (
             <div className={styles.empty}>
               <span className={styles.emptyTitle}>Nothing in the library matches “{trimmed}”.</span>
               <span className={styles.emptyCopy}>

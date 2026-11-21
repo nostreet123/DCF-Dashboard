@@ -72,10 +72,12 @@ const readSymbolFromBody = async (request: Request): Promise<string | null> => {
   }
 };
 
-const fetchFacts = async (symbol: string): Promise<EdgarFacts> => {
+const SEC_FACTS_TIMEOUT_MS = 15_000;
+
+const fetchFacts = async (symbol: string, signal?: AbortSignal): Promise<EdgarFacts> => {
   return fetchDcfEngine<EdgarFacts>(
     `/sec/facts?symbol=${encodeURIComponent(symbol)}`,
-    { method: "GET" },
+    { method: "GET", signal },
   );
 };
 
@@ -321,8 +323,20 @@ export async function GET(request: Request) {
         409,
       );
     }
-    const facts = await fetchFacts(symbol);
-    return noStoreJson(facts);
+    const timeout = AbortSignal.timeout(SEC_FACTS_TIMEOUT_MS);
+    try {
+      const facts = await fetchFacts(symbol, AbortSignal.any([request.signal, timeout]));
+      return noStoreJson(facts);
+    } catch (error) {
+      if (timeout.aborted) {
+        return errorResponse(
+          "EDGAR_TIMEOUT",
+          "Company statements took too long to load. Please try again.",
+          504,
+        );
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Company facts fetch failed", error);
     const status = error instanceof DcfEngineHttpError ? error.status : 502;

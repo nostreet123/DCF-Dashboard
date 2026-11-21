@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
-import { companyShortName, forecastPeriodPhrase, LAB_PATHS } from '@/lib/lab/presentation';
-import { MODEL_FORECAST_YEARS } from '@/lib/workbench/factsPayload';
+import { companyShortName, LAB_PATHS } from '@/lib/lab/presentation';
 import styles from './states.module.css';
 
 export function ComputingMemo({
@@ -29,20 +28,7 @@ export function ComputingMemo({
         <div className={`${styles.bar} ${styles.barWide}`} />
         <div className={`${styles.bar} ${styles.barMid}`} />
         <div className={`${styles.bar} ${styles.barShort}`} />
-        <div className={styles.steps}>
-          <span className={styles.step}>
-            <span className={styles.dot} />
-            Statements loaded
-          </span>
-          <span className={styles.step}>
-            <span className={styles.dot} />
-            Projecting {forecastPeriodPhrase(MODEL_FORECAST_YEARS)}
-          </span>
-          <span className={`${styles.step} ${styles.stepPending}`}>
-            <span className={`${styles.dot} ${styles.dotPending}`} />
-            Discounting and sensitivity
-          </span>
-        </div>
+        <p className={styles.copy}>Retrieving financial statements and calculating the valuation.</p>
       </div>
     </section>
   );

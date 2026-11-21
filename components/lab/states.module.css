@@ -80,37 +80,6 @@
   width: 71%;
 }
 
-.steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  padding-top: 8px;
-  color: var(--ink-2);
-  font-size: 14px;
-}
-
-.step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stepPending {
-  color: var(--ink-3);
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.dotPending {
-  background: transparent;
-  border: 1.5px solid var(--ink-3);
-}
-
 .title {
   max-width: 760px;
   margin: 0;

@@ -12,7 +12,7 @@ from dcf_engine.service.sec_edgar_models import (
 
 @pytest.fixture(autouse=True)
 def clear_sec_coverage_cache() -> None:
-    official_markets._cached_sec_company_facts.cache_clear()
+    official_markets.get_cached_sec_company_facts.cache_clear()
 
 
 def test_sec_search_marks_missing_shares_as_import_required(
@@ -210,10 +210,10 @@ def test_sec_companyfacts_cache_expires_by_ttl_bucket(monkeypatch) -> None:
     monkeypatch.setattr(official_markets.time, "time", lambda: 100.0)
     monkeypatch.setattr(official_markets, "fetch_company_facts", fetch_facts)
 
-    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 1
-    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 1
+    assert official_markets.get_cached_sec_company_facts("AAPL").updated_at == 1
+    assert official_markets.get_cached_sec_company_facts("AAPL").updated_at == 1
     monkeypatch.setattr(official_markets.time, "time", lambda: 111.0)
-    assert official_markets._cached_sec_company_facts("AAPL").updated_at == 2
+    assert official_markets.get_cached_sec_company_facts("AAPL").updated_at == 2
     assert calls == ["AAPL", "AAPL"]
 
 

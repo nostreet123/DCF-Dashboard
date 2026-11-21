@@ -27,9 +27,10 @@ from dcf_engine.service.company_contracts import (
 )
 from dcf_engine.service.official_markets import (
     fetch_official_detail,
+    get_cached_sec_company_facts,
     search_official_companies,
 )
-from dcf_engine.service.sec_edgar import fetch_company_facts, search_companies
+from dcf_engine.service.sec_edgar import search_companies
 from dcf_engine.service.statement_import import parse_import_payload
 from dcf_engine.workbench.run import run_workbench
 from dcf_engine.workbench.schema import WorkbenchRequest, WorkbenchResponse
@@ -266,7 +267,7 @@ def sec_facts(
     _: None = Depends(require_internal_request),
 ) -> object:
     try:
-        return fetch_company_facts(symbol)
+        return get_cached_sec_company_facts(symbol.strip().upper())
     except ValueError as exc:
         logger.warning("Unknown ticker requested: %s", symbol)
         raise HTTPException(status_code=404, detail=SEC_FACTS_NOT_FOUND_DETAIL) from exc
