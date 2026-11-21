@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createHash } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 
@@ -100,6 +100,30 @@ describe("company facts route auth boundaries", () => {
       }),
     );
     expect(response.status).toBe(400);
+  });
+
+  test("GET returns a retryable gateway timeout when the SEC facts call expires", async () => {
+    const timeout = AbortSignal.abort(new DOMException("Timed out", "TimeoutError"));
+    const timeoutMock = spyOn(AbortSignal, "timeout").mockReturnValue(timeout);
+    try {
+      globalThis.fetch = createMockFetch(async (_input, init) => {
+        expect(init?.signal?.aborted).toBe(true);
+        throw init?.signal?.reason;
+      });
+
+      const response = await GET(new Request("http://localhost/api/company/facts?symbol=AAPL", {
+        headers: { "x-vercel-forwarded-for": "203.0.113.40" },
+      }));
+
+      expect(timeoutMock).toHaveBeenCalledWith(15_000);
+      expect(response.status).toBe(504);
+      expect(await response.json()).toMatchObject({
+        code: "EDGAR_TIMEOUT",
+        message: "Company statements took too long to load. Please try again.",
+      });
+    } finally {
+      timeoutMock.mockRestore();
+    }
   });
 
   test("POST rejects unauthorized persistence requests", async () => {
